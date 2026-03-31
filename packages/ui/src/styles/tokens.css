@@ -1,0 +1,24 @@
+:root {
+  color-scheme: light;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  --color-surface-lowest: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-surface-low: #f1f4f6;
+  --color-surface-container: #eaeff1;
+  --color-surface-high: #e3e9ec;
+  --color-surface-highest: #dbe4e7;
+  --color-on-surface: #2b3437;
+  --color-on-surface-variant: #586064;
+  --color-outline-ghost: rgba(171, 179, 183, 0.2);
+  --color-primary: #6042d6;
+  --color-primary-dim: #5433c9;
+  --color-primary-container: #e6deff;
+  --note-default: #ffffff;
+  --note-yellow: #fff5bf;
+  --note-blue: #dfeafe;
+  --note-pink: #fbe3f1;
+  --note-green: #dff5e2;
+  --note-purple: #ece2ff;
+  --canvas-grid-major: rgba(96, 66, 214, 0.08);
+  --canvas-grid-minor: rgba(43, 52, 55, 0.04);
+}

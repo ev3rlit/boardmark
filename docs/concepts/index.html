@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Minimal Canvas Viewer</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Font: Manrope -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface": "#f8f9fa",
+              "secondary-fixed-dim": "#d7d3d8",
+              "inverse-primary": "#937dff",
+              "tertiary-dim": "#4e516c",
+              "surface-bright": "#f8f9fa",
+              "on-tertiary": "#faf8ff",
+              "error-dim": "#4f0116",
+              "on-tertiary-container": "#4b4e69",
+              "on-primary": "#fbf6ff",
+              "primary": "#6042d6",
+              "secondary-dim": "#545256",
+              "error-container": "#ff8b9a",
+              "on-error": "#fff7f7",
+              "surface-container-lowest": "#ffffff",
+              "surface-tint": "#6042d6",
+              "secondary-container": "#e6e1e6",
+              "on-primary-fixed": "#4015b6",
+              "on-secondary-container": "#535155",
+              "on-error-container": "#782232",
+              "on-tertiary-fixed-variant": "#545873",
+              "on-secondary-fixed": "#403f42",
+              "primary-fixed-dim": "#d8ceff",
+              "outline-variant": "#abb3b7",
+              "error": "#9e3f4e",
+              "on-secondary-fixed-variant": "#5d5b5f",
+              "on-primary-container": "#5332c9",
+              "secondary": "#605e62",
+              "surface-container-highest": "#dbe4e7",
+              "on-surface-variant": "#586064",
+              "primary-dim": "#5433c9",
+              "tertiary-container": "#dbdefe",
+              "surface-dim": "#d1dce0",
+              "surface-container-high": "#e3e9ec",
+              "tertiary": "#5a5d78",
+              "on-background": "#2b3437",
+              "on-secondary": "#fcf7fc",
+              "inverse-surface": "#0c0f10",
+              "inverse-on-surface": "#9b9d9e",
+              "tertiary-fixed-dim": "#cdd0ef",
+              "secondary-fixed": "#e6e1e6",
+              "tertiary-fixed": "#dbdefe",
+              "background": "#f8f9fa",
+              "on-primary-fixed-variant": "#5d3fd3",
+              "surface-container-low": "#f1f4f6",
+              "surface-container": "#eaeff1",
+              "on-surface": "#2b3437",
+              "surface-variant": "#dbe4e7",
+              "primary-fixed": "#e6deff",
+              "primary-container": "#e6deff",
+              "outline": "#737c7f",
+              "on-tertiary-fixed": "#383c55"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .canvas-grid {
+            background-color: #f8f9fa;
+            background-image: radial-gradient(#abb3b7 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+        }
+        .curator-overlap {
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="font-body text-on-surface bg-surface overflow-hidden">
+<!-- Canvas Workspace -->
+<main class="relative w-screen h-screen canvas-grid cursor-crosshair">
+<!-- Brand Indicator (Minimalist Anchor) -->
+<div class="fixed top-8 left-10 z-20">
+<h1 class="font-headline font-black text-2xl tracking-tighter text-on-surface">Minimal <span class="text-primary">Canvas</span></h1>
+<p class="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold">Unrestricted Space</p>
+</div>
+<!-- Scattered Canvas Elements -->
+<!-- Element: Sticky Note (Pastel Checklist) -->
+<div class="absolute top-[15%] left-[20%] w-64 p-6 bg-[#fffde7] rotate-[-2deg] shadow-lg rounded-sm curator-overlap transition-transform hover:scale-105 duration-300">
+<h3 class="font-headline font-bold text-lg mb-4 text-[#795548]">Project Tasks</h3>
+<ul class="space-y-3">
+<li class="flex items-center gap-3 text-sm text-[#795548]/80">
+<span class="material-symbols-outlined text-primary scale-75" style="font-variation-settings: 'FILL' 1;">check_box</span>
+<span>Refine color palette</span>
+</li>
+<li class="flex items-center gap-3 text-sm text-[#795548]/80">
+<span class="material-symbols-outlined text-primary scale-75">check_box_outline_blank</span>
+<span>Export SVGs</span>
+</li>
+<li class="flex items-center gap-3 text-sm text-[#795548]/80">
+<span class="material-symbols-outlined text-primary scale-75">check_box_outline_blank</span>
+<span>Client review</span>
+</li>
+</ul>
+</div>
+<!-- Element: Geometric Shapes -->
+<div class="absolute top-[40%] right-[25%]">
+<!-- Triangle -->
+<svg class="drop-shadow-sm opacity-80 hover:opacity-100 transition-opacity" height="120" viewbox="0 0 100 100" width="120">
+<polygon fill="none" points="50,15 90,85 10,85" stroke="#6042d6" stroke-linejoin="round" stroke-width="4"></polygon>
+</svg>
+</div>
+<div class="absolute top-[10%] right-[15%]">
+<!-- Circle -->
+<div class="w-32 h-32 rounded-full bg-primary/10 border-4 border-primary/40 flex items-center justify-center backdrop-blur-sm">
+<span class="material-symbols-outlined text-primary text-4xl">category</span>
+</div>
+</div>
+<!-- Element: Image Landscape (Editorial Curator Style) -->
+<div class="absolute bottom-[25%] left-[10%] w-80 group">
+<div class="bg-surface-container-highest p-2 rounded-lg shadow-xl overflow-hidden">
+<img alt="Minimalist landscape" class="w-full h-48 object-cover rounded-md grayscale hover:grayscale-0 transition-all duration-700" data-alt="cinematic shot of misty alpine mountains at dawn with soft ethereal lighting and cool blue tones in a high-end editorial style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSJT7HQYK_OfimQ0XhPZzYwCW8r9VJLbEdUCQoZyQEYNJKNMlJGceZyMWcwid5IgbNa0ckZe-trg4nF5bVeqG7kVChUN67580QZSHZulkWhTGPNHfoYLow0FjJATo9n21JxN9rifNAZPLNCeCAxYaN6h9J7Vf4DYgWmKei1Q5yMkRrshHdcaMmFQrucUktp_pH_Ii_N-9nE93HDkBsvKX5SpjWYEValVfeavsNc2xWg7qs5HHZFW4zhua-9SiaRSZK0l9VVgQSlx0"/>
+</div>
+<div class="mt-4 px-2">
+<span class="font-label text-[10px] text-on-surface-variant font-black tracking-widest uppercase">Reference 01</span>
+<p class="font-headline font-bold text-on-surface leading-tight">Nordic Horizon Moodboard</p>
+</div>
+</div>
+<!-- Element: Code Snippet -->
+<div class="absolute top-[55%] left-[45%] w-96 bg-inverse-surface p-5 rounded-xl shadow-2xl font-mono text-sm curator-overlap">
+<div class="flex gap-1.5 mb-4">
+<div class="w-3 h-3 rounded-full bg-error"></div>
+<div class="w-3 h-3 rounded-full bg-secondary"></div>
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+</div>
+<code class="text-inverse-on-surface">
+<span class="text-primary-fixed">const</span> <span class="text-inverse-primary">canvas</span> = () =&gt; {<br/>
+                  return <span class="text-primary-fixed">new</span> UI.Canvas({<br/>
+                    theme: <span class="text-on-primary-fixed-variant">'luminous'</span>,<br/>
+                    grid: <span class="text-primary-fixed">true</span><br/>
+                  });<br/>
+                };
+            </code>
+</div>
+<!-- Element: Floating Active Cursor Indicator -->
+<div class="absolute top-[48%] left-[22%] pointer-events-none z-30 flex items-center gap-2">
+<span class="material-symbols-outlined text-on-primary-fixed-variant" style="font-variation-settings: 'FILL' 1;">near_me</span>
+<div class="bg-on-primary-fixed-variant text-on-primary font-label text-[10px] px-2 py-1 rounded shadow-lg">Designer Jack</div>
+</div>
+</main>
+<!-- Floating Navigation Shell (BottomNavBar) -->
+<!-- Applying Shared Components JSON Logic -->
+<nav class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl px-6 py-3 w-fit min-w-[320px] shadow-[0_20px_40px_rgba(43,52,55,0.06)] no-border">
+<!-- Select (Active State Mapping) -->
+<button class="flex flex-col items-center justify-center bg-violet-600 text-white rounded-xl p-3 scale-110 transition-all duration-300 hover:bg-slate-100 dark:hover:bg-slate-800 Active: scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">near_me</span>
+<span class="font-manrope text-[10px] font-bold uppercase tracking-wider mt-1">Select</span>
+</button>
+<!-- Draw -->
+<button class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors Active: scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined">edit</span>
+<span class="font-manrope text-[10px] font-bold uppercase tracking-wider mt-1">Draw</span>
+</button>
+<!-- Text -->
+<button class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors Active: scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined">title</span>
+<span class="font-manrope text-[10px] font-bold uppercase tracking-wider mt-1">Text</span>
+</button>
+<!-- Shapes -->
+<button class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors Active: scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined">category</span>
+<span class="font-manrope text-[10px] font-bold uppercase tracking-wider mt-1">Shapes</span>
+</button>
+<!-- Layers -->
+<button class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors Active: scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined">layers</span>
+<span class="font-manrope text-[10px] font-bold uppercase tracking-wider mt-1">Layers</span>
+</button>
+</nav>
+<!-- Contextual Action (FAB) - Suppressed as per Detail/Focused screen logic, but if needed for tool creation: -->
+<!-- Excluded based on UX Goal of focus -->
+</body></html>

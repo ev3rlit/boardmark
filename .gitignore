@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-electron
+.vite
+coverage
+.agents
+.impeccable.md
+skills-lock.json
+untitled.canvas.md
