@@ -135,6 +135,50 @@ describe('browser document bridge', () => {
     expect(receivedSource).toContain('Changed on disk')
     dispose?.()
   })
+
+  it('logs external file refresh failures instead of ignoring them silently', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    window.showOpenFilePicker = vi.fn(async () => [openHandle])
+
+    let shouldFail = false
+    const bridge = createBrowserDocumentBridge({
+      readFileText: async () => {
+        if (shouldFail) {
+          throw new Error('Read failed on focus.')
+        }
+
+        return uploadedSource
+      }
+    })
+    const openResult = await bridge.persistence.openDocument()
+
+    if (!openResult.ok) {
+      throw new Error('Expected persisted open result.')
+    }
+
+    const dispose = await bridge.persistence.subscribeExternalChanges?.({
+      locator: openResult.value.locator,
+      fileHandle: openResult.value.fileHandle,
+      onExternalChange() {}
+    })
+
+    shouldFail = true
+    window.dispatchEvent(new Event('focus'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(consoleWarn).toHaveBeenCalledWith(
+      '[boardmark] Browser bridge could not refresh an opened file after window focus.',
+      expect.objectContaining({
+        locator: 'browser-file-0/opened.canvas.md',
+        message: 'Read failed on focus.'
+      })
+    )
+
+    dispose?.()
+    consoleWarn.mockRestore()
+  })
 })
 
 function createFileHandle(name: string, source: string | (() => string)) {

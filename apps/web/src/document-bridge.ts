@@ -12,6 +12,7 @@ import {
   type CanvasMemoryDocumentLocator
 } from '@boardmark/canvas-repository'
 import type { CanvasDocumentPersistenceBridge } from '@boardmark/canvas-app'
+import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 
 type BrowserDocumentBridgeOptions = {
   rootDocument?: Document
@@ -50,6 +51,7 @@ export function createBrowserDocumentBridge(
   const persistence: CanvasDocumentPersistenceBridge = {
     async openDocument() {
       if (!rootWindow.showOpenFilePicker) {
+        logCanvasDiagnostic('error', 'Browser bridge could not open a file because the File System Access API is unavailable.')
         return unsupportedPickerResult('open-failed', 'File System Access API is not available.')
       }
 
@@ -64,6 +66,10 @@ export function createBrowserDocumentBridge(
       )
 
       if (!handlesResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge openDocument failed before a file handle was resolved.', {
+          code: handlesResult.error.code,
+          message: handlesResult.error.message
+        })
         return handlesResult
       }
 
@@ -83,6 +89,11 @@ export function createBrowserDocumentBridge(
       })
 
       if (!permissionResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge could not obtain file permissions for openDocument.', {
+          fileName: fileHandle.name,
+          code: permissionResult.error.code,
+          message: permissionResult.error.message
+        })
         return permissionResult
       }
 
@@ -93,6 +104,11 @@ export function createBrowserDocumentBridge(
       })
 
       if (!fileResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge could not read the selected file handle.', {
+          fileName: fileHandle.name,
+          code: fileResult.error.code,
+          message: fileResult.error.message
+        })
         return fileResult
       }
 
@@ -117,6 +133,9 @@ export function createBrowserDocumentBridge(
 
     async saveDocument(input) {
       if (!input.fileHandle) {
+        logCanvasDiagnostic('error', 'Browser bridge could not save because no file handle is attached.', {
+          locator: describeLocator(input.locator)
+        })
         return unsupportedPickerResult('save-failed', 'No writable file handle is attached.')
       }
 
@@ -127,6 +146,11 @@ export function createBrowserDocumentBridge(
       })
 
       if (!writeResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge failed to write the current source to an existing file handle.', {
+          fileName: input.fileHandle.name,
+          code: writeResult.error.code,
+          message: writeResult.error.message
+        })
         return writeResult
       }
 
@@ -153,6 +177,7 @@ export function createBrowserDocumentBridge(
 
     async saveDocumentAs(input) {
       if (!rootWindow.showSaveFilePicker) {
+        logCanvasDiagnostic('error', 'Browser bridge could not open saveDocumentAs because the File System Access API is unavailable.')
         return unsupportedPickerResult('save-failed', 'File System Access API is not available.')
       }
 
@@ -167,6 +192,10 @@ export function createBrowserDocumentBridge(
       )
 
       if (!handleResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge saveDocumentAs failed before a writable file handle was resolved.', {
+          code: handleResult.error.code,
+          message: handleResult.error.message
+        })
         return handleResult
       }
 
@@ -178,6 +207,11 @@ export function createBrowserDocumentBridge(
       })
 
       if (!permissionResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge could not obtain file permissions for saveDocumentAs.', {
+          fileName: fileHandle.name,
+          code: permissionResult.error.code,
+          message: permissionResult.error.message
+        })
         return permissionResult
       }
 
@@ -188,6 +222,11 @@ export function createBrowserDocumentBridge(
       })
 
       if (!writeResult.ok) {
+        logCanvasDiagnostic('error', 'Browser bridge failed to write the current source during saveDocumentAs.', {
+          fileName: fileHandle.name,
+          code: writeResult.error.code,
+          message: writeResult.error.message
+        })
         return writeResult
       }
 
@@ -223,6 +262,12 @@ export function createBrowserDocumentBridge(
         })
 
         if (!sourceResult.ok) {
+          logCanvasDiagnostic('warn', 'Browser bridge could not refresh an opened file after window focus.', {
+            locator: locator.path,
+            fileName: fileHandle.name,
+            code: sourceResult.error.code,
+            message: sourceResult.error.message
+          })
           return
         }
 
@@ -406,6 +451,9 @@ export function createBrowserDocumentBridge(
 
       async save(input) {
         if (input.locator.kind !== 'file') {
+          logCanvasDiagnostic('error', 'Browser bridge repository.save received a non-file locator.', {
+            locator: describeLocator(input.locator)
+          })
           return {
             ok: false,
             error: unsupportedSave(input.locator)
@@ -415,6 +463,9 @@ export function createBrowserDocumentBridge(
         const stored = fileSources.get(input.locator.path)
 
         if (!stored) {
+          logCanvasDiagnostic('error', 'Browser bridge repository.save could not find a persisted file source entry.', {
+            locator: input.locator.path
+          })
           return {
             ok: false,
             error: unsupportedSave(input.locator)
@@ -428,6 +479,10 @@ export function createBrowserDocumentBridge(
         })
 
         if (!writeResult.ok) {
+          logCanvasDiagnostic('error', 'Browser bridge repository.save failed to write a persisted file.', {
+            locator: input.locator.path,
+            message: writeResult.error.message
+          })
           return writeResult
         }
 

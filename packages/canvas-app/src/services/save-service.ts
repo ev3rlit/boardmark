@@ -5,6 +5,7 @@ import type {
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
+import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 import {
   createCanvasDocumentState,
   type CanvasDocumentState
@@ -391,6 +392,13 @@ async function runSave({
   documentState: CanvasDocumentState
   mode: CanvasDocumentSaveMode
 }): Promise<CanvasDocumentSaveResult> {
+  logCanvasDiagnostic('debug', 'Starting canvas document save.', {
+    locator: describeLocator(documentState.locator),
+    isPersisted: documentState.isPersisted,
+    hasFileHandle: Boolean(documentState.fileHandle),
+    sourceLength: documentState.currentSource.length
+  })
+
   if (documentPersistenceBridge) {
     const persistResult = documentState.isPersisted
       ? await documentPersistenceBridge.saveDocument({
@@ -406,13 +414,23 @@ async function runSave({
         })
 
     if (!persistResult.ok) {
-      if (persistResult.error.code === 'cancelled') {
+      logCanvasDiagnostic('error', 'Canvas persistence bridge failed to save the current source.', {
+        locator: describeLocator(documentState.locator),
+        isPersisted: documentState.isPersisted,
+        code: persistResult.error.code,
+        message: persistResult.error.message
+      })
+
+      if (persistResult.error.code === 'cancelled' && !documentState.isPersisted) {
         return { status: 'cancelled' }
       }
 
       return {
         status: 'error',
-        message: persistResult.error.message
+        message:
+          persistResult.error.code === 'cancelled'
+            ? 'The browser did not grant write access to the opened file.'
+            : persistResult.error.message
       }
     }
 
@@ -423,11 +441,20 @@ async function runSave({
     })
 
     if (!recordResult.ok) {
+      logCanvasDiagnostic('error', 'Canvas repository could not reparse a just-saved source.', {
+        locator: describeLocator(persistResult.value.locator),
+        message: recordResult.error.message
+      })
       return {
         status: 'error',
         message: recordResult.error.message
       }
     }
+
+    logCanvasDiagnostic('debug', 'Canvas document save completed through persistence bridge.', {
+      locator: describeLocator(recordResult.value.locator),
+      path: recordResult.value.name
+    })
 
     return {
       status: 'saved',
@@ -452,6 +479,12 @@ async function runSave({
       : await documentPicker.pickSaveLocator(document.name)
 
   if (!locatorResult.ok) {
+    logCanvasDiagnostic('error', 'Canvas save could not resolve a writable locator.', {
+      locator: describeLocator(documentState.locator),
+      code: locatorResult.error.code,
+      message: locatorResult.error.message
+    })
+
     if (locatorResult.error.code === 'cancelled') {
       return { status: 'cancelled' }
     }
@@ -469,11 +502,20 @@ async function runSave({
   })
 
   if (!saveResult.ok) {
+    logCanvasDiagnostic('error', 'Canvas repository save failed.', {
+      locator: describeLocator(locatorResult.value),
+      message: saveResult.error.message
+    })
     return {
       status: 'error',
       message: saveResult.error.message
     }
   }
+
+  logCanvasDiagnostic('debug', 'Canvas document save completed through repository save.', {
+    locator: describeLocator(saveResult.value.locator),
+    path: saveResult.value.name
+  })
 
   return {
     status: 'saved',

@@ -4,6 +4,7 @@ import {
   type CanvasDocumentEditIntent,
   type CanvasDocumentEditService
 } from '@canvas-app/services/edit-service'
+import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 import { createCanvasDocumentState, type CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 import type { CanvasConflictState, CanvasInvalidState } from '@canvas-app/store/canvas-store-types'
 
@@ -42,7 +43,18 @@ export function createCanvasEditingService({
 }: CanvasEditingServiceOptions): CanvasEditingService {
   return {
     async applyIntent(context, intent) {
+      logCanvasDiagnostic('debug', 'Applying canvas edit intent.', {
+        intentKind: intent.kind,
+        locator: context.document?.locator.kind === 'file'
+          ? context.document.locator.path
+          : context.document?.locator.key,
+        isPersisted: context.documentState?.isPersisted ?? false
+      })
+
       if (!context.document || !context.documentState || !context.draftSource) {
+        logCanvasDiagnostic('warn', 'Canvas edit intent blocked because no editable document is loaded.', {
+          intentKind: intent.kind
+        })
         return {
           status: 'blocked',
           message: 'No editable document is loaded.'
@@ -50,6 +62,10 @@ export function createCanvasEditingService({
       }
 
       if (context.invalidState.status === 'invalid') {
+        logCanvasDiagnostic('warn', 'Canvas edit intent blocked because the draft is invalid.', {
+          intentKind: intent.kind,
+          message: context.invalidState.message
+        })
         return {
           status: 'blocked',
           message: context.invalidState.message
@@ -57,6 +73,9 @@ export function createCanvasEditingService({
       }
 
       if (context.conflictState.status === 'conflict') {
+        logCanvasDiagnostic('warn', 'Canvas edit intent blocked by an external-change conflict.', {
+          intentKind: intent.kind
+        })
         return {
           status: 'blocked',
           message: 'Resolve the external-change conflict before editing again.'
@@ -66,6 +85,10 @@ export function createCanvasEditingService({
       const editResult = editService.apply(context.draftSource, context.document, intent)
 
       if (editResult.isErr()) {
+        logCanvasDiagnostic('error', 'Canvas edit service could not apply an intent.', {
+          intentKind: intent.kind,
+          message: editResult.error.message
+        })
         return {
           status: 'blocked',
           message: editResult.error.message
@@ -87,6 +110,13 @@ export function createCanvasEditingService({
       })
 
       if (!readResult.ok) {
+        logCanvasDiagnostic('error', 'Canvas edit produced source that failed repository reparsing.', {
+          intentKind: intent.kind,
+          locator: context.document.locator.kind === 'file'
+            ? context.document.locator.path
+            : context.document.locator.key,
+          message: readResult.error.message
+        })
         return {
           status: 'invalid',
           documentState: nextDocumentState,

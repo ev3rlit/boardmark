@@ -6,6 +6,7 @@ import {
   MIN_CANVAS_ZOOM,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
+import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 import { createCanvasDocumentRecordPatch, createCanvasInvalidDocumentPatch } from '@canvas-app/store/canvas-store-projection'
 import type {
   CanvasConflictService,
@@ -54,6 +55,9 @@ function applyDocumentCommandResult({
   set: CanvasStoreSetState
 }) {
   if (result.status === 'cancelled') {
+    logCanvasDiagnostic('warn', 'Canvas document command was cancelled.', {
+      phase: result.phase
+    })
     set(
       result.phase === 'save'
         ? {
@@ -67,6 +71,10 @@ function applyDocumentCommandResult({
   }
 
   if (result.status === 'error') {
+    logCanvasDiagnostic('error', 'Canvas document command failed.', {
+      phase: result.phase,
+      message: result.message
+    })
     set(
       result.phase === 'save'
         ? {
@@ -86,6 +94,9 @@ function applyDocumentCommandResult({
   }
 
   if (result.status === 'saved') {
+    logCanvasDiagnostic('debug', 'Canvas document state updated after save.', {
+      path: result.path
+    })
     set(
       createCanvasDocumentRecordPatch(result.record, {
         documentState: result.documentState,
@@ -124,6 +135,9 @@ function applyEditingOutcome({
   set: CanvasStoreSetState
 }) {
   if (outcome.status === 'blocked') {
+    logCanvasDiagnostic('warn', 'Canvas editing outcome was blocked.', {
+      message: outcome.message
+    })
     set({
       operationError: outcome.message
     })
@@ -131,9 +145,18 @@ function applyEditingOutcome({
   }
 
   if (outcome.status === 'invalid') {
+    logCanvasDiagnostic('error', 'Canvas editing produced an invalid document state.', {
+      message: outcome.message
+    })
     set(createCanvasInvalidDocumentPatch(get(), outcome.documentState, outcome.message))
     return
   }
+
+  logCanvasDiagnostic('debug', 'Canvas editing outcome applied to store.', {
+    locator: outcome.record.locator.kind === 'file'
+      ? outcome.record.locator.path
+      : outcome.record.locator.key
+  })
 
   set(
     createCanvasDocumentRecordPatch(outcome.record, {
@@ -250,6 +273,11 @@ async function schedulePersistedAutosave({
   const state = get()
 
   if (!state.document || !state.documentState?.isPersisted || state.conflictState.status === 'conflict') {
+    logCanvasDiagnostic('debug', 'Skipped persisted autosave because the current state is not autosave-eligible.', {
+      hasDocument: Boolean(state.document),
+      isPersisted: state.documentState?.isPersisted ?? false,
+      conflictState: state.conflictState.status
+    })
     return
   }
 
@@ -269,6 +297,10 @@ async function schedulePersistedAutosave({
   })
 
   if (autosaveSequence !== currentSequence) {
+    logCanvasDiagnostic('debug', 'Discarded an outdated autosave result.', {
+      expectedSequence: autosaveSequence,
+      completedSequence: currentSequence
+    })
     return
   }
 
@@ -625,6 +657,11 @@ export function createCanvasCommandSlice(
 
     async commitNodeMove(nodeId, x, y) {
       clearInteractionOverride(set, get, nodeId)
+      logCanvasDiagnostic('debug', 'Committing node move intent from the canvas store.', {
+        nodeId,
+        x,
+        y
+      })
       await commitCanvasIntent({
         controls,
         documentService: services.documentService,
@@ -658,6 +695,13 @@ export function createCanvasCommandSlice(
 
     async commitNodeResize(nodeId, geometry) {
       clearInteractionOverride(set, get, nodeId)
+      logCanvasDiagnostic('debug', 'Committing node resize intent from the canvas store.', {
+        nodeId,
+        x: geometry.x,
+        y: geometry.y,
+        width: geometry.width,
+        height: geometry.height
+      })
       await commitCanvasIntent({
         controls,
         documentService: services.documentService,
@@ -676,6 +720,11 @@ export function createCanvasCommandSlice(
     },
 
     async reconnectEdge(edgeId, from, to) {
+      logCanvasDiagnostic('debug', 'Committing edge reconnect intent from the canvas store.', {
+        edgeId,
+        from,
+        to
+      })
       await commitCanvasIntent({
         controls,
         documentService: services.documentService,
@@ -692,6 +741,10 @@ export function createCanvasCommandSlice(
     },
 
     async createEdgeFromConnection(from, to) {
+      logCanvasDiagnostic('debug', 'Committing edge creation intent from the canvas store.', {
+        from,
+        to
+      })
       await commitCanvasIntent({
         controls,
         documentService: services.documentService,
@@ -897,6 +950,15 @@ export function createCanvasCommandSlice(
               edgeId: state.editingState.edgeId,
               markdown: state.editingState.markdown
             }
+
+      logCanvasDiagnostic('debug', 'Committing inline editing intent from the canvas store.', {
+        editingStatus: state.editingState.status,
+        targetId:
+          state.editingState.status === 'edge'
+            ? state.editingState.edgeId
+            : state.editingState.objectId,
+        markdownLength: state.editingState.markdown.length
+      })
 
       await commitCanvasIntent({
         controls,

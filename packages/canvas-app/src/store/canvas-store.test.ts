@@ -344,6 +344,49 @@ describe('viewer store', () => {
     }
   })
 
+  it('surfaces persisted autosave permission failures instead of swallowing them', async () => {
+    vi.useFakeTimers()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      const persistenceBridge = createPersistenceBridge({
+        saveDocumentResult: {
+          ok: false,
+          error: {
+            code: 'cancelled',
+            message: 'The permission request was cancelled.'
+          }
+        }
+      })
+      const store = createCanvasStore({
+        documentPicker: createPicker(),
+        documentPersistenceBridge: persistenceBridge,
+        documentRepository: createRepository(),
+        templateSource
+      })
+
+      await store.getState().openDocument()
+      await store.getState().commitNodeMove('open', 180, 220)
+      await vi.advanceTimersByTimeAsync(650)
+
+      expect(store.getState().saveState).toEqual({
+        status: 'error',
+        message: 'The browser did not grant write access to the opened file.'
+      })
+      expect(store.getState().isDirty).toBe(true)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[boardmark] Canvas persistence bridge failed to save the current source.',
+        expect.objectContaining({
+          code: 'cancelled',
+          locator: 'browser-file-0/open.canvas.md'
+        })
+      )
+    } finally {
+      consoleError.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not autosave unsaved drafts before a file is attached', async () => {
     vi.useFakeTimers()
 
@@ -389,6 +432,7 @@ function createPicker(): CanvasDocumentPicker {
 }
 
 function createPersistenceBridge(options?: {
+  saveDocumentResult?: Awaited<ReturnType<CanvasDocumentPersistenceBridge['saveDocument']>>
   saveDocumentAsResult?: Awaited<ReturnType<CanvasDocumentPersistenceBridge['saveDocumentAs']>>
   subscribeExternalChanges?: CanvasDocumentPersistenceBridge['subscribeExternalChanges']
 }): CanvasDocumentPersistenceBridge {
@@ -404,17 +448,19 @@ function createPersistenceBridge(options?: {
         source: openedSource
       }
     })),
-    saveDocument: vi.fn(async (input) => ({
-      ok: true as const,
-      value: {
-        locator: {
-          kind: 'file' as const,
-          path: 'browser-file-0/open.canvas.md'
-        },
-        fileHandle: input.fileHandle,
-        source: input.source
+    saveDocument: vi.fn(async (input) =>
+      options?.saveDocumentResult ?? {
+        ok: true as const,
+        value: {
+          locator: {
+            kind: 'file' as const,
+            path: 'browser-file-0/open.canvas.md'
+          },
+          fileHandle: input.fileHandle,
+          source: input.source
+        }
       }
-    })),
+    ),
     saveDocumentAs:
       vi.fn(async (input) =>
         options?.saveDocumentAsResult ?? {
