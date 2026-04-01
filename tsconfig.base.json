@@ -26,6 +26,7 @@
       "@boardmark/canvas-renderer": ["packages/canvas-renderer/src/index.ts"],
       "@boardmark/canvas-app": ["packages/canvas-app/src/index.ts"],
       "@boardmark/canvas-app/*": ["packages/canvas-app/src/*"],
+      "@boardmark/templates": ["packages/templates/src/index.ts"],
       "@boardmark/ui": ["packages/ui/src/index.ts"],
       "@fixtures/*": ["fixtures/*"]
     }

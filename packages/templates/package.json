@@ -1,0 +1,10 @@
+{
+  "name": "@boardmark/templates",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}
