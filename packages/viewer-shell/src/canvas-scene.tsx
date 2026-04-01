@@ -34,11 +34,23 @@ import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { readActiveToolMode, type ViewerStore, type ViewerStoreState } from './viewer-store'
 
 type CanvasSceneProps = {
+  onObjectContextMenu?: (input: {
+    edgeIds: string[]
+    nodeIds: string[]
+    x: number
+    y: number
+  }) => void
+  onPaneContextMenu?: () => void
   store: ViewerStore
   supportsMultiSelect?: boolean
 }
 
-export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneProps) {
+export function CanvasScene({
+  onObjectContextMenu,
+  onPaneContextMenu,
+  store,
+  supportsMultiSelect = false
+}: CanvasSceneProps) {
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
@@ -118,6 +130,7 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => clearSelection()}
+        onPaneContextMenu={() => onPaneContextMenu?.()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
           applyNodeChangesToStore({
@@ -139,6 +152,32 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
         }}
         onNodeDragStop={(_event, node) => {
           void commitNodeMove(node.id, node.position.x, node.position.y)
+        }}
+        onNodeContextMenu={(event, node) => {
+          event.preventDefault()
+
+          const nextNodeIds = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id]
+          replaceSelectedNodes(nextNodeIds)
+          replaceSelectedEdges([])
+          onObjectContextMenu?.({
+            edgeIds: [],
+            nodeIds: nextNodeIds,
+            x: event.clientX,
+            y: event.clientY
+          })
+        }}
+        onEdgeContextMenu={(event, edge) => {
+          event.preventDefault()
+
+          const nextEdgeIds = selectedEdgeIds.includes(edge.id) ? selectedEdgeIds : [edge.id]
+          replaceSelectedNodes([])
+          replaceSelectedEdges(nextEdgeIds)
+          onObjectContextMenu?.({
+            edgeIds: nextEdgeIds,
+            nodeIds: [],
+            x: event.clientX,
+            y: event.clientY
+          })
         }}
         onConnect={(connection) => {
           void handleConnection(connection, createEdgeFromConnection)
@@ -250,6 +289,8 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         minWidth={160}
         minHeight={140}
         color="rgba(96, 66, 214, 0.72)"
+        handleClassName="boardmark-flow__resize-handle"
+        lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
           previewNodeResize(id, resize.width)
         }}

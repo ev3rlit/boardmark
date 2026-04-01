@@ -117,6 +117,10 @@ button {
   margin-left: 0.25rem;
 }
 
+.viewer-control-button--pending {
+  color: color-mix(in oklab, var(--color-on-surface-variant) 84%, white);
+}
+
 .viewer-control-icon {
   height: 1.4rem;
   width: 1.4rem;
@@ -149,6 +153,78 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.viewer-context-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 14rem;
+  overflow: hidden;
+  border-radius: 1.1rem;
+  background: color-mix(in oklab, var(--color-surface-lowest) 96%, white);
+  padding: 0.35rem;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 18px 36px rgba(43, 52, 55, 0.1);
+  outline: 1px solid var(--color-outline-ghost);
+}
+
+.viewer-context-menu-section + .viewer-context-menu-section {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid color-mix(in oklab, var(--color-outline-ghost) 72%, transparent);
+}
+
+.viewer-context-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.9rem;
+  background: transparent;
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  color: var(--color-on-surface);
+  transition:
+    background-color 150ms,
+    color 150ms,
+    transform 150ms;
+}
+
+.viewer-context-menu-item:hover {
+  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--color-primary) 8%, white);
+}
+
+.viewer-context-menu-item:active {
+  transform: translateY(1px);
+}
+
+.viewer-context-menu-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+
+.viewer-context-menu-item:disabled {
+  cursor: not-allowed;
+  transform: none;
+  color: color-mix(in oklab, var(--color-on-surface-variant) 82%, white);
+}
+
+.viewer-context-menu-item:disabled:hover {
+  background: transparent;
+}
+
+.viewer-context-menu-icon {
+  height: 1rem;
+  width: 1rem;
+  flex-shrink: 0;
+  color: var(--color-primary);
+  stroke-width: 2.15;
+}
+
+.viewer-context-menu-item:disabled .viewer-context-menu-icon {
+  color: var(--color-on-surface-variant);
+}
+
 .boardmark-flow {
   background:
     radial-gradient(circle at top left, rgba(96, 66, 214, 0.08), transparent 28%),
@@ -178,6 +254,38 @@ button {
   pointer-events: none;
   border: 0;
   background: transparent;
+}
+
+.boardmark-flow__resize-handle {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-surface-lowest) 92%, white);
+  border: 0;
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--color-primary) 22%, transparent),
+    0 10px 20px rgba(43, 52, 55, 0.12);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.boardmark-flow__resize-handle:hover {
+  transform: scale(1.06);
+  background: color-mix(in oklab, var(--color-surface-lowest) 96%, white);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--color-primary) 26%, transparent),
+    0 14px 24px rgba(43, 52, 55, 0.14);
+}
+
+.boardmark-flow__resize-handle:active {
+  transform: scale(0.98);
+}
+
+.boardmark-flow__resize-line {
+  border-color: color-mix(in oklab, var(--color-primary) 24%, transparent);
+  border-width: 2px;
 }
 
 .markdown-content {
