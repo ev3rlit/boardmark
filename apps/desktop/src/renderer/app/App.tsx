@@ -1,8 +1,17 @@
 import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
 import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
-import { ViewerShell, createViewerStore, type ViewerStore } from '@boardmark/viewer-shell'
+import {
+  ViewerShell,
+  createViewerStore,
+  type ViewerDocumentPersistenceBridge,
+  type ViewerStore
+} from '@boardmark/viewer-shell'
 
-const fallbackBridge: BoardmarkDocumentBridge =
+type DesktopDocumentBridge = BoardmarkDocumentBridge & {
+  persistence?: ViewerDocumentPersistenceBridge
+}
+
+const fallbackBridge: DesktopDocumentBridge =
   typeof window !== 'undefined' && window.boardmarkDocument
     ? window.boardmarkDocument
     : {
@@ -44,11 +53,35 @@ const fallbackBridge: BoardmarkDocumentBridge =
               message: 'Desktop bridge unavailable. Restart the app and try again.'
             }
           })
+        },
+        persistence: {
+          openDocument: async () => ({
+            ok: false as const,
+            error: {
+              code: 'open-failed' as const,
+              message: 'Desktop persistence bridge unavailable. Restart the app and try again.'
+            }
+          }),
+          saveDocument: async () => ({
+            ok: false as const,
+            error: {
+              code: 'save-failed' as const,
+              message: 'Desktop persistence bridge unavailable. Restart the app and try again.'
+            }
+          }),
+          saveDocumentAs: async () => ({
+            ok: false as const,
+            error: {
+              code: 'save-failed' as const,
+              message: 'Desktop persistence bridge unavailable. Restart the app and try again.'
+            }
+          })
         }
       }
 
 export const defaultViewerStore = createViewerStore({
   documentPicker: fallbackBridge.picker,
+  documentPersistenceBridge: fallbackBridge.persistence,
   documentRepository: fallbackBridge.repository,
   templateSource: defaultTemplateSource
 })

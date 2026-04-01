@@ -3,7 +3,7 @@ import type {
   CanvasDocumentPicker,
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
-import type { CanvasAST } from '@boardmark/canvas-domain'
+import { createCanvasMarkdownDocumentRepository } from '@boardmark/canvas-repository'
 import type { ViewerDocumentPersistenceBridge } from './document-session'
 import { createViewerStore } from './viewer-store'
 
@@ -45,7 +45,7 @@ Opened Board
 Next
 :::
 
-::: edge #open-next from=open to=next kind=curve
+::: edge #open-next from=open to=ghost kind=curve
 broken flow
 :::`
 
@@ -203,6 +203,74 @@ describe('viewer store', () => {
       name: 'dropped.canvas.md'
     })
   })
+
+  it('commits geometry edits through repository reparsing and keeps draft dirty state', async () => {
+    const repository = createRepository()
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: repository,
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMove('welcome', 140, 160)
+
+    expect(repository.readSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: expect.stringContaining('::: note #welcome x=140 y=160')
+      })
+    )
+    expect(store.getState().draftSource).toContain('::: note #welcome x=140 y=160')
+    expect(store.getState().isDirty).toBe(true)
+  })
+
+  it('switches to conflict state when external source changes arrive over a dirty draft', async () => {
+    const externalChangeRef: { current: null | ((source: string) => void) } = {
+      current: null
+    }
+    const persistenceBridge = createPersistenceBridge({
+      subscribeExternalChanges: async ({ onExternalChange }) => {
+        externalChangeRef.current = onExternalChange
+        return () => {
+          externalChangeRef.current = null
+        }
+      }
+    })
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentPersistenceBridge: persistenceBridge,
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().openDocument()
+    await store.getState().commitNodeMove('open', 180, 220)
+    if (externalChangeRef.current) {
+      externalChangeRef.current(openedSource.replace('Opened Board', 'Disk Changed'))
+    }
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(store.getState().conflictState.status).toBe('conflict')
+  })
+
+  it('keeps the last parsed document when a patch produces invalid source', async () => {
+    const repository = createRepository({
+      failOnSource: 'x=NaN'
+    })
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: repository,
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMove('welcome', Number.NaN, 120)
+
+    expect(store.getState().invalidState.status).toBe('invalid')
+    expect(store.getState().lastParsedDocument?.ast.nodes[0]?.id).toBe('welcome')
+    expect(store.getState().nodes[0]?.id).toBe('welcome')
+  })
 })
 
 function createPicker(): CanvasDocumentPicker {
@@ -226,6 +294,7 @@ function createPicker(): CanvasDocumentPicker {
 
 function createPersistenceBridge(options?: {
   saveDocumentAsResult?: Awaited<ReturnType<ViewerDocumentPersistenceBridge['saveDocumentAs']>>
+  subscribeExternalChanges?: ViewerDocumentPersistenceBridge['subscribeExternalChanges']
 }): ViewerDocumentPersistenceBridge {
   return {
     openDocument: vi.fn(async () => ({
@@ -263,64 +332,86 @@ function createPersistenceBridge(options?: {
             source: input.source
           }
         }
-      )
+      ),
+    subscribeExternalChanges:
+      options?.subscribeExternalChanges ?? vi.fn(async () => () => {})
   }
 }
 
-function createRepository(): CanvasDocumentRepositoryGateway {
+function createRepository(options?: { failOnSource?: string }): CanvasDocumentRepositoryGateway {
+  const repository = createCanvasMarkdownDocumentRepository()
+
   return {
-    readSource: vi.fn(async ({ locator, source, isTemplate }) => ({
-      ok: true as const,
-      value: {
-        locator,
-        name: locator.kind === 'file' ? locator.path.split('/').at(-1) ?? 'saved.canvas.md' : locator.name,
-        source,
-        ast: readAst(source.includes('Opened Board') ? 'Opened Board' : 'Boardmark Viewer'),
-        issues: source.includes('Opened Board')
-          ? [
-              {
-                level: 'warning' as const,
-                kind: 'invalid-edge' as const,
-                message: 'Broken edge skipped.',
-                line: 17
-              }
-            ]
-          : [],
-        isTemplate
-      }
-    })),
-    read: vi.fn(async (locator) => ({
-      ok: true as const,
-      value: {
-        locator,
-        name: 'open.canvas.md',
-        source: openedSource,
-        ast: readAst('Opened Board', {
-          x: 40,
-          y: 18,
-          zoom: 1.2
-        }),
-        issues: [
-          {
-            level: 'warning' as const,
-            kind: 'invalid-edge' as const,
-            message: 'Broken edge skipped.',
-            line: 17
+    readSource: vi.fn(async ({ locator, source, isTemplate }) => {
+      if (options?.failOnSource && source.includes(options.failOnSource)) {
+        return {
+          ok: false as const,
+          error: {
+            kind: 'parse-failed' as const,
+            message: 'Canvas repository could not parse "broken.canvas.md": invalid geometry'
           }
-        ],
-        isTemplate: false
+        }
       }
+
+      const recordResult = repository.readSource({
+        locator,
+        source,
+        isTemplate
+      })
+
+      if (recordResult.isErr()) {
+        return {
+          ok: false as const,
+          error: recordResult.error
+        }
+      }
+
+      return {
+        ok: true as const,
+        value: recordResult.value
+      }
+    }),
+    read: vi.fn(async (locator) => ({
+      ...(function () {
+        const recordResult = repository.readSource({
+          locator,
+          source: openedSource,
+          isTemplate: false
+        })
+
+        if (recordResult.isErr()) {
+          return {
+            ok: false as const,
+            error: recordResult.error
+          }
+        }
+
+        return {
+          ok: true as const,
+          value: recordResult.value
+        }
+      })()
     })),
     save: vi.fn(async ({ locator, source, isTemplate }) => ({
-      ok: true as const,
-      value: {
-        locator,
-        name: locator.kind === 'file' ? locator.path.split('/').at(-1) ?? 'saved.canvas.md' : locator.name,
-        source,
-        ast: readAst(source.includes('Opened Board') ? 'Opened Board' : 'Boardmark Viewer'),
-        issues: [],
-        isTemplate
-      }
+      ...(function () {
+        const recordResult = repository.readSource({
+          locator,
+          source,
+          isTemplate
+        })
+
+        if (recordResult.isErr()) {
+          return {
+            ok: false as const,
+            error: recordResult.error
+          }
+        }
+
+        return {
+          ok: true as const,
+          value: recordResult.value
+        }
+      })()
     }))
   }
 }
@@ -339,58 +430,4 @@ function createFileHandle(name: string): FileSystemFileHandle {
       return new File([''], name, { type: 'text/markdown' })
     }
   } as unknown as FileSystemFileHandle
-}
-
-function readAst(
-  title: string,
-  viewport = {
-    x: -180,
-    y: -120,
-    zoom: 0.92
-  }
-): CanvasAST {
-  return {
-    frontmatter: {
-      type: 'canvas',
-      version: 1,
-      viewport
-    },
-    nodes: [
-      {
-        id: title === 'Opened Board' ? 'open' : 'welcome',
-        type: 'note',
-        x: 80,
-        y: 72,
-        content: title,
-        position: {
-          start: { line: 1, offset: 0 },
-          end: { line: 3, offset: 12 }
-        }
-      },
-      {
-        id: 'overview',
-        type: 'note',
-        x: 380,
-        y: 72,
-        content: 'Overview',
-        position: {
-          start: { line: 5, offset: 0 },
-          end: { line: 7, offset: 12 }
-        }
-      }
-    ],
-    edges: [
-      {
-        id: title === 'Opened Board' ? 'open-next' : 'welcome-overview',
-        from: title === 'Opened Board' ? 'open' : 'welcome',
-        to: 'overview',
-        kind: 'curve',
-        content: title === 'Opened Board' ? 'broken flow' : 'main thread',
-        position: {
-          start: { line: 9, offset: 0 },
-          end: { line: 11, offset: 12 }
-        }
-      }
-    ]
-  }
 }

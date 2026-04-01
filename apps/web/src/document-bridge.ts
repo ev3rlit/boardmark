@@ -188,6 +188,43 @@ export function createBrowserDocumentBridge(
           source: input.source
         }
       }
+    },
+
+    subscribeExternalChanges({ locator, fileHandle, onExternalChange }) {
+      if (locator.kind !== 'file' || !fileHandle) {
+        return () => {}
+      }
+
+      const handleFocus = async () => {
+        const sourceResult = await readHandleSource({
+          fileHandle,
+          fallbackMessage: `Could not read "${fileHandle.name}".`,
+          readFileText
+        })
+
+        if (!sourceResult.ok) {
+          return
+        }
+
+        const persisted = fileSources.get(locator.path)
+
+        if (persisted?.source === sourceResult.value) {
+          return
+        }
+
+        fileSources.set(locator.path, {
+          fileHandle,
+          locator,
+          source: sourceResult.value
+        })
+        onExternalChange(sourceResult.value)
+      }
+
+      rootWindow.addEventListener('focus', handleFocus)
+
+      return () => {
+        rootWindow.removeEventListener('focus', handleFocus)
+      }
     }
   }
 

@@ -26,16 +26,47 @@ type ViewerShellProps = {
 
 export function ViewerShell({ store, capabilities }: ViewerShellProps) {
   const document = useStore(store, (state) => state.document)
+  const deleteSelection = useStore(store, (state) => state.deleteSelection)
   const openDroppedDocument = useStore(store, (state) => state.openDroppedDocument)
   const setDropActive = useStore(store, (state) => state.setDropActive)
   const setDropError = useStore(store, (state) => state.setDropError)
   const isDropActive = useStore(store, (state) => state.dropState.status === 'active')
+  const editingState = useStore(store, (state) => state.editingState)
 
   useEffect(() => {
     if (!document) {
       void store.getState().hydrateTemplate()
     }
   }, [document, store])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (editingState.status !== 'idle') {
+        return
+      }
+
+      const target = event.target
+
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return
+      }
+
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return
+      }
+
+      event.preventDefault()
+      void deleteSelection()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deleteSelection, editingState.status])
 
   const onDropAccepted = useMemo(
     () => async (files: File[]) => {

@@ -13,8 +13,17 @@ export {
   type CanvasDocumentSaveService
 } from './save-service'
 export {
+  createCanvasDocumentEditService,
+  type CanvasDocumentEditError,
+  type CanvasDocumentEditIntent,
+  type CanvasDocumentEditResult,
+  type CanvasDocumentEditService
+} from './edit-service'
+export {
   applyZoomStep,
   createViewerStore,
   type ViewerStore,
+  type ViewerConflictState,
+  type ViewerEditingState,
   type ViewerStoreState
 } from './viewer-store'

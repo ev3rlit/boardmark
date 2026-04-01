@@ -10,16 +10,24 @@ import type {
   CanvasDocumentSaveInput,
   CanvasDocumentSourceInput
 } from '../../../../packages/canvas-repository/src/index'
+import type { ViewerDocumentPersistenceBridge } from '@boardmark/viewer-shell'
 
 const IPC_CHANNELS = {
   pickOpenLocator: 'boardmark/document/pick-open-locator',
   pickSaveLocator: 'boardmark/document/pick-save-locator',
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
-  saveDocument: 'boardmark/document/save'
+  saveDocument: 'boardmark/document/save',
+  subscribeExternalChanges: 'boardmark/document/subscribe-external-changes',
+  unsubscribeExternalChanges: 'boardmark/document/unsubscribe-external-changes',
+  externalChanged: 'boardmark/document/external-changed'
 } as const
 
-const documentBridge: BoardmarkDocumentBridge = {
+type DesktopDocumentBridge = BoardmarkDocumentBridge & {
+  persistence: ViewerDocumentPersistenceBridge
+}
+
+const documentBridge: DesktopDocumentBridge = {
   picker: {
     pickOpenLocator() {
       return ipcRenderer.invoke(
@@ -51,6 +59,142 @@ const documentBridge: BoardmarkDocumentBridge = {
         IPC_CHANNELS.saveDocument,
         input
       ) as Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+    }
+  },
+  persistence: {
+    async openDocument() {
+      const locatorResult = await ipcRenderer.invoke(
+        IPC_CHANNELS.pickOpenLocator
+      ) as AsyncResult<CanvasDocumentLocator, CanvasDocumentPickerError>
+
+      if (!locatorResult.ok) {
+        return locatorResult
+      }
+
+      const readResult = await ipcRenderer.invoke(
+        IPC_CHANNELS.readDocument,
+        locatorResult.value
+      ) as AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>
+
+      if (!readResult.ok) {
+        return {
+          ok: false,
+          error: {
+            code: 'open-failed',
+            message: readResult.error.message
+          }
+        }
+      }
+
+      return {
+        ok: true,
+        value: {
+          locator: readResult.value.locator,
+          fileHandle: null,
+          source: readResult.value.source
+        }
+      }
+    },
+    async saveDocument(input) {
+      const locator =
+        input.locator.kind === 'file'
+          ? input.locator
+          : await ipcRenderer.invoke(
+              IPC_CHANNELS.pickSaveLocator,
+              input.defaultName
+            ) as AsyncResult<CanvasFileDocumentLocator, CanvasDocumentPickerError>
+
+      if ('ok' in locator && !locator.ok) {
+        return locator
+      }
+
+      const nextLocator = 'kind' in locator ? locator : locator.value
+      const saveResult = await ipcRenderer.invoke(
+        IPC_CHANNELS.saveDocument,
+        {
+          locator: nextLocator,
+          source: input.source,
+          isTemplate: false
+        } satisfies CanvasDocumentSaveInput
+      ) as AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>
+
+      if (!saveResult.ok) {
+        return {
+          ok: false,
+          error: {
+            code: 'save-failed',
+            message: saveResult.error.message
+          }
+        }
+      }
+
+      return {
+        ok: true,
+        value: {
+          locator: saveResult.value.locator,
+          fileHandle: null,
+          source: saveResult.value.source
+        }
+      }
+    },
+    async saveDocumentAs(input) {
+      const locatorResult = await ipcRenderer.invoke(
+        IPC_CHANNELS.pickSaveLocator,
+        input.defaultName
+      ) as AsyncResult<CanvasFileDocumentLocator, CanvasDocumentPickerError>
+
+      if (!locatorResult.ok) {
+        return locatorResult
+      }
+
+      const saveResult = await ipcRenderer.invoke(
+        IPC_CHANNELS.saveDocument,
+        {
+          locator: locatorResult.value,
+          source: input.source,
+          isTemplate: false
+        } satisfies CanvasDocumentSaveInput
+      ) as AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>
+
+      if (!saveResult.ok) {
+        return {
+          ok: false,
+          error: {
+            code: 'save-failed',
+            message: saveResult.error.message
+          }
+        }
+      }
+
+      return {
+        ok: true,
+        value: {
+          locator: saveResult.value.locator,
+          fileHandle: null,
+          source: saveResult.value.source
+        }
+      }
+    },
+    async subscribeExternalChanges({ locator, onExternalChange }) {
+      if (locator.kind !== 'file') {
+        return () => {}
+      }
+
+      const subscriptionId = await ipcRenderer.invoke(
+        IPC_CHANNELS.subscribeExternalChanges,
+        locator.path
+      ) as string
+      const eventName = `${IPC_CHANNELS.externalChanged}:${subscriptionId}`
+      const listener = (_event: Electron.IpcRendererEvent, nextSource: string) => {
+        onExternalChange(nextSource)
+      }
+
+      ipcRenderer.on(eventName, listener)
+
+      return () => {
+        ipcRenderer.removeListener(eventName, listener)
+        void ipcRenderer.invoke(IPC_CHANNELS.unsubscribeExternalChanges, subscriptionId)
+      }
     }
   }
 }

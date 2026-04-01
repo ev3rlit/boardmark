@@ -10,11 +10,13 @@ import {
 import { MarkerType, type Edge, type Node, type Viewport } from '@xyflow/react'
 
 export type CanvasFlowNodeData = {
+  id: string
   content: string
   color?: CanvasNodeColor
 }
 
 export type CanvasFlowEdgeData = {
+  id: string
   content?: string
 }
 
@@ -31,6 +33,7 @@ export function toFlowNode(node: CanvasNode): Node<CanvasFlowNodeData> {
     selectable: true,
     connectable: false,
     data: {
+      id: node.id,
       content: node.content,
       color: node.color
     },
@@ -47,13 +50,15 @@ export function toFlowEdge(edge: CanvasEdge): Edge<CanvasFlowEdgeData> {
     source: edge.from,
     target: edge.to,
     animated: false,
-    selectable: false,
-    deletable: false,
+    selectable: true,
+    deletable: true,
+    reconnectable: true,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: 'rgba(96, 66, 214, 0.72)'
     },
     data: {
+      id: edge.id,
       content: edge.content
     }
   }

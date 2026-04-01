@@ -113,7 +113,7 @@ async function runSave({
   mode: CanvasDocumentSaveMode
 }): Promise<CanvasDocumentSaveResult> {
   if (documentPersistenceBridge) {
-    const persistResult = documentSession.fileHandle
+    const persistResult = documentSession.isPersisted
       ? await documentPersistenceBridge.saveDocument({
           defaultName: document.name,
           locator: documentSession.locator,

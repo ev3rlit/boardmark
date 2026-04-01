@@ -8,7 +8,7 @@ type ToolMenuProps = {
 }
 
 export function ToolMenu({ store }: ToolMenuProps) {
-  const { toolMode, setToolMode } = useStore(store)
+  const { createNoteAtViewport, editingState, toolMode, setToolMode } = useStore(store)
 
   return (
     <FloatingPanel className="flex items-center gap-2">
@@ -23,6 +23,12 @@ export function ToolMenu({ store }: ToolMenuProps) {
         onClick={() => setToolMode('pan')}
       >
         Pan
+      </Button>
+      <Button
+        disabled={editingState.status !== 'idle'}
+        onClick={() => void createNoteAtViewport()}
+      >
+        New Note
       </Button>
     </FloatingPanel>
   )

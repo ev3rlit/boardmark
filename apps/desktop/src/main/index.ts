@@ -1,3 +1,4 @@
+import { watch, type FSWatcher } from 'node:fs'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import pino from 'pino'
@@ -15,10 +16,21 @@ const IPC_CHANNELS = {
   pickSaveLocator: 'boardmark/document/pick-save-locator',
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
-  saveDocument: 'boardmark/document/save'
+  saveDocument: 'boardmark/document/save',
+  subscribeExternalChanges: 'boardmark/document/subscribe-external-changes',
+  unsubscribeExternalChanges: 'boardmark/document/unsubscribe-external-changes',
+  externalChanged: 'boardmark/document/external-changed'
 } as const
 
 let mainWindow: BrowserWindow | null = null
+let subscriptionSequence = 0
+const externalWatchers = new Map<
+  string,
+  {
+    watcher: FSWatcher
+    path: string
+  }
+>()
 
 async function createMainWindow() {
   const preloadPath =
@@ -95,6 +107,49 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.saveDocument, async (_event, input) =>
     documentService.saveDocument(input)
   )
+
+  ipcMain.handle(IPC_CHANNELS.subscribeExternalChanges, async (_event, path: string) => {
+    const subscriptionId = `external-${subscriptionSequence}`
+    subscriptionSequence += 1
+
+    const watcher = watch(path, async (eventType) => {
+      if (!mainWindow || eventType !== 'change') {
+        return
+      }
+
+      const readResult = await documentService.readDocument({
+        kind: 'file',
+        path
+      })
+
+      if (!readResult.ok) {
+        return
+      }
+
+      mainWindow.webContents.send(
+        `${IPC_CHANNELS.externalChanged}:${subscriptionId}`,
+        readResult.value.source
+      )
+    })
+
+    externalWatchers.set(subscriptionId, {
+      watcher,
+      path
+    })
+
+    return subscriptionId
+  })
+
+  ipcMain.handle(IPC_CHANNELS.unsubscribeExternalChanges, async (_event, subscriptionId: string) => {
+    const subscription = externalWatchers.get(subscriptionId)
+
+    if (!subscription) {
+      return
+    }
+
+    subscription.watcher.close()
+    externalWatchers.delete(subscriptionId)
+  })
 }
 
 app.whenReady().then(async () => {
@@ -109,6 +164,11 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  for (const subscription of externalWatchers.values()) {
+    subscription.watcher.close()
+  }
+  externalWatchers.clear()
+
   if (process.platform !== 'darwin') {
     app.quit()
   }

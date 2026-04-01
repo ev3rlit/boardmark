@@ -1,5 +1,6 @@
 import { useStore } from 'zustand'
 import type { CanvasLoadState, CanvasSaveState } from '@boardmark/canvas-domain'
+import { Button } from './button'
 import { FloatingPanel } from './floating-panel'
 import type { ViewerDocumentSession } from './document-session'
 import type { ViewerDropState } from './viewer-store'
@@ -12,11 +13,41 @@ type StatusPanelsProps = {
 }
 
 export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
-  const { document, documentSession, dropState, isDirty, lastSavedAt, loadState, parseIssues, saveState, viewport } =
+  const {
+    conflictState,
+    document,
+    documentSession,
+    dropState,
+    invalidState,
+    isDirty,
+    lastSavedAt,
+    loadState,
+    operationError,
+    parseIssues,
+    reloadFromDisk,
+    keepLocalDraft,
+    saveState,
+    viewport
+  } =
     useStore(store)
 
   return (
     <>
+      {conflictState.status === 'conflict' ? (
+        <FloatingPanel className="max-w-sm p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-primary)]">
+            External Change
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-on-surface)]">
+            The file changed on disk while this draft still has local edits.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button onClick={() => void reloadFromDisk()}>Reload from disk</Button>
+            <Button onClick={() => keepLocalDraft()}>Keep local draft</Button>
+          </div>
+        </FloatingPanel>
+      ) : null}
+
       {parseIssues.length > 0 ? (
         <FloatingPanel className="max-w-sm p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-primary)]">
@@ -35,6 +66,8 @@ export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
         {capabilities.canDropImport ? <p className="mt-1">{readDropMessage(dropState)}</p> : null}
         <p className="mt-1">{readDocumentMessage(document?.name, documentSession, isDirty)}</p>
         <p className="mt-1">{readSaveMessage(saveState, lastSavedAt)}</p>
+        {invalidState.status === 'invalid' ? <p className="mt-1">{invalidState.message}</p> : null}
+        {operationError ? <p className="mt-1">{operationError}</p> : null}
         <p className="mt-1">Zoom {Math.round(viewport.zoom * 100)}%</p>
       </FloatingPanel>
     </>

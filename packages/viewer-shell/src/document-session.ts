@@ -37,6 +37,11 @@ export type ViewerDocumentPersistenceBridge = {
   saveDocumentAs: (
     input: Omit<ViewerDocumentPersistenceSaveInput, 'fileHandle'>
   ) => Promise<AsyncResult<ViewerDocumentPersistencePayload, CanvasDocumentPickerError>>
+  subscribeExternalChanges?: (input: {
+    locator: CanvasDocumentLocator
+    fileHandle: FileSystemFileHandle | null
+    onExternalChange: (source: string) => void
+  }) => Promise<() => void> | (() => void)
 }
 
 export function createDocumentSession(params: {

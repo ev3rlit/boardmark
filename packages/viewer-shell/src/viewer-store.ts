@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { StoreApi } from 'zustand'
 import {
   DEFAULT_CANVAS_VIEWPORT,
+  DEFAULT_NOTE_WIDTH,
   MAX_CANVAS_ZOOM,
   MIN_CANVAS_ZOOM,
   ZOOM_STEP,
@@ -19,6 +20,10 @@ import type {
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
 import {
+  createCanvasDocumentEditService,
+  type CanvasDocumentEditIntent
+} from './edit-service'
+import {
   createDocumentSession,
   type ViewerDocumentPersistenceBridge,
   type ViewerDocumentSession
@@ -33,6 +38,28 @@ export type ViewerDropState =
   | { status: 'opened'; name: string }
   | { status: 'error'; message: string }
 
+export type ViewerEditingState =
+  | { status: 'idle' }
+  | { status: 'note'; objectId: string; markdown: string }
+  | { status: 'edge'; edgeId: string; markdown: string }
+
+export type ViewerConflictState =
+  | { status: 'idle' }
+  | { status: 'conflict'; diskSource: string }
+
+export type ViewerInvalidState =
+  | { status: 'valid' }
+  | { status: 'invalid'; message: string }
+
+export type ViewerInteractionOverrides = Record<
+  string,
+  Partial<{
+    x: number
+    y: number
+    w: number
+  }>
+>
+
 type ViewerStoreOptions = {
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
@@ -42,21 +69,28 @@ type ViewerStoreOptions = {
 
 export type ViewerStoreState = {
   document: CanvasDocumentRecord | null
+  lastParsedDocument: CanvasDocumentRecord | null
   documentSession: ViewerDocumentSession | null
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   viewport: CanvasViewport
   selectedNodeIds: string[]
+  selectedEdgeIds: string[]
   toolMode: ToolMode
   loadState: CanvasLoadState
   saveState: CanvasSaveState
   entryState: CanvasEntryState
   parseIssues: CanvasParseIssue[]
-  currentSource: string | null
+  draftSource: string | null
   persistedSnapshotSource: string | null
   isDirty: boolean
   lastSavedAt: number | null
   dropState: ViewerDropState
+  interactionOverrides: ViewerInteractionOverrides
+  editingState: ViewerEditingState
+  conflictState: ViewerConflictState
+  invalidState: ViewerInvalidState
+  operationError: string | null
   hydrateTemplate: () => Promise<void>
   resetToTemplate: () => Promise<void>
   createNewDocument: () => Promise<void>
@@ -66,11 +100,28 @@ export type ViewerStoreState = {
   setPrimarySelectedNode: (nodeId: string | null) => void
   toggleSelectedNode: (nodeId: string) => void
   replaceSelectedNodes: (nodeIds: string[]) => void
+  replaceSelectedEdges: (edgeIds: string[]) => void
+  clearSelection: () => void
   clearSelectedNodes: () => void
   setDropActive: (active: boolean) => void
   setDropError: (message: string) => void
   setViewport: (viewport: CanvasViewport) => void
   setToolMode: (mode: ToolMode) => void
+  previewNodeMove: (nodeId: string, x: number, y: number) => void
+  commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
+  previewNodeResize: (nodeId: string, width: number) => void
+  commitNodeResize: (nodeId: string, width: number) => Promise<void>
+  reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
+  createEdgeFromConnection: (from: string, to: string) => Promise<void>
+  createNoteAtViewport: () => Promise<void>
+  deleteSelection: () => Promise<void>
+  startNoteEditing: (nodeId: string) => void
+  startEdgeEditing: (edgeId: string) => void
+  updateEditingMarkdown: (markdown: string) => void
+  commitInlineEditing: () => Promise<void>
+  cancelInlineEditing: () => void
+  reloadFromDisk: () => Promise<void>
+  keepLocalDraft: () => void
 }
 
 export type ViewerStore = ReturnType<typeof createViewerStore>
@@ -82,59 +133,68 @@ export function createViewerStore({
   templateSource
 }: ViewerStoreOptions) {
   let droppedDocumentSequence = 0
+  let disposeExternalChanges: (() => void) | null = null
+  const editService = createCanvasDocumentEditService()
   const saveService = createCanvasDocumentSaveService({
     documentPicker,
     documentRepository,
     documentPersistenceBridge
   })
 
-  return create<ViewerStoreState>((set, get) => ({
+  const store = create<ViewerStoreState>((set, get) => ({
     document: null,
+    lastParsedDocument: null,
     documentSession: null,
     nodes: [],
     edges: [],
     viewport: DEFAULT_CANVAS_VIEWPORT,
     selectedNodeIds: [],
+    selectedEdgeIds: [],
     toolMode: 'select',
     loadState: { status: 'idle' },
     saveState: { status: 'idle' },
     entryState: { showActions: true },
     parseIssues: [],
-    currentSource: null,
+    draftSource: null,
     persistedSnapshotSource: null,
     isDirty: false,
     lastSavedAt: null,
     dropState: { status: 'idle' },
+    interactionOverrides: {},
+    editingState: { status: 'idle' },
+    conflictState: { status: 'idle' },
+    invalidState: { status: 'valid' },
+    operationError: null,
 
     async hydrateTemplate() {
       await loadTemplate({
         set,
         documentRepository,
-        templateSource
+        templateSource,
+        onRecord(record) {
+          return createDocumentSession({
+            record,
+            isPersisted: false,
+            persistedSnapshotSource: null
+          })
+        }
       })
+      clearExternalSubscription()
     },
 
     async resetToTemplate() {
-      await loadTemplate({
-        set,
-        documentRepository,
-        templateSource
-      })
+      await get().hydrateTemplate()
     },
 
     async createNewDocument() {
-      await loadTemplate({
-        set,
-        documentRepository,
-        templateSource
-      })
-
+      await get().hydrateTemplate()
       await get().saveCurrentDocument()
     },
 
     async openDocument() {
       set({
-        loadState: { status: 'loading' }
+        loadState: { status: 'loading' },
+        operationError: null
       })
 
       if (documentPersistenceBridge) {
@@ -181,6 +241,7 @@ export function createViewerStore({
             persistedSnapshotSource: openResult.value.source
           })
         })
+        await subscribeToExternalChanges()
         return
       }
 
@@ -216,17 +277,25 @@ export function createViewerStore({
       }
 
       applyDocumentRecord(set, readResult.value)
+      clearExternalSubscription()
     },
 
     async saveCurrentDocument() {
       const state = get()
 
-      if (!state.document || !state.documentSession) {
+      if (!state.document || !state.documentSession || state.invalidState.status === 'invalid') {
+        set({
+          operationError:
+            state.invalidState.status === 'invalid'
+              ? state.invalidState.message
+              : 'No editable document is loaded.'
+        })
         return
       }
 
       set({
-        saveState: { status: 'saving' }
+        saveState: { status: 'saving' },
+        operationError: null
       })
 
       const saveResult = await saveService.save(
@@ -260,11 +329,13 @@ export function createViewerStore({
         },
         lastSavedAt: saveResult.savedAt
       })
+      await subscribeToExternalChanges()
     },
 
     async openDroppedDocument({ name, source }) {
       set({
-        loadState: { status: 'loading' }
+        loadState: { status: 'loading' },
+        operationError: null
       })
 
       const result = await documentRepository.readSource({
@@ -304,82 +375,63 @@ export function createViewerStore({
           name
         }
       })
+      clearExternalSubscription()
     },
 
     setPrimarySelectedNode(nodeId) {
-      set((state) => {
-        const nextSelectedNodeIds = nodeId ? [nodeId] : []
-
-        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
-          return state
-        }
-
-        return {
-          ...state,
-          selectedNodeIds: nextSelectedNodeIds
-        }
-      })
+      set((state) => ({
+        ...state,
+        selectedNodeIds: nodeId ? [nodeId] : [],
+        selectedEdgeIds: []
+      }))
     },
 
     toggleSelectedNode(nodeId) {
       set((state) => {
         const hasNode = state.selectedNodeIds.includes(nodeId)
-        const nextSelectedNodeIds = hasNode
-          ? state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId)
-          : [...state.selectedNodeIds, nodeId]
-
-        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
-          return state
-        }
-
         return {
           ...state,
-          selectedNodeIds: nextSelectedNodeIds
+          selectedNodeIds: hasNode
+            ? state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId)
+            : [...state.selectedNodeIds, nodeId],
+          selectedEdgeIds: []
         }
       })
     },
 
     replaceSelectedNodes(nodeIds) {
-      set((state) => {
-        const nextSelectedNodeIds = [...new Set(nodeIds)]
+      set((state) => ({
+        ...state,
+        selectedNodeIds: [...new Set(nodeIds)],
+        selectedEdgeIds: nodeIds.length > 0 ? [] : state.selectedEdgeIds
+      }))
+    },
 
-        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
-          return state
-        }
+    replaceSelectedEdges(edgeIds) {
+      set((state) => ({
+        ...state,
+        selectedEdgeIds: [...new Set(edgeIds)],
+        selectedNodeIds: edgeIds.length > 0 ? [] : state.selectedNodeIds
+      }))
+    },
 
-        return {
-          ...state,
-          selectedNodeIds: nextSelectedNodeIds
-        }
-      })
+    clearSelection() {
+      set((state) => ({
+        ...state,
+        selectedNodeIds: [],
+        selectedEdgeIds: []
+      }))
     },
 
     clearSelectedNodes() {
-      set((state) => {
-        if (state.selectedNodeIds.length === 0) {
-          return state
-        }
-
-        return {
-          ...state,
-          selectedNodeIds: []
-        }
-      })
+      get().clearSelection()
     },
 
     setDropActive(active) {
-      set((state) => {
-        const nextDropState = active ? { status: 'active' as const } : { status: 'idle' as const }
-
-        if (state.dropState.status === nextDropState.status) {
-          return state
-        }
-
-        return {
-          ...state,
-          dropState: nextDropState
-        }
-      })
+      set((state) => ({
+        ...state,
+        dropState: active ? { status: 'active' } : { status: 'idle' }
+      }))
     },
 
     setDropError(message) {
@@ -395,15 +447,12 @@ export function createViewerStore({
     setViewport(viewport) {
       set((state) => {
         const nextViewport = clampViewport(viewport)
-
-        if (isSameViewport(state.viewport, nextViewport)) {
-          return state
-        }
-
-        return {
-          ...state,
-          viewport: nextViewport
-        }
+        return isSameViewport(state.viewport, nextViewport)
+          ? state
+          : {
+              ...state,
+              viewport: nextViewport
+            }
       })
     },
 
@@ -411,18 +460,336 @@ export function createViewerStore({
       set({
         toolMode: mode
       })
+    },
+
+    previewNodeMove(nodeId, x, y) {
+      set((state) => ({
+        ...state,
+        interactionOverrides: {
+          ...state.interactionOverrides,
+          [nodeId]: {
+            ...state.interactionOverrides[nodeId],
+            x: roundGeometry(x),
+            y: roundGeometry(y)
+          }
+        }
+      }))
+    },
+
+    async commitNodeMove(nodeId, x, y) {
+      clearInteractionOverride(set, get, nodeId)
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent: {
+          kind: 'move-node',
+          nodeId,
+          x,
+          y
+        },
+        onSuccess: subscribeToExternalChanges
+      })
+    },
+
+    previewNodeResize(nodeId, width) {
+      set((state) => ({
+        ...state,
+        interactionOverrides: {
+          ...state.interactionOverrides,
+          [nodeId]: {
+            ...state.interactionOverrides[nodeId],
+            w: roundGeometry(width)
+          }
+        }
+      }))
+    },
+
+    async commitNodeResize(nodeId, width) {
+      clearInteractionOverride(set, get, nodeId)
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent: {
+          kind: 'resize-node',
+          nodeId,
+          width
+        },
+        onSuccess: subscribeToExternalChanges
+      })
+    },
+
+    async reconnectEdge(edgeId, from, to) {
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent: {
+          kind: 'update-edge-endpoints',
+          edgeId,
+          from,
+          to
+        },
+        onSuccess: subscribeToExternalChanges
+      })
+    },
+
+    async createEdgeFromConnection(from, to) {
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent: {
+          kind: 'create-edge',
+          from,
+          to,
+          markdown: ''
+        },
+        onSuccess: subscribeToExternalChanges
+      })
+    },
+
+    async createNoteAtViewport() {
+      const state = get()
+      const anchorNode = state.selectedNodeIds[0]
+        ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
+        : undefined
+      const x = anchorNode ? anchorNode.x + 40 : Math.abs(state.viewport.x) + 120
+      const y = anchorNode ? anchorNode.y + 40 : Math.abs(state.viewport.y) + 120
+
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent: {
+          kind: 'create-note',
+          anchorNodeId: anchorNode?.id,
+          x,
+          y,
+          width: DEFAULT_NOTE_WIDTH,
+          markdown: 'New note'
+        },
+        onSuccess: subscribeToExternalChanges
+      })
+    },
+
+    async deleteSelection() {
+      const state = get()
+
+      if (state.selectedNodeIds.length > 0) {
+        for (const nodeId of [...state.selectedNodeIds]) {
+          await commitEditIntent({
+            get,
+            set,
+            documentRepository,
+            editService,
+            intent: {
+              kind: 'delete-node',
+              nodeId
+            },
+            onSuccess: subscribeToExternalChanges
+          })
+        }
+        return
+      }
+
+      if (state.selectedEdgeIds.length > 0) {
+        for (const edgeId of [...state.selectedEdgeIds]) {
+          await commitEditIntent({
+            get,
+            set,
+            documentRepository,
+            editService,
+            intent: {
+              kind: 'delete-edge',
+              edgeId
+            },
+            onSuccess: subscribeToExternalChanges
+          })
+        }
+      }
+    },
+
+    startNoteEditing(nodeId) {
+      const node = get().nodes.find((entry) => entry.id === nodeId)
+
+      if (!node) {
+        return
+      }
+
+      set({
+        editingState: {
+          status: 'note',
+          objectId: nodeId,
+          markdown: node.content
+        },
+        operationError: null
+      })
+    },
+
+    startEdgeEditing(edgeId) {
+      const edge = get().edges.find((entry) => entry.id === edgeId)
+
+      if (!edge) {
+        return
+      }
+
+      set({
+        editingState: {
+          status: 'edge',
+          edgeId,
+          markdown: edge.content ?? ''
+        },
+        operationError: null
+      })
+    },
+
+    updateEditingMarkdown(markdown) {
+      set((state) => {
+        if (state.editingState.status === 'idle') {
+          return state
+        }
+
+        return {
+          ...state,
+          editingState: {
+            ...state.editingState,
+            markdown
+          }
+        }
+      })
+    },
+
+    async commitInlineEditing() {
+      const state = get()
+
+      if (state.editingState.status === 'idle') {
+        return
+      }
+
+      const intent: CanvasDocumentEditIntent =
+        state.editingState.status === 'note'
+          ? {
+              kind: 'replace-object-body',
+              objectId: state.editingState.objectId,
+              markdown: state.editingState.markdown
+            }
+          : {
+              kind: 'replace-edge-body',
+              edgeId: state.editingState.edgeId,
+              markdown: state.editingState.markdown
+            }
+
+      await commitEditIntent({
+        get,
+        set,
+        documentRepository,
+        editService,
+        intent,
+        onSuccess: async () => {
+          set({
+            editingState: { status: 'idle' }
+          })
+          await subscribeToExternalChanges()
+        }
+      })
+    },
+
+    cancelInlineEditing() {
+      set({
+        editingState: { status: 'idle' }
+      })
+    },
+
+    async reloadFromDisk() {
+      const state = get()
+
+      if (state.conflictState.status !== 'conflict' || !state.documentSession || !state.document) {
+        return
+      }
+
+      const readResult = await documentRepository.readSource({
+        locator: state.document.locator,
+        source: state.conflictState.diskSource,
+        isTemplate: state.document.isTemplate
+      })
+
+      if (!readResult.ok) {
+        set({
+          operationError: readResult.error.message
+        })
+        return
+      }
+
+      applyDocumentRecord(set, readResult.value, {
+        documentSession: createDocumentSession({
+          record: readResult.value,
+          fileHandle: state.documentSession.fileHandle,
+          isPersisted: state.documentSession.isPersisted,
+          persistedSnapshotSource: state.conflictState.diskSource
+        })
+      })
+      await subscribeToExternalChanges()
+    },
+
+    keepLocalDraft() {
+      set({
+        conflictState: { status: 'idle' },
+        operationError: null
+      })
     }
   }))
+
+  async function subscribeToExternalChanges() {
+    clearExternalSubscription()
+
+    if (!documentPersistenceBridge?.subscribeExternalChanges) {
+      return
+    }
+
+    const state = store.getState()
+
+    if (!state.documentSession || !state.documentSession.isPersisted || !state.document) {
+      return
+    }
+
+    disposeExternalChanges = await documentPersistenceBridge.subscribeExternalChanges({
+      locator: state.document.locator,
+      fileHandle: state.documentSession.fileHandle,
+      onExternalChange(source) {
+        void reconcileExternalSource(store, documentRepository, source)
+      }
+    })
+  }
+
+  function clearExternalSubscription() {
+    if (!disposeExternalChanges) {
+      return
+    }
+
+    disposeExternalChanges()
+    disposeExternalChanges = null
+  }
+
+  return store
 }
 
 async function loadTemplate({
   set,
   documentRepository,
-  templateSource
+  templateSource,
+  onRecord
 }: {
   set: StoreApi<ViewerStoreState>['setState']
   documentRepository: CanvasDocumentRepositoryGateway
   templateSource: string
+  onRecord: (record: CanvasDocumentRecord) => ViewerDocumentSession
 }) {
   set({
     loadState: { status: 'loading' }
@@ -449,11 +816,162 @@ async function loadTemplate({
   }
 
   applyDocumentRecord(set, result.value, {
-    documentSession: createDocumentSession({
-      record: result.value,
-      isPersisted: false,
-      persistedSnapshotSource: null
+    documentSession: onRecord(result.value)
+  })
+}
+
+async function commitEditIntent({
+  get,
+  set,
+  documentRepository,
+  editService,
+  intent,
+  onSuccess
+}: {
+  get: StoreApi<ViewerStoreState>['getState']
+  set: StoreApi<ViewerStoreState>['setState']
+  documentRepository: CanvasDocumentRepositoryGateway
+  editService: ReturnType<typeof createCanvasDocumentEditService>
+  intent: CanvasDocumentEditIntent
+  onSuccess: () => Promise<void>
+}) {
+  const state = get()
+
+  if (!state.document || !state.documentSession || !state.draftSource) {
+    set({
+      operationError: 'No editable document is loaded.'
     })
+    return
+  }
+
+  if (state.invalidState.status === 'invalid') {
+    set({
+      operationError: state.invalidState.message
+    })
+    return
+  }
+
+  if (state.conflictState.status === 'conflict') {
+    set({
+      operationError: 'Resolve the external-change conflict before editing again.'
+    })
+    return
+  }
+
+  const editResult = editService.apply(state.draftSource, state.document, intent)
+
+  if (editResult.isErr()) {
+    set({
+      operationError: editResult.error.message
+    })
+    return
+  }
+
+  const nextSession = createDocumentSession({
+    record: state.document,
+    fileHandle: state.documentSession.fileHandle,
+    isPersisted: state.documentSession.isPersisted,
+    persistedSnapshotSource: state.documentSession.persistedSnapshotSource,
+    currentSource: editResult.value.source
+  })
+
+  const readResult = await documentRepository.readSource({
+    locator: state.document.locator,
+    source: editResult.value.source,
+    isTemplate: state.document.isTemplate
+  })
+
+  if (!readResult.ok) {
+    applyInvalidSource(set, get, nextSession, readResult.error.message)
+    return
+  }
+
+  applyDocumentRecord(set, readResult.value, {
+    documentSession: createDocumentSession({
+      record: readResult.value,
+      fileHandle: state.documentSession.fileHandle,
+      isPersisted: state.documentSession.isPersisted,
+      persistedSnapshotSource: state.documentSession.persistedSnapshotSource,
+      currentSource: editResult.value.source
+    })
+  })
+  await onSuccess()
+}
+
+async function reconcileExternalSource(
+  store: ViewerStore,
+  documentRepository: CanvasDocumentRepositoryGateway,
+  source: string
+) {
+  const state = store.getState()
+
+  if (!state.document || !state.documentSession || source === state.persistedSnapshotSource) {
+    return
+  }
+
+  if (state.isDirty) {
+    store.setState({
+      conflictState: {
+        status: 'conflict',
+        diskSource: source
+      }
+    })
+    return
+  }
+
+  const readResult = await documentRepository.readSource({
+    locator: state.document.locator,
+    source,
+    isTemplate: state.document.isTemplate
+  })
+
+  if (!readResult.ok) {
+    store.setState({
+      operationError: readResult.error.message
+    })
+    return
+  }
+
+  applyDocumentRecord(store.setState, readResult.value, {
+    documentSession: createDocumentSession({
+      record: readResult.value,
+      fileHandle: state.documentSession.fileHandle,
+      isPersisted: state.documentSession.isPersisted,
+      persistedSnapshotSource: source,
+      currentSource: source
+    })
+  })
+}
+
+function applyInvalidSource(
+  set: StoreApi<ViewerStoreState>['setState'],
+  get: StoreApi<ViewerStoreState>['getState'],
+  documentSession: ViewerDocumentSession,
+  message: string
+) {
+  const currentState = get()
+
+  set({
+    documentSession,
+    draftSource: documentSession.currentSource,
+    persistedSnapshotSource: documentSession.persistedSnapshotSource,
+    isDirty: documentSession.isDirty,
+    invalidState: {
+      status: 'invalid',
+      message
+    },
+    parseIssues: [
+      {
+        level: 'error',
+        kind: 'invalid-node',
+        message
+      }
+    ],
+    operationError: message,
+    document: currentState.lastParsedDocument,
+    lastParsedDocument: currentState.lastParsedDocument,
+    nodes: currentState.lastParsedDocument?.ast.nodes ?? currentState.nodes,
+    edges: currentState.lastParsedDocument?.ast.edges ?? currentState.edges
   })
 }
 
@@ -477,28 +995,43 @@ function applyDocumentRecord(
 
   set({
     document: record,
+    lastParsedDocument: record,
     documentSession,
     nodes: record.ast.nodes,
     edges: record.ast.edges,
     viewport: record.ast.frontmatter.viewport ?? DEFAULT_CANVAS_VIEWPORT,
     selectedNodeIds: [],
+    selectedEdgeIds: [],
     parseIssues: record.issues,
     loadState: { status: 'ready' },
     saveState: options?.saveState ?? { status: 'idle' },
-    currentSource: documentSession.currentSource,
+    draftSource: documentSession.currentSource,
     persistedSnapshotSource: documentSession.persistedSnapshotSource,
     isDirty: documentSession.isDirty,
     lastSavedAt: options?.lastSavedAt ?? null,
-    dropState: options?.dropState ?? { status: 'idle' }
+    dropState: options?.dropState ?? { status: 'idle' },
+    interactionOverrides: {},
+    editingState: { status: 'idle' },
+    conflictState: { status: 'idle' },
+    invalidState: { status: 'valid' },
+    operationError: null
   })
 }
 
-function areSameNodeSelection(left: string[], right: string[]) {
-  if (left.length !== right.length) {
-    return false
-  }
+function clearInteractionOverride(
+  set: StoreApi<ViewerStoreState>['setState'],
+  get: StoreApi<ViewerStoreState>['getState'],
+  nodeId: string
+) {
+  const overrides = { ...get().interactionOverrides }
+  delete overrides[nodeId]
+  set({
+    interactionOverrides: overrides
+  })
+}
 
-  return left.every((nodeId, index) => nodeId === right[index])
+function roundGeometry(value: number) {
+  return Math.round(value)
 }
 
 function clampZoom(zoom: number) {

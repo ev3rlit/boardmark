@@ -101,9 +101,41 @@ describe('browser document bridge', () => {
     expect(openHandle.writeMock).toHaveBeenCalledWith(nextSource)
     expect(window.showOpenFilePicker).toHaveBeenCalledTimes(1)
   })
+
+  it('checks external file changes on window focus', async () => {
+    let nextSource = uploadedSource
+    const openHandle = createFileHandle('opened.canvas.md', () => nextSource)
+    window.showOpenFilePicker = vi.fn(async () => [openHandle])
+
+    const bridge = createBrowserDocumentBridge({
+      readFileText: async () => nextSource
+    })
+    const openResult = await bridge.persistence.openDocument()
+
+    if (!openResult.ok) {
+      throw new Error('Expected persisted open result.')
+    }
+
+    let receivedSource: string | null = null
+    const dispose = await bridge.persistence.subscribeExternalChanges?.({
+      locator: openResult.value.locator,
+      fileHandle: openResult.value.fileHandle,
+      onExternalChange(source) {
+        receivedSource = source
+      }
+    })
+
+    nextSource = `${uploadedSource}\n\nChanged on disk`
+    window.dispatchEvent(new Event('focus'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(receivedSource).toContain('Changed on disk')
+    dispose?.()
+  })
 })
 
-function createFileHandle(name: string, source: string) {
+function createFileHandle(name: string, source: string | (() => string)) {
   const writeMock = vi.fn(async (_nextSource: BlobPart) => {})
 
   const handle = {
@@ -117,7 +149,8 @@ function createFileHandle(name: string, source: string) {
       } as unknown as FileSystemWritableFileStream
     },
     async getFile() {
-      return new File([source], name, {
+      const content = typeof source === 'function' ? source() : source
+      return new File([content], name, {
         type: 'text/markdown'
       })
     }
