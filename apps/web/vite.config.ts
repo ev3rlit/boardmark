@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import electron from 'vite-plugin-electron/simple'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
@@ -12,10 +11,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@fixtures': resolve(currentDirectory, '../../fixtures'),
-      '@boardmark/canvas-repository': resolve(
-        currentDirectory,
-        '../../packages/canvas-repository/src/index.ts'
-      ),
       '@boardmark/viewer-shell/': `${resolve(currentDirectory, '../../packages/viewer-shell/src')}/`,
       '@boardmark/viewer-shell': resolve(
         currentDirectory,
@@ -23,23 +18,7 @@ export default defineConfig({
       )
     }
   },
-  server: {
-    sourcemapIgnoreList: () => false
-  },
-  plugins: [
-    react(),
-    tailwindcss(),
-    tsconfigPaths(),
-    electron({
-      main: {
-        entry: 'src/main/index.ts'
-      },
-      preload: {
-        input: 'src/preload/index.ts'
-      },
-      renderer: {}
-    })
-  ],
+  plugins: [react(), tailwindcss(), tsconfigPaths()],
   build: {
     outDir: 'dist'
   }

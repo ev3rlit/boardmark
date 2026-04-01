@@ -39,8 +39,9 @@ export type ViewerStoreState = {
   entryState: CanvasEntryState
   parseIssues: CanvasParseIssue[]
   hydrateTemplate: () => Promise<void>
+  resetToTemplate: () => Promise<void>
   createNewDocument: () => Promise<void>
-  openDocumentFromDisk: () => Promise<void>
+  openDocument: () => Promise<void>
   saveCurrentDocument: () => Promise<void>
   setSelectedNodeId: (nodeId: string | null) => void
   setViewport: (viewport: CanvasViewport) => void
@@ -67,31 +68,19 @@ export function createViewerStore({
     parseIssues: [],
 
     async hydrateTemplate() {
-      set({
-        loadState: { status: 'loading' }
+      await loadTemplate({
+        set,
+        documentRepository,
+        templateSource
       })
+    },
 
-      const result = await documentRepository.readSource({
-        locator: {
-          kind: 'memory',
-          key: 'startup-template',
-          name: 'bundled-template.canvas.md'
-        },
-        source: templateSource,
-        isTemplate: true
+    async resetToTemplate() {
+      await loadTemplate({
+        set,
+        documentRepository,
+        templateSource
       })
-
-      if (!result.ok) {
-        set({
-          loadState: {
-            status: 'error',
-            message: result.error.message
-          }
-        })
-        return
-      }
-
-      applyDocumentRecord(set, result.value)
     },
 
     async createNewDocument() {
@@ -137,7 +126,7 @@ export function createViewerStore({
       applyDocumentRecord(set, saveResult.value)
     },
 
-    async openDocumentFromDisk() {
+    async openDocument() {
       set({
         loadState: { status: 'loading' }
       })
@@ -275,6 +264,42 @@ export function createViewerStore({
       })
     }
   }))
+}
+
+async function loadTemplate({
+  set,
+  documentRepository,
+  templateSource
+}: {
+  set: StoreApi<ViewerStoreState>['setState']
+  documentRepository: CanvasDocumentRepositoryGateway
+  templateSource: string
+}) {
+  set({
+    loadState: { status: 'loading' }
+  })
+
+  const result = await documentRepository.readSource({
+    locator: {
+      kind: 'memory',
+      key: 'startup-template',
+      name: 'bundled-template.canvas.md'
+    },
+    source: templateSource,
+    isTemplate: true
+  })
+
+  if (!result.ok) {
+    set({
+      loadState: {
+        status: 'error',
+        message: result.error.message
+      }
+    })
+    return
+  }
+
+  applyDocumentRecord(set, result.value)
 }
 
 function applyDocumentRecord(

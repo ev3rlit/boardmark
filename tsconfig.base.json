@@ -20,7 +20,10 @@
     "paths": {
       "@boardmark/canvas-domain": ["packages/canvas-domain/src/index.ts"],
       "@boardmark/canvas-parser": ["packages/canvas-parser/src/index.ts"],
+      "@boardmark/canvas-repository": ["packages/canvas-repository/src/index.ts"],
       "@boardmark/canvas-renderer": ["packages/canvas-renderer/src/index.ts"],
+      "@boardmark/viewer-shell": ["packages/viewer-shell/src/index.ts"],
+      "@boardmark/viewer-shell/*": ["packages/viewer-shell/src/*"],
       "@boardmark/ui": ["packages/ui/src/index.ts"],
       "@fixtures/*": ["fixtures/*"]
     }

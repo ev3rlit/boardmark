@@ -1,35 +1,58 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AsyncResult,
-  DocumentFile,
-  DocumentGateway,
-  DocumentGatewayError,
-  SaveDocumentInput
-} from '@boardmark/canvas-domain'
+  BoardmarkDocumentBridge,
+  CanvasFileDocumentLocator,
+  CanvasDocumentLocator,
+  CanvasDocumentPickerError,
+  CanvasDocumentRecord,
+  CanvasDocumentRepositoryError,
+  CanvasDocumentSaveInput,
+  CanvasDocumentSourceInput
+} from '../../../../packages/canvas-repository/src/index'
 
 const IPC_CHANNELS = {
-  newFile: 'boardmark/document/new-file',
-  openFile: 'boardmark/document/open-file',
-  saveFile: 'boardmark/document/save-file'
+  pickOpenLocator: 'boardmark/document/pick-open-locator',
+  pickSaveLocator: 'boardmark/document/pick-save-locator',
+  readDocument: 'boardmark/document/read',
+  readDocumentSource: 'boardmark/document/read-source',
+  saveDocument: 'boardmark/document/save'
 } as const
 
-const documentGateway: DocumentGateway = {
-  newFileFromTemplate() {
-    return ipcRenderer.invoke(
-      IPC_CHANNELS.newFile
-    ) as Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
+const documentBridge: BoardmarkDocumentBridge = {
+  picker: {
+    pickOpenLocator() {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.pickOpenLocator
+      ) as Promise<AsyncResult<CanvasDocumentLocator, CanvasDocumentPickerError>>
+    },
+    pickSaveLocator(defaultName) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.pickSaveLocator,
+        defaultName
+      ) as Promise<AsyncResult<CanvasFileDocumentLocator, CanvasDocumentPickerError>>
+    }
   },
-  openFile() {
-    return ipcRenderer.invoke(
-      IPC_CHANNELS.openFile
-    ) as Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
-  },
-  saveFile(input: SaveDocumentInput) {
-    return ipcRenderer.invoke(
-      IPC_CHANNELS.saveFile,
-      input
-    ) as Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
+  repository: {
+    read(locator) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.readDocument,
+        locator
+      ) as Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+    },
+    readSource(input: CanvasDocumentSourceInput) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.readDocumentSource,
+        input
+      ) as Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+    },
+    save(input: CanvasDocumentSaveInput) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.saveDocument,
+        input
+      ) as Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+    }
   }
 }
 
-contextBridge.exposeInMainWorld('boardmarkDocument', documentGateway)
+contextBridge.exposeInMainWorld('boardmarkDocument', documentBridge)

@@ -1,7 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import pino from 'pino'
-import defaultTemplateSource from '../../../../fixtures/default-template.canvas.md?raw'
 import { createDocumentService } from './document-service'
 
 const logger = pino({
@@ -9,12 +8,14 @@ const logger = pino({
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info'
 })
 
-const documentService = createDocumentService(defaultTemplateSource)
+const documentService = createDocumentService()
 
 const IPC_CHANNELS = {
-  newFile: 'boardmark/document/new-file',
-  openFile: 'boardmark/document/open-file',
-  saveFile: 'boardmark/document/save-file'
+  pickOpenLocator: 'boardmark/document/pick-open-locator',
+  pickSaveLocator: 'boardmark/document/pick-save-locator',
+  readDocument: 'boardmark/document/read',
+  readDocumentSource: 'boardmark/document/read-source',
+  saveDocument: 'boardmark/document/save'
 } as const
 
 let mainWindow: BrowserWindow | null = null
@@ -53,24 +54,9 @@ async function createMainWindow() {
 }
 
 function registerIpcHandlers() {
-  ipcMain.handle(IPC_CHANNELS.newFile, async () => {
+  ipcMain.handle(IPC_CHANNELS.pickOpenLocator, async () => {
     if (!mainWindow) {
-      logger.error('Main window missing during new-file request.')
-      return {
-        ok: false,
-        error: {
-          code: 'create-failed',
-          message: 'Main window is not ready.'
-        }
-      }
-    }
-
-    return documentService.newFileFromTemplate(mainWindow)
-  })
-
-  ipcMain.handle(IPC_CHANNELS.openFile, async () => {
-    if (!mainWindow) {
-      logger.error('Main window missing during open-file request.')
+      logger.error('Main window missing during pick-open-locator request.')
       return {
         ok: false,
         error: {
@@ -80,12 +66,12 @@ function registerIpcHandlers() {
       }
     }
 
-    return documentService.openFile(mainWindow)
+    return documentService.pickOpenLocator(mainWindow)
   })
 
-  ipcMain.handle(IPC_CHANNELS.saveFile, async (_event, input) => {
+  ipcMain.handle(IPC_CHANNELS.pickSaveLocator, async (_event, defaultName?: string) => {
     if (!mainWindow) {
-      logger.error('Main window missing during save-file request.')
+      logger.error('Main window missing during pick-save-locator request.')
       return {
         ok: false,
         error: {
@@ -95,8 +81,20 @@ function registerIpcHandlers() {
       }
     }
 
-    return documentService.saveFile(mainWindow, input)
+    return documentService.pickSaveLocator(mainWindow, defaultName)
   })
+
+  ipcMain.handle(IPC_CHANNELS.readDocument, async (_event, locator) =>
+    documentService.readDocument(locator)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.readDocumentSource, async (_event, input) =>
+    documentService.readDocumentSource(input)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.saveDocument, async (_event, input) =>
+    documentService.saveDocument(input)
+  )
 }
 
 app.whenReady().then(async () => {

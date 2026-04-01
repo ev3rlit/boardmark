@@ -1,93 +1,127 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { errAsync, fromPromise, okAsync, type ResultAsync } from 'neverthrow'
 import { dialog, type BrowserWindow } from 'electron'
-import type {
-  AsyncResult,
-  DocumentFile,
-  DocumentGatewayError,
-  SaveDocumentInput
-} from '@boardmark/canvas-domain'
+import {
+  createCanvasMarkdownDocumentRepository,
+  toAsyncResult,
+  type AsyncResult,
+  type CanvasFileDocumentLocator,
+  type CanvasDocumentLocator,
+  type CanvasDocumentPickerError,
+  type CanvasDocumentRecord,
+  type CanvasDocumentRepositoryError,
+  type CanvasDocumentSaveInput,
+  type CanvasDocumentSourceInput
+} from '../../../../packages/canvas-repository/src/index'
 
 const DEFAULT_FILE_NAME = 'untitled.canvas.md'
 
+const documentRepository = createCanvasMarkdownDocumentRepository({
+  readFile(path) {
+    return fromPromise(readFile(path, 'utf8'), (error) =>
+      toRepositoryError('read-failed', error, `Could not read "${path}".`)
+    )
+  },
+  writeFile(path, source) {
+    return fromPromise(writeFile(path, source, 'utf8'), (error) =>
+      toRepositoryError('write-failed', error, `Could not write "${path}".`)
+    )
+  }
+})
+
 export type DocumentService = {
-  newFileFromTemplate: (
+  pickOpenLocator: (
     window: BrowserWindow
-  ) => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
-  openFile: (window: BrowserWindow) => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
-  saveFile: (
+  ) => Promise<AsyncResult<CanvasDocumentLocator, CanvasDocumentPickerError>>
+  pickSaveLocator: (
     window: BrowserWindow,
-    input: SaveDocumentInput
-  ) => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
+    defaultName?: string
+  ) => Promise<AsyncResult<CanvasFileDocumentLocator, CanvasDocumentPickerError>>
+  readDocument: (
+    locator: CanvasDocumentLocator
+  ) => Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+  readDocumentSource: (
+    input: CanvasDocumentSourceInput
+  ) => Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+  saveDocument: (
+    input: CanvasDocumentSaveInput
+  ) => Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
 }
 
-export function createDocumentService(templateSource: string): DocumentService {
+export function createDocumentService(): DocumentService {
   return {
-    async newFileFromTemplate(window) {
-      const pathResult = await chooseSavePath(window)
-
-      if (pathResult.isErr()) {
-        return toErr(pathResult.error)
-      }
-
-      const writeResult = await writeDocument(pathResult.value, templateSource)
-      return writeResult.match(toOk, toErr)
+    async pickOpenLocator(window) {
+      const result = await chooseOpenLocator(window)
+      return result.match(
+        (value) => ({ ok: true, value }),
+        (error) => ({ ok: false, error })
+      )
     },
 
-    async openFile(window) {
-      const pathResult = await chooseOpenPath(window)
-
-      if (pathResult.isErr()) {
-        return toErr(pathResult.error)
-      }
-
-      const readResult = await readDocument(pathResult.value)
-      return readResult.match(toOk, toErr)
+    async pickSaveLocator(window, defaultName) {
+      const result = await chooseSaveLocator(window, defaultName)
+      return result.match(
+        (value) => ({ ok: true, value }),
+        (error) => ({ ok: false, error })
+      )
     },
 
-    async saveFile(window, input) {
-      const pathResult = input.path ? await okAsync(input.path) : await chooseSavePath(window)
+    async readDocument(locator) {
+      const result = await documentRepository.read(locator)
+      return result.match(
+        (value) => ({ ok: true, value }),
+        (error) => ({ ok: false, error })
+      )
+    },
 
-      if (pathResult.isErr()) {
-        return toErr(pathResult.error)
-      }
+    async readDocumentSource(input) {
+      return toAsyncResult(documentRepository.readSource(input))
+    },
 
-      const writeResult = await writeDocument(pathResult.value, input.content)
-      return writeResult.match(toOk, toErr)
+    async saveDocument(input) {
+      const result = await documentRepository.save(input)
+      return result.match(
+        (value) => ({ ok: true, value }),
+        (error) => ({ ok: false, error })
+      )
     }
   }
 }
 
-function chooseSavePath(
-  _window: BrowserWindow
-): ResultAsync<string, DocumentGatewayError> {
+function chooseSaveLocator(
+  _window: BrowserWindow,
+  defaultName = DEFAULT_FILE_NAME
+): ResultAsync<CanvasFileDocumentLocator, CanvasDocumentPickerError> {
   return fromPromise(
     dialog.showSaveDialog({
       title: 'Save Boardmark Canvas',
-      defaultPath: DEFAULT_FILE_NAME,
+      defaultPath: defaultName,
       properties: ['createDirectory', 'showOverwriteConfirmation'],
       filters: [{ name: 'Canvas Markdown', extensions: ['md'] }]
     }),
-    (error) => toGatewayError('save-failed', error, 'Save dialog could not open.')
+    (error) => toPickerError('save-failed', error, 'Save dialog could not open.')
   ).andThen((result) => {
     if (result.canceled || !result.filePath) {
       return errAsync(cancelledError())
     }
 
-    return okAsync(ensureCanvasExtension(result.filePath))
+    return okAsync({
+      kind: 'file' as const,
+      path: ensureCanvasExtension(result.filePath)
+    })
   })
 }
 
-function chooseOpenPath(
+function chooseOpenLocator(
   window: BrowserWindow
-): ResultAsync<string, DocumentGatewayError> {
+): ResultAsync<CanvasFileDocumentLocator, CanvasDocumentPickerError> {
   return fromPromise(
     dialog.showOpenDialog(window, {
       title: 'Open Boardmark Canvas',
       properties: ['openFile'],
       filters: [{ name: 'Canvas Markdown', extensions: ['md'] }]
     }),
-    (error) => toGatewayError('open-failed', error, 'Open dialog could not open.')
+    (error) => toPickerError('open-failed', error, 'Open dialog could not open.')
   ).andThen((result) => {
     const filePath = result.filePaths[0]
 
@@ -95,57 +129,42 @@ function chooseOpenPath(
       return errAsync(cancelledError())
     }
 
-    return okAsync(filePath)
+    return okAsync({
+      kind: 'file' as const,
+      path: filePath
+    })
   })
-}
-
-function readDocument(path: string): ResultAsync<DocumentFile, DocumentGatewayError> {
-  return fromPromise(readFile(path, 'utf8'), (error) =>
-    toGatewayError('open-failed', error, `Could not read "${path}".`)
-  ).map((source) => ({
-    path,
-    source
-  }))
-}
-
-function writeDocument(
-  path: string,
-  source: string
-): ResultAsync<DocumentFile, DocumentGatewayError> {
-  return fromPromise(writeFile(path, source, 'utf8'), (error) =>
-    toGatewayError('save-failed', error, `Could not write "${path}".`)
-  ).map(() => ({
-    path,
-    source
-  }))
 }
 
 function ensureCanvasExtension(path: string): string {
   return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.canvas.md`
 }
 
-function toOk(value: DocumentFile): AsyncResult<DocumentFile, DocumentGatewayError> {
-  return { ok: true, value }
-}
-
-function toErr(error: DocumentGatewayError): AsyncResult<DocumentFile, DocumentGatewayError> {
-  return { ok: false, error }
-}
-
-function cancelledError(): DocumentGatewayError {
+function cancelledError(): CanvasDocumentPickerError {
   return {
     code: 'cancelled',
     message: 'The dialog was cancelled.'
   }
 }
 
-function toGatewayError(
-  code: Exclude<DocumentGatewayError['code'], 'cancelled'>,
+function toPickerError(
+  code: Exclude<CanvasDocumentPickerError['code'], 'cancelled'>,
   error: unknown,
   fallback: string
-): DocumentGatewayError {
+): CanvasDocumentPickerError {
   return {
     code,
+    message: error instanceof Error ? error.message : fallback
+  }
+}
+
+function toRepositoryError(
+  kind: CanvasDocumentRepositoryError['kind'],
+  error: unknown,
+  fallback: string
+): CanvasDocumentRepositoryError {
+  return {
+    kind,
     message: error instanceof Error ? error.message : fallback
   }
 }

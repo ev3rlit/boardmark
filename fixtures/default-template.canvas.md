@@ -94,9 +94,11 @@ Then turn each note into a task.
 :::
 
 ::: edge #welcome-overview from=welcome to=overview kind=curve
+main thread
 :::
 
 ::: edge #overview-workflow from=overview to=workflow kind=curve
+reading path
 :::
 
 ::: edge #welcome-structure from=welcome to=structure kind=curve

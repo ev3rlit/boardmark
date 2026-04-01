@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@boardmark/viewer-shell/styles.css'
-import { App } from './app/App'
+import { App } from './App'
 
 const container = document.getElementById('root')
 

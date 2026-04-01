@@ -8,7 +8,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['apps/desktop/src/test/setup.ts'],
-    include: ['apps/**/*.test.ts', 'apps/**/*.test.tsx', 'packages/**/*.test.ts'],
+    include: [
+      'apps/**/*.test.ts',
+      'apps/**/*.test.tsx',
+      'packages/**/*.test.ts',
+      'packages/**/*.test.tsx'
+    ],
     coverage: {
       reporter: ['text', 'html']
     }

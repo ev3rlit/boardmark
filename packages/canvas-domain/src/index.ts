@@ -1,3 +1,5 @@
+export * from './built-in-components'
+
 export type CanvasViewport = {
   x: number
   y: number
@@ -78,13 +80,6 @@ export type CanvasParseError = {
   message: string
 }
 
-export type CanvasDocumentState = {
-  path: string | null
-  name: string
-  source: string
-  isTemplate: boolean
-}
-
 export type CanvasLoadState =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -99,39 +94,6 @@ export type CanvasSaveState =
 
 export type CanvasEntryState = {
   showActions: boolean
-}
-
-export type DocumentGatewayErrorCode =
-  | 'cancelled'
-  | 'open-failed'
-  | 'save-failed'
-  | 'create-failed'
-
-export type DocumentGatewayError = {
-  code: DocumentGatewayErrorCode
-  message: string
-}
-
-export type DocumentFile = {
-  path: string
-  source: string
-}
-
-export type SaveDocumentInput = {
-  path: string | null
-  content: string
-}
-
-export type AsyncResult<T, E> =
-  | { ok: true; value: T }
-  | { ok: false; error: E }
-
-export type DocumentGateway = {
-  newFileFromTemplate: () => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
-  openFile: () => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
-  saveFile: (
-    input: SaveDocumentInput
-  ) => Promise<AsyncResult<DocumentFile, DocumentGatewayError>>
 }
 
 export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {

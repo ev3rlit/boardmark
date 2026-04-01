@@ -1,5 +1,6 @@
-@import "../../../../../packages/ui/src/styles/tokens.css";
+@import "../../ui/src/styles/tokens.css";
 @import "@xyflow/react/dist/style.css";
+@import "highlight.js/styles/github.css";
 @import "tailwindcss";
 
 html,
@@ -26,16 +27,6 @@ button {
 
 .app-no-drag {
   -webkit-app-region: no-drag;
-}
-
-.canvas-grid {
-  background-image:
-    linear-gradient(to right, var(--canvas-grid-major) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--canvas-grid-major) 1px, transparent 1px),
-    linear-gradient(to right, var(--canvas-grid-minor) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--canvas-grid-minor) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
-  background-position: center center;
 }
 
 .boardmark-flow {

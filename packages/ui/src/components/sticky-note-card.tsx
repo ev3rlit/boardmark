@@ -1,7 +1,17 @@
 import type { ReactNode } from 'react'
 
 type StickyNoteCardProps = {
-  color?: 'yellow' | 'blue' | 'pink' | 'green' | 'purple' | 'default'
+  color?:
+    | 'yellow'
+    | 'blue'
+    | 'pink'
+    | 'green'
+    | 'purple'
+    | 'default'
+    | 'amber'
+    | 'violet'
+    | 'rose'
+    | 'neutral'
   selected?: boolean
   children: ReactNode
 }
@@ -27,16 +37,21 @@ export function StickyNoteCard({
 
 function noteColorClassName(color: StickyNoteCardProps['color']) {
   switch (color) {
+    case 'amber':
     case 'yellow':
       return 'bg-[var(--note-yellow)]'
     case 'blue':
       return 'bg-[var(--note-blue)]'
+    case 'rose':
     case 'pink':
       return 'bg-[var(--note-pink)]'
     case 'green':
       return 'bg-[var(--note-green)]'
+    case 'violet':
     case 'purple':
       return 'bg-[var(--note-purple)]'
+    case 'neutral':
+      return 'bg-[var(--note-default)]'
     default:
       return 'bg-[var(--note-default)]'
   }

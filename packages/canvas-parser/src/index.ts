@@ -16,7 +16,7 @@ import {
   type CanvasParseIssue,
   type CanvasSourceRange,
   type CanvasViewport
-} from '@boardmark/canvas-domain'
+} from '../../canvas-domain/src/index'
 
 type DirectiveNode = {
   type: 'containerDirective'

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { toFlowEdge, toFlowNode, toFlowViewport } from './index'
+import {
+  BUILT_IN_RENDERER_CONTRACTS,
+  toFlowEdge,
+  toFlowNode,
+  toFlowViewport
+} from './index'
 
 describe('canvas renderer helpers', () => {
   it('maps a canvas note to a non-draggable react flow node', () => {
@@ -43,5 +48,14 @@ describe('canvas renderer helpers', () => {
     expect(edge.target).toBe('b')
     expect(edge.data?.content).toBe('Edge')
     expect(viewport).toEqual({ x: -120, y: -40, zoom: 1 })
+  })
+
+  it('exports built-in renderer contracts for shapes and notes', () => {
+    expect(BUILT_IN_RENDERER_CONTRACTS['boardmark.note.sticky']?.supportsMarkdown).toBe(true)
+    expect(BUILT_IN_RENDERER_CONTRACTS['boardmark.shape.circle']?.nodeType).toBe('shape')
+    expect(BUILT_IN_RENDERER_CONTRACTS['boardmark.note.sticky']?.tokenUsage).toContain(
+      'color.object.amber'
+    )
+    expect(Object.keys(BUILT_IN_RENDERER_CONTRACTS)).toHaveLength(7)
   })
 })

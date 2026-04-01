@@ -1,8 +1,8 @@
-import type { DocumentGateway } from '@boardmark/canvas-domain'
+import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
 
 declare global {
   interface Window {
-    boardmarkDocument: DocumentGateway
+    boardmarkDocument: BoardmarkDocumentBridge
   }
 }
 

@@ -1,0 +1,8 @@
+export * from './registry'
+export { StickyNoteRenderer } from './note/sticky-note-renderer'
+export { NotebookNoteRenderer } from './note/notebook-note-renderer'
+export { RectShapeRenderer } from './shape/rect-shape-renderer'
+export { RoundRectShapeRenderer } from './shape/round-rect-shape-renderer'
+export { EllipseShapeRenderer } from './shape/ellipse-shape-renderer'
+export { CircleShapeRenderer } from './shape/circle-shape-renderer'
+export { TriangleShapeRenderer } from './shape/triangle-shape-renderer'

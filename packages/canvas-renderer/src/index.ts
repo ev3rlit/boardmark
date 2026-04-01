@@ -1,3 +1,5 @@
+export * from './builtins'
+
 import {
   DEFAULT_NOTE_WIDTH,
   type CanvasEdge,
