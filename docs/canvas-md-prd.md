@@ -62,12 +62,17 @@
 ---
 type: canvas
 version: 1
-style: https://styles.boardmark.dev/default@1.0.0
-components: https://ui.boardmark.dev/sticky-classic@1.0.0
+style:
+  - https://styles.boardmark.dev/default@1.0.0
+  - file:///Users/me/.boardmark/styles/editorial.json
+components:
+  - https://ui.boardmark.dev/sticky-classic@1.0.0
+defaultStyle: boardmark.default.light
+defaultComponent: boardmark.default.note
 viewport: { x: 0, y: 0, zoom: 1 }
 ---
 
-::: note #idea-a x=120 y=80 color=yellow
+::: note #idea-a x=120 y=80 color=yellow styleRef=boardmark.default.light renderer=boardmark.default.note
 # 핵심 아이디어
 
 AI가 마크다운을 제일 잘 씁니다.
@@ -124,18 +129,82 @@ const canvas = new Boardmark()
 ### 3.4 팩 시스템
 
 ```
-style pack     → CSS variables (색상, 폰트, 간격 토큰)
-component pack → 노드 타입별 React 컴포넌트
+style pack     → semantic design token foundation collection
+component pack → namespace 기반 노드 React 컴포넌트 registry
 preset         → style + component 의 검증된 조합
 ```
 
+팩 시스템은 자유형 JSON이 아니라 **JSON Schema 기반 계약**으로 다룬다.
+
+- style pack은 컴포넌트 구조를 모르는 semantic token foundation을 하나 이상 제공한다.
+- component pack은 namespace → renderer registry를 제공한다.
+- namespace는 `d3.chart`, `company.analytics.chart.bar`처럼 `.` 구분자로 여러 단계 중첩될 수 있다.
+- style / components / preset은 단일 source 또는 source 배열을 허용한다.
+- source는 원격 URL뿐 아니라 로컬 파일 경로도 허용한다.
+- 앱은 항상 built-in default style pack과 built-in default component pack을 함께 번들한다.
+- 각 style pack은 `defaultFoundation`과 `foundations`를 가진다.
+- style pack은 특정 컴포넌트 구조를 직접 알지 않는다.
+- 컴포넌트가 어떤 semantic token을 조합해 쓰는지는 component pack이 책임진다.
+- frontmatter의 `style` / `components`는 "사용 가능한 pack source 등록" 용도다.
+- frontmatter의 `defaultStyle` / `defaultComponent`는 optional global default다.
+- 실제 적용은 node 단위 `styleRef` / `renderer` 선택을 우선한다.
+
 ```markdown
 # 개별 선언
-style: https://styles.boardmark.dev/notion-dark@1.0.0
-components: https://ui.boardmark.dev/sticky-classic@1.0.0
+style:
+  - https://styles.boardmark.dev/notion-light@1.0.0
+  - file:///Users/me/.boardmark/styles/editorial.json
+components:
+  - https://ui.boardmark.dev/core@1.0.0
+  - file:///Users/me/.boardmark/components/d3-pack.json
+defaultStyle: boardmark.editorial.light
+defaultComponent: boardmark.default.note
 
 # 프리셋으로 묶음
 preset: https://presets.boardmark.dev/notion-dark@1.0.0
+```
+
+예시 style pack payload:
+
+```json
+{
+  "$schema": "https://schemas.boardmark.dev/style-pack.schema.json",
+  "kind": "boardmark.style-pack",
+  "schemaVersion": 1,
+  "namespace": "boardmark.editorial",
+  "defaultFoundation": "light",
+  "foundations": {
+    "light": {
+      "tokens": {
+        "color.surface": "#f8f9fa",
+        "color.text.primary": "#2b3437",
+        "color.accent": "#6042d6",
+        "color.object.amber": "#fff5bf",
+        "radius.lg": "1.25rem",
+        "font.body": "Manrope, sans-serif"
+      }
+    },
+    "soft": {
+      "extends": "light",
+      "tokens": {
+        "color.surface": "#f6f3ee"
+      }
+    }
+  }
+}
+```
+
+예시 component pack payload:
+
+```json
+{
+  "$schema": "https://schemas.boardmark.dev/component-pack.schema.json",
+  "namespace": "d3",
+  "components": {
+    "chart": "d3.chart",
+    "chart.bar": "d3.chart.bar"
+  }
+}
 ```
 
 ---
@@ -216,10 +285,33 @@ SO THAT 같은 내용을 다른 시각적 스타일로 표현할 수 있다
 
 ### 5.5 팩 로딩
 
-- Frontmatter의 URL fetch → JSON 메타데이터 파싱
-- CSS variables 주입 (style pack)
-- 컴포넌트 팩 로딩은 MVP에서 로컬 또는 제한된 범위로 우선 지원
+- Frontmatter의 source(remote URL 또는 local file) 로드 → JSON Schema 검증
+- frontmatter는 사용 가능한 pack source를 등록하고 optional global default를 지정한다.
+- style pack의 선택된 foundation semantic token을 CSS variables로 변환해 주입
+- component pack의 namespace registry를 로드해 노드 renderer 선택에 사용
+- 복수 pack은 선언 순서대로 병합하고, 동일 key/namespace 충돌은 마지막 선언 우선으로 처리
+- 컴포넌트 팩 로딩은 MVP에서 로컬 또는 제한된 범위의 검증된 registry 연결로 우선 지원
 - 로컬 캐시 (`localStorage`) + 오프라인 fallback
+
+#### 선택 우선순위
+
+- style 적용: `node.styleRef` → `frontmatter.defaultStyle` → built-in default foundation
+- component 적용: `node.renderer` → `frontmatter.defaultComponent` → built-in default renderer
+- frontmatter에 global default가 없어도 문서는 유효하다.
+
+#### Style Pack 원칙
+
+- style pack은 raw CSS 덩어리가 아니라 semantic token foundation collection으로 본다.
+- 컴포넌트는 hex 값이나 임의 CSS var 이름이 아니라 미리 정의된 token key를 사용한다.
+- MVP에서는 color / typography / spacing / radius / shadow를 우선 토큰 범위로 고정한다.
+- `note.*` 같은 컴포넌트 의존 토큰은 style pack 필수 계약으로 두지 않는다.
+- note palette나 chart palette 해석은 component pack에서 semantic token 조합으로 만든다.
+
+#### Component Pack 원칙
+
+- component pack은 arbitrary remote code 실행을 직접 허용하지 않는다.
+- pack manifest는 namespace와 renderer key를 정의하고, 실제 구현체는 검증된 로컬 registry에서 찾는다.
+- built-in default component pack은 항상 fallback으로 존재한다.
 
 ---
 
@@ -337,9 +429,11 @@ interface CanvasParseIssue {
 interface CanvasFrontmatter {
   type: 'canvas'
   version: number
-  style?: string        // URL
-  components?: string   // URL
-  preset?: string       // URL (style + components 묶음)
+  style?: string | string[]        // remote URL or local file
+  components?: string | string[]   // remote URL or local file
+  preset?: string | string[]       // style + components 묶음
+  defaultStyle?: string            // optional global default foundation ref
+  defaultComponent?: string        // optional global default renderer ref
   viewport?: {
     x: number
     y: number
@@ -351,6 +445,8 @@ interface CanvasFrontmatter {
 interface CanvasNode {
   id: string
   type: 'note' | 'code'
+  styleRef?: string
+  renderer?: string
   x: number
   y: number
   w?: number

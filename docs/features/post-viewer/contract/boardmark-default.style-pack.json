@@ -1,0 +1,90 @@
+{
+  "$schema": "https://schemas.boardmark.dev/style-pack.schema.json",
+  "kind": "boardmark.style-pack",
+  "schemaVersion": 1,
+  "namespace": "boardmark.default",
+  "meta": {
+    "name": "Boardmark Default Style Pack",
+    "description": "Built-in default theme pack. Uses Vivid Mono Editorial structure and contrast, warmer Paper & Ink surfaces, and a violet accent."
+  },
+  "defaultFoundation": "light",
+  "foundations": {
+    "light": {
+      "meta": {
+        "name": "Boardmark Default Light",
+        "description": "Crisp editorial light mode with cool neutral structure and violet accent."
+      },
+      "tokens": {
+        "color.surface.lowest": "#ffffff",
+        "color.surface.base": "#f8f9fa",
+        "color.surface.low": "#f1f4f6",
+        "color.surface.container": "#eaeff1",
+        "color.surface.high": "#e3e9ec",
+        "color.surface.highest": "#dbe4e7",
+        "color.text.primary": "#2b3437",
+        "color.text.secondary": "#586064",
+        "color.text.tertiary": "#7a8388",
+        "color.accent.primary": "#6042d6",
+        "color.accent.dim": "#5433c9",
+        "color.accent.container": "#e6deff",
+        "color.accent.soft": "#f2edff",
+        "color.accent.on": "#fbf6ff",
+        "font.body": "Manrope, sans-serif",
+        "font.mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+        "space.2": "0.5rem",
+        "space.4": "1rem",
+        "space.6": "1.5rem",
+        "space.8": "2rem",
+        "radius.sm": "0.5rem",
+        "radius.md": "0.75rem",
+        "radius.lg": "1.25rem",
+        "radius.xl": "1.6rem",
+        "shadow.float": "0 20px 40px rgba(43, 52, 55, 0.08)",
+        "shadow.note": "0 24px 60px rgba(43, 52, 55, 0.08)",
+        "color.object.neutral": "#ffffff",
+        "color.object.amber": "#fff5bf",
+        "color.object.blue": "#dfeafe",
+        "color.object.green": "#dff5e2",
+        "color.object.violet": "#ece2ff",
+        "color.object.rose": "#fbe3f1",
+        "color.state.info": "#dfeafe",
+        "color.state.success": "#dff5e2",
+        "color.state.warning": "#fff5bf"
+      }
+    },
+    "soft": {
+      "extends": "light",
+      "meta": {
+        "name": "Boardmark Default Soft",
+        "description": "Warmer paper-toned variant for notebook-like boards while keeping the same violet accent family."
+      },
+      "tokens": {
+        "color.surface.lowest": "#fffdf8",
+        "color.surface.base": "#f7f3ec",
+        "color.surface.low": "#f1ebe1",
+        "color.surface.container": "#ebe3d7",
+        "color.surface.high": "#e3d9cb",
+        "color.surface.highest": "#d8cebf",
+        "color.text.primary": "#312d28",
+        "color.text.secondary": "#5f5850",
+        "color.text.tertiary": "#7c746b",
+        "color.accent.primary": "#6b4ccf",
+        "color.accent.dim": "#5b3fbb",
+        "color.accent.container": "#ebe2ff",
+        "color.accent.soft": "#f5f0ff",
+        "color.accent.on": "#fbf7ff",
+        "shadow.float": "0 20px 40px rgba(49, 45, 40, 0.08)",
+        "shadow.note": "0 24px 60px rgba(49, 45, 40, 0.08)",
+        "color.object.neutral": "#fffaf2",
+        "color.object.amber": "#fff0b8",
+        "color.object.blue": "#dde8f7",
+        "color.object.green": "#deeddc",
+        "color.object.violet": "#ebe2f8",
+        "color.object.rose": "#f6e0e9",
+        "color.state.info": "#dde8f7",
+        "color.state.success": "#deeddc",
+        "color.state.warning": "#fff0b8"
+      }
+    }
+  }
+}

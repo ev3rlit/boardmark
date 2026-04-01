@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schemas.boardmark.dev/component-pack.schema.json",
+  "kind": "boardmark.component-pack",
+  "schemaVersion": 1,
+  "namespace": "boardmark.default",
+  "meta": {
+    "name": "Boardmark Default Component Pack",
+    "description": "Built-in Boardmark renderer registry for notes and basic shapes. Renderers combine semantic style tokens with renderer-level palette and tone choices. Charts are intentionally excluded from the default pack."
+  },
+  "components": [
+    {
+      "key": "note.sticky",
+      "nodeType": "note",
+      "registryKey": "boardmark.note.sticky",
+      "supportsMarkdown": true,
+      "category": "note"
+    },
+    {
+      "key": "note.note",
+      "nodeType": "note",
+      "registryKey": "boardmark.note.note",
+      "supportsMarkdown": true,
+      "category": "note"
+    },
+    {
+      "key": "shape.rect",
+      "nodeType": "shape",
+      "registryKey": "boardmark.shape.rect",
+      "supportsMarkdown": false,
+      "category": "diagram"
+    },
+    {
+      "key": "shape.roundRect",
+      "nodeType": "shape",
+      "registryKey": "boardmark.shape.roundRect",
+      "supportsMarkdown": false,
+      "category": "diagram"
+    },
+    {
+      "key": "shape.ellipse",
+      "nodeType": "shape",
+      "registryKey": "boardmark.shape.ellipse",
+      "supportsMarkdown": false,
+      "category": "diagram"
+    },
+    {
+      "key": "shape.circle",
+      "nodeType": "shape",
+      "registryKey": "boardmark.shape.circle",
+      "supportsMarkdown": false,
+      "category": "diagram"
+    },
+    {
+      "key": "shape.triangle",
+      "nodeType": "shape",
+      "registryKey": "boardmark.shape.triangle",
+      "supportsMarkdown": false,
+      "category": "diagram"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.boardmark.dev/component-pack.schema.json",
+  "title": "Boardmark Component Pack",
+  "description": "Namespace-based React renderer registry manifest for Boardmark.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "namespace", "components"],
+  "properties": {
+    "kind": {
+      "const": "boardmark.component-pack"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "namespace": {
+      "$ref": "#/$defs/namespace"
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/componentEntry"
+      }
+    }
+  },
+  "$defs": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "componentEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "nodeType", "registryKey"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$"
+        },
+        "nodeType": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$"
+        },
+        "registryKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "propsSchemaRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supportsMarkdown": {
+          "type": "boolean"
+        },
+        "category": {
+          "enum": ["note", "chart", "diagram", "sticker", "layout", "custom"]
+        }
+      }
+    }
+  }
+}
