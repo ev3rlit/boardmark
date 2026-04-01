@@ -57,6 +57,8 @@ const desktopCapabilities = {
   canOpen: true,
   canSave: true,
   canPersist: true,
+  canDropImport: false,
+  supportsMultiSelect: false,
   newDocumentMode: 'persist-template'
 } as const
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
 import { createViewerStore } from '@boardmark/viewer-shell'
@@ -39,6 +39,7 @@ describe('Web App', () => {
     expect(store.getState().edges[0]?.content).toBe('main thread')
     expect(screen.getByText(/Reset to the bundled sample board/)).toBeInTheDocument()
     expect(screen.getByText(/Unsaved draft/)).toBeInTheDocument()
+    expect(screen.getByText(/Drag a markdown canvas into the shell/)).toBeInTheDocument()
   })
 
   it('opens a local .canvas.md file through the browser persistence bridge', async () => {
@@ -82,6 +83,58 @@ describe('Web App', () => {
 
     await waitFor(() => expect(screen.getByText(/all changes saved/)).toBeInTheDocument())
   })
+
+  it('shows drop active UI and replaces the current draft on drop', async () => {
+    const store = createWebStore(async () => defaultTemplateSource)
+
+    render(<App store={store} />)
+
+    await screen.findByText('Boardmark Viewer')
+
+    const shell = document.querySelector('main')
+    expect(shell).not.toBeNull()
+    const droppedFile = new File(
+      [
+        `---
+type: canvas
+version: 1
+---
+
+::: note #drop x=24 y=24
+Dropped Board
+:::`
+      ],
+      'dropped.canvas.md',
+      { type: 'text/markdown' }
+    )
+
+    const dropData = createDropData([droppedFile])
+
+    await act(async () => {
+      fireEvent.dragEnter(shell as HTMLElement, dropData)
+    })
+
+    await waitFor(() => expect(screen.getByTestId('drop-overlay')).toBeInTheDocument())
+
+    await act(async () => {
+      await store.getState().openDroppedDocument({
+        name: droppedFile.name,
+        source: `---
+type: canvas
+version: 1
+---
+
+::: note #drop x=24 y=24
+Dropped Board
+:::`
+      })
+    })
+
+    await waitFor(() => expect(store.getState().document?.name).toBe('dropped.canvas.md'))
+    expect(store.getState().document?.name).toBe('dropped.canvas.md')
+    expect(store.getState().documentSession?.isPersisted).toBe(false)
+    expect(store.getState().isDirty).toBe(true)
+  })
 })
 
 function createWebStore(readFileText: (file: File) => Promise<string>) {
@@ -115,4 +168,18 @@ function createFileHandle(name: string, source: string): FileSystemFileHandle {
       })
     }
   } as unknown as FileSystemFileHandle
+}
+
+function createDropData(files: File[]) {
+  return {
+    dataTransfer: {
+      files,
+      items: files.map((file) => ({
+        kind: 'file',
+        type: file.type,
+        getAsFile: () => file
+      })),
+      types: ['Files']
+    }
+  }
 }

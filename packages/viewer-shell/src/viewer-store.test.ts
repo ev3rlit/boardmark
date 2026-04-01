@@ -159,6 +159,50 @@ describe('viewer store', () => {
       path: '/tmp/open.canvas.md'
     })
   })
+
+  it('supports single and multi-selection actions in the store', async () => {
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+
+    store.getState().setPrimarySelectedNode('welcome')
+    expect(store.getState().selectedNodeIds).toEqual(['welcome'])
+
+    store.getState().toggleSelectedNode('overview')
+    expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
+
+    store.getState().replaceSelectedNodes(['overview'])
+    expect(store.getState().selectedNodeIds).toEqual(['overview'])
+
+    store.getState().clearSelectedNodes()
+    expect(store.getState().selectedNodeIds).toEqual([])
+  })
+
+  it('replaces the current document with a dropped unsaved draft', async () => {
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().openDroppedDocument({
+      name: 'dropped.canvas.md',
+      source: openedSource
+    })
+
+    expect(store.getState().document?.name).toBe('dropped.canvas.md')
+    expect(store.getState().documentSession?.isPersisted).toBe(false)
+    expect(store.getState().isDirty).toBe(true)
+    expect(store.getState().dropState).toEqual({
+      status: 'opened',
+      name: 'dropped.canvas.md'
+    })
+  })
 })
 
 function createPicker(): CanvasDocumentPicker {

@@ -43,6 +43,8 @@ describe('ViewerShell', () => {
           canOpen: true,
           canSave: false,
           canPersist: false,
+          canDropImport: true,
+          supportsMultiSelect: true,
           newDocumentMode: 'reset-template'
         }}
       />
@@ -56,6 +58,7 @@ describe('ViewerShell', () => {
     expect(screen.getByText(/Reset to the bundled sample board/)).toBeInTheDocument()
     expect(store.getState().edges[0]?.content).toBe('main thread')
     expect(screen.getByRole('application')).toBeInTheDocument()
+    expect(screen.getByText(/Drag a markdown canvas into the shell/)).toBeInTheDocument()
   })
 })
 

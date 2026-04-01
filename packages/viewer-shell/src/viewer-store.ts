@@ -27,6 +27,12 @@ import { createCanvasDocumentSaveService } from './save-service'
 
 export type ToolMode = 'select' | 'pan'
 
+export type ViewerDropState =
+  | { status: 'idle' }
+  | { status: 'active' }
+  | { status: 'opened'; name: string }
+  | { status: 'error'; message: string }
+
 type ViewerStoreOptions = {
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
@@ -40,7 +46,7 @@ export type ViewerStoreState = {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   viewport: CanvasViewport
-  selectedNodeId: string | null
+  selectedNodeIds: string[]
   toolMode: ToolMode
   loadState: CanvasLoadState
   saveState: CanvasSaveState
@@ -50,12 +56,19 @@ export type ViewerStoreState = {
   persistedSnapshotSource: string | null
   isDirty: boolean
   lastSavedAt: number | null
+  dropState: ViewerDropState
   hydrateTemplate: () => Promise<void>
   resetToTemplate: () => Promise<void>
   createNewDocument: () => Promise<void>
   openDocument: () => Promise<void>
+  openDroppedDocument: (input: { name: string; source: string }) => Promise<void>
   saveCurrentDocument: () => Promise<void>
-  setSelectedNodeId: (nodeId: string | null) => void
+  setPrimarySelectedNode: (nodeId: string | null) => void
+  toggleSelectedNode: (nodeId: string) => void
+  replaceSelectedNodes: (nodeIds: string[]) => void
+  clearSelectedNodes: () => void
+  setDropActive: (active: boolean) => void
+  setDropError: (message: string) => void
   setViewport: (viewport: CanvasViewport) => void
   setToolMode: (mode: ToolMode) => void
 }
@@ -68,6 +81,7 @@ export function createViewerStore({
   documentPersistenceBridge,
   templateSource
 }: ViewerStoreOptions) {
+  let droppedDocumentSequence = 0
   const saveService = createCanvasDocumentSaveService({
     documentPicker,
     documentRepository,
@@ -80,7 +94,7 @@ export function createViewerStore({
     nodes: [],
     edges: [],
     viewport: DEFAULT_CANVAS_VIEWPORT,
-    selectedNodeId: null,
+    selectedNodeIds: [],
     toolMode: 'select',
     loadState: { status: 'idle' },
     saveState: { status: 'idle' },
@@ -90,6 +104,7 @@ export function createViewerStore({
     persistedSnapshotSource: null,
     isDirty: false,
     lastSavedAt: null,
+    dropState: { status: 'idle' },
 
     async hydrateTemplate() {
       await loadTemplate({
@@ -247,17 +262,134 @@ export function createViewerStore({
       })
     },
 
-    setSelectedNodeId(nodeId) {
+    async openDroppedDocument({ name, source }) {
+      set({
+        loadState: { status: 'loading' }
+      })
+
+      const result = await documentRepository.readSource({
+        locator: {
+          kind: 'memory',
+          key: `dropped-document-${droppedDocumentSequence}`,
+          name
+        },
+        source,
+        isTemplate: false
+      })
+
+      droppedDocumentSequence += 1
+
+      if (!result.ok) {
+        set({
+          dropState: {
+            status: 'error',
+            message: result.error.message
+          },
+          loadState: {
+            status: 'error',
+            message: result.error.message
+          }
+        })
+        return
+      }
+
+      applyDocumentRecord(set, result.value, {
+        documentSession: createDocumentSession({
+          record: result.value,
+          isPersisted: false,
+          persistedSnapshotSource: null
+        }),
+        dropState: {
+          status: 'opened',
+          name
+        }
+      })
+    },
+
+    setPrimarySelectedNode(nodeId) {
       set((state) => {
-        if (state.selectedNodeId === nodeId) {
+        const nextSelectedNodeIds = nodeId ? [nodeId] : []
+
+        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
           return state
         }
 
         return {
           ...state,
-          selectedNodeId: nodeId
+          selectedNodeIds: nextSelectedNodeIds
         }
       })
+    },
+
+    toggleSelectedNode(nodeId) {
+      set((state) => {
+        const hasNode = state.selectedNodeIds.includes(nodeId)
+        const nextSelectedNodeIds = hasNode
+          ? state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId)
+          : [...state.selectedNodeIds, nodeId]
+
+        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: nextSelectedNodeIds
+        }
+      })
+    },
+
+    replaceSelectedNodes(nodeIds) {
+      set((state) => {
+        const nextSelectedNodeIds = [...new Set(nodeIds)]
+
+        if (areSameNodeSelection(state.selectedNodeIds, nextSelectedNodeIds)) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: nextSelectedNodeIds
+        }
+      })
+    },
+
+    clearSelectedNodes() {
+      set((state) => {
+        if (state.selectedNodeIds.length === 0) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: []
+        }
+      })
+    },
+
+    setDropActive(active) {
+      set((state) => {
+        const nextDropState = active ? { status: 'active' as const } : { status: 'idle' as const }
+
+        if (state.dropState.status === nextDropState.status) {
+          return state
+        }
+
+        return {
+          ...state,
+          dropState: nextDropState
+        }
+      })
+    },
+
+    setDropError(message) {
+      set((state) => ({
+        ...state,
+        dropState: {
+          status: 'error',
+          message
+        }
+      }))
     },
 
     setViewport(viewport) {
@@ -332,6 +464,7 @@ function applyDocumentRecord(
     documentSession?: ViewerDocumentSession
     saveState?: CanvasSaveState
     lastSavedAt?: number | null
+    dropState?: ViewerDropState
   }
 ) {
   const documentSession =
@@ -348,15 +481,24 @@ function applyDocumentRecord(
     nodes: record.ast.nodes,
     edges: record.ast.edges,
     viewport: record.ast.frontmatter.viewport ?? DEFAULT_CANVAS_VIEWPORT,
-    selectedNodeId: null,
+    selectedNodeIds: [],
     parseIssues: record.issues,
     loadState: { status: 'ready' },
     saveState: options?.saveState ?? { status: 'idle' },
     currentSource: documentSession.currentSource,
     persistedSnapshotSource: documentSession.persistedSnapshotSource,
     isDirty: documentSession.isDirty,
-    lastSavedAt: options?.lastSavedAt ?? null
+    lastSavedAt: options?.lastSavedAt ?? null,
+    dropState: options?.dropState ?? { status: 'idle' }
   })
+}
+
+function areSameNodeSelection(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((nodeId, index) => nodeId === right[index])
 }
 
 function clampZoom(zoom: number) {

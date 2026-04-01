@@ -15,6 +15,8 @@ const webCapabilities = {
   canOpen: true,
   canSave: true,
   canPersist: true,
+  canDropImport: true,
+  supportsMultiSelect: true,
   newDocumentMode: 'reset-template'
 } as const
 

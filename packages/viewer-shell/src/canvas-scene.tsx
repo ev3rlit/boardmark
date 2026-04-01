@@ -7,6 +7,7 @@ import {
   Handle,
   Position,
   ReactFlow,
+  SelectionMode,
   getBezierPath,
   useOnViewportChange,
   useReactFlow,
@@ -22,11 +23,13 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
+import type { CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import type { ViewerStore } from './viewer-store'
 
 type CanvasSceneProps = {
   store: ViewerStore
+  supportsMultiSelect?: boolean
 }
 
 const nodeTypes: NodeTypes = {
@@ -37,21 +40,20 @@ const edgeTypes: EdgeTypes = {
   'canvas-edge': CanvasMarkdownEdge
 }
 
-export function CanvasScene({ store }: CanvasSceneProps) {
+export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneProps) {
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
   const toolMode = useStore(store, (state) => state.toolMode)
-  const selectedNodeId = useStore(store, (state) => state.selectedNodeId)
-  const setSelectedNodeId = useStore(store, (state) => state.setSelectedNodeId)
+  const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
+  const clearSelectedNodes = useStore(store, (state) => state.clearSelectedNodes)
+  const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
+  const setPrimarySelectedNode = useStore(store, (state) => state.setPrimarySelectedNode)
+  const toggleSelectedNode = useStore(store, (state) => state.toggleSelectedNode)
 
   const flowNodes = useMemo(
-    () =>
-      nodes.map((node) => ({
-        ...toFlowNode(node),
-        selected: node.id === selectedNodeId
-      })),
-    [nodes, selectedNodeId]
+    () => readFlowNodes(nodes, selectedNodeIds),
+    [nodes, selectedNodeIds]
   )
   const flowEdges = useMemo(() => edges.map(toFlowEdge), [edges])
 
@@ -67,16 +69,33 @@ export function CanvasScene({ store }: CanvasSceneProps) {
         nodesConnectable={false}
         elementsSelectable={toolMode === 'select'}
         panOnDrag={toolMode === 'pan'}
-        selectionOnDrag={false}
+        selectionOnDrag={supportsMultiSelect && toolMode === 'select'}
+        selectionMode={SelectionMode.Partial}
         panOnScroll={false}
         zoomOnScroll={false}
         zoomOnPinch={false}
         zoomOnDoubleClick={false}
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
-        onPaneClick={() => setSelectedNodeId(null)}
-        onNodeClick={(_event, node) => {
-          setSelectedNodeId(node.id)
+        onPaneClick={() => clearSelectedNodes()}
+        onNodeClick={(event, node) => {
+          const allowsMultiSelect = supportsMultiSelect && (event.shiftKey || event.metaKey || event.ctrlKey)
+
+          if (allowsMultiSelect) {
+            toggleSelectedNode(node.id)
+            return
+          }
+
+          setPrimarySelectedNode(node.id)
+        }}
+        onSelectionChange={({ nodes: selectedNodes }) => {
+          if (!supportsMultiSelect) {
+            const primaryNode = selectedNodes[0]
+            setPrimarySelectedNode(primaryNode?.id ?? null)
+            return
+          }
+
+          replaceSelectedNodes(selectedNodes.map((node) => node.id))
         }}
       >
         <CanvasFlowViewportSync
@@ -98,6 +117,13 @@ export function CanvasScene({ store }: CanvasSceneProps) {
       </ReactFlow>
     </div>
   )
+}
+
+export function readFlowNodes(nodes: CanvasNode[], selectedNodeIds: string[]) {
+  return nodes.map((node) => ({
+    ...toFlowNode(node),
+    selected: selectedNodeIds.includes(node.id)
+  }))
 }
 
 type CanvasFlowViewportSyncProps = {

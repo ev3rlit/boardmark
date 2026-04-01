@@ -2,14 +2,17 @@ import { useStore } from 'zustand'
 import type { CanvasLoadState, CanvasSaveState } from '@boardmark/canvas-domain'
 import { FloatingPanel } from './floating-panel'
 import type { ViewerDocumentSession } from './document-session'
+import type { ViewerDropState } from './viewer-store'
+import type { ViewerShellCapabilities } from './viewer-shell'
 import type { ViewerStore } from './viewer-store'
 
 type StatusPanelsProps = {
   store: ViewerStore
+  capabilities: ViewerShellCapabilities
 }
 
-export function StatusPanels({ store }: StatusPanelsProps) {
-  const { document, documentSession, isDirty, lastSavedAt, loadState, parseIssues, saveState, viewport } =
+export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
+  const { document, documentSession, dropState, isDirty, lastSavedAt, loadState, parseIssues, saveState, viewport } =
     useStore(store)
 
   return (
@@ -29,6 +32,7 @@ export function StatusPanels({ store }: StatusPanelsProps) {
 
       <FloatingPanel className="p-4 text-sm text-[var(--color-on-surface-variant)]">
         <p>{readStatusMessage(loadState)}</p>
+        {capabilities.canDropImport ? <p className="mt-1">{readDropMessage(dropState)}</p> : null}
         <p className="mt-1">{readDocumentMessage(document?.name, documentSession, isDirty)}</p>
         <p className="mt-1">{readSaveMessage(saveState, lastSavedAt)}</p>
         <p className="mt-1">Zoom {Math.round(viewport.zoom * 100)}%</p>
@@ -45,6 +49,19 @@ function readStatusMessage(loadState: CanvasLoadState) {
       return loadState.message
     default:
       return 'Canvas ready'
+  }
+}
+
+function readDropMessage(dropState: ViewerDropState) {
+  switch (dropState.status) {
+    case 'active':
+      return 'Drop a .canvas.md or .md file to open it.'
+    case 'opened':
+      return `Dropped ${dropState.name}`
+    case 'error':
+      return dropState.message
+    default:
+      return 'Drag a markdown canvas into the shell to replace it.'
   }
 }
 
