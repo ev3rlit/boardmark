@@ -1,55 +1,52 @@
-import { toMarkdown } from 'mdast-util-to-markdown'
+import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
-import { unified } from 'unified'
-import remarkDirective from 'remark-directive'
-import remarkParse from 'remark-parse'
-import { visit } from 'unist-util-visit'
 import {
-  CANVAS_EDGE_KINDS,
-  CANVAS_NODE_COLORS,
   DEFAULT_CANVAS_VIEWPORT,
   type CanvasAST,
   type CanvasDirectiveSourceMap,
   type CanvasEdge,
   type CanvasFrontmatter,
   type CanvasNode,
-  type CanvasNoteNode,
+  type CanvasObjectAt,
+  type CanvasObjectStyle,
   type CanvasParseError,
   type CanvasParseIssue,
-  type CanvasShapeNode,
   type CanvasSourceRange,
   type CanvasViewport
 } from '../../canvas-domain/src/index'
-
-type DirectiveNode = {
-  type: 'containerDirective'
-  name: string
-  attributes?: Record<string, string | null | undefined>
-  children?: unknown[]
-  position?: {
-    start: { line: number; offset: number }
-    end: { line: number; offset: number }
-  }
-}
-
-type MarkdownRoot = {
-  type: 'root'
-  children: unknown[]
-}
 
 type ParseSuccess = {
   ast: CanvasAST
   issues: CanvasParseIssue[]
 }
 
-type ParseContext = {
-  sourceLocator: SourceLocator
+type SplitFrontmatterResult = {
+  content: string
   contentStartLine: number
+  contentStartOffset: number
+  frontmatterSource: string
 }
 
 type SourceLocator = {
   source: string
   lineStarts: number[]
+}
+
+type BlockHeader = {
+  line: number
+  lineEndOffset: number
+  lineStartOffset: number
+  name: string
+  rawMetadata: string
+}
+
+type ObjectBlock = {
+  closingLine: number
+  closingLineEndOffset: number
+  closingLineStartOffset: number
+  header: BlockHeader
+  rawBody: string
+  sourceMap: CanvasDirectiveSourceMap
 }
 
 export function parseCanvasDocument(
@@ -61,67 +58,45 @@ export function parseCanvasDocument(
     return err(frontmatterResult.error)
   }
 
-  const normalizedBody = normalizeDirectiveSyntax(frontmatterResult.value.content)
-  const rootResult = parseMarkdownRoot(normalizedBody)
-  const context: ParseContext = {
-    sourceLocator: createSourceLocator(source),
-    contentStartLine: frontmatterResult.value.contentStartLine
-  }
+  const sourceLocator = createSourceLocator(source)
+  const blocksResult = splitObjectBlocks({
+    body: frontmatterResult.value.content,
+    contentStartLine: frontmatterResult.value.contentStartLine,
+    contentStartOffset: frontmatterResult.value.contentStartOffset,
+    source,
+    sourceLocator
+  })
 
-  if (rootResult.isErr()) {
-    return err(rootResult.error)
+  if (blocksResult.isErr()) {
+    return err(blocksResult.error)
   }
 
   const issues: CanvasParseIssue[] = []
   const nodes: CanvasNode[] = []
   const pendingEdges: CanvasEdge[] = []
 
-  visit(rootResult.value, 'containerDirective', (node: unknown) => {
-    const directive = node as DirectiveNode
-
-    if (directive.name === 'edge') {
-      const edgeResult = parseEdgeDirective(directive, context)
+  for (const block of blocksResult.value) {
+    if (block.header.name === 'edge') {
+      const edgeResult = parseEdgeBlock(block)
 
       if (edgeResult.isErr()) {
         issues.push(edgeResult.error)
-        return
+        continue
       }
 
       pendingEdges.push(edgeResult.value)
-      return
+      continue
     }
 
-    if (directive.name === 'shape') {
-      const shapeResult = parseShapeDirective(directive, context)
-
-      if (shapeResult.isErr()) {
-        issues.push(shapeResult.error)
-        return
-      }
-
-      nodes.push(shapeResult.value)
-      return
-    }
-
-    if (directive.name !== 'note') {
-      issues.push({
-        level: 'warning',
-        kind: 'unsupported-node-type',
-        message: `Unsupported node type "${directive.name}" was skipped.`,
-        line: readDirectiveStartLine(directive, context)
-      })
-      return
-    }
-
-    const nodeResult = parseNoteDirective(directive, context)
+    const nodeResult = parseNodeBlock(block)
 
     if (nodeResult.isErr()) {
       issues.push(nodeResult.error)
-      return
+      continue
     }
 
     nodes.push(nodeResult.value)
-  })
+  }
 
   const nodeIds = new Set(nodes.map((node) => node.id))
   const edges = pendingEdges.filter((edge) => {
@@ -152,27 +127,31 @@ export function parseCanvasDocument(
 
 function parseFrontmatter(
   source: string
-): Result<{ frontmatter: CanvasFrontmatter; content: string; contentStartLine: number }, CanvasParseError> {
+): Result<
+  {
+    content: string
+    contentStartLine: number
+    contentStartOffset: number
+    frontmatter: CanvasFrontmatter
+  },
+  CanvasParseError
+> {
   const splitResult = splitFrontmatter(source)
 
   if (splitResult.isErr()) {
     return err(splitResult.error)
   }
 
-  const parsedResult = parseFrontmatterBlock(splitResult.value.frontmatterSource)
+  const parsedResult = parseYamlMapping(
+    splitResult.value.frontmatterSource,
+    'Frontmatter must be a mapping object.'
+  )
 
   if (parsedResult.isErr()) {
     return err(parsedResult.error)
   }
 
   const frontmatter = parsedResult.value
-
-  if (!isRecord(frontmatter)) {
-    return err({
-      kind: 'invalid-frontmatter',
-      message: 'Frontmatter must be a mapping object.'
-    })
-  }
 
   if (frontmatter.type !== 'canvas') {
     return err({
@@ -188,6 +167,18 @@ function parseFrontmatter(
     })
   }
 
+  const styleResult = parseOptionalStringArray('style', frontmatter.style)
+
+  if (styleResult.isErr()) {
+    return err(styleResult.error)
+  }
+
+  const componentsResult = parseOptionalStringArray('components', frontmatter.components)
+
+  if (componentsResult.isErr()) {
+    return err(componentsResult.error)
+  }
+
   const viewportResult = parseViewport(frontmatter.viewport)
 
   if (viewportResult.isErr()) {
@@ -195,20 +186,296 @@ function parseFrontmatter(
   }
 
   return ok({
+    content: splitResult.value.content,
+    contentStartLine: splitResult.value.contentStartLine,
+    contentStartOffset: splitResult.value.contentStartOffset,
     frontmatter: {
       type: 'canvas',
       version: frontmatter.version,
-      style: readOptionalString(frontmatter.style),
-      components: readOptionalString(frontmatter.components),
+      style: styleResult.value,
+      components: componentsResult.value,
       preset: readOptionalString(frontmatter.preset),
+      defaultStyle: readOptionalString(frontmatter.defaultStyle),
       viewport: viewportResult.value
-    },
-    content: splitResult.value.content,
-    contentStartLine: splitResult.value.contentStartLine
+    }
   })
 }
 
-function parseViewport(value: unknown): Result<CanvasViewport | undefined, CanvasParseError> {
+function splitFrontmatter(
+  source: string
+): Result<SplitFrontmatterResult, CanvasParseError> {
+  if (!source.startsWith('---\n')) {
+    return err({
+      kind: 'invalid-frontmatter',
+      message: 'Document must start with YAML frontmatter.'
+    })
+  }
+
+  const closingIndex = source.indexOf('\n---\n', 4)
+
+  if (closingIndex === -1) {
+    return err({
+      kind: 'invalid-frontmatter',
+      message: 'Frontmatter must end with a closing "---" line.'
+    })
+  }
+
+  const contentStartOffset = closingIndex + 5
+
+  return ok({
+    frontmatterSource: source.slice(4, closingIndex),
+    content: source.slice(contentStartOffset),
+    contentStartLine: source.slice(0, contentStartOffset).split('\n').length,
+    contentStartOffset
+  })
+}
+
+function splitObjectBlocks({
+  body,
+  contentStartLine,
+  contentStartOffset,
+  source,
+  sourceLocator
+}: {
+  body: string
+  contentStartLine: number
+  contentStartOffset: number
+  source: string
+  sourceLocator: SourceLocator
+}): Result<ObjectBlock[], CanvasParseError> {
+  const lines = body.split('\n')
+  const blocks: ObjectBlock[] = []
+  let currentOffset = contentStartOffset
+  let fenceMarker: '```' | '~~~' | null = null
+  let openBlock: BlockHeader | null = null
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    const lineNumber = contentStartLine + index
+    const lineStartOffset = currentOffset
+    const lineEndOffset = lineStartOffset + line.length
+    const lineRange = readLineRange(sourceLocator, lineNumber)
+    const fenceToken = readFenceToken(line)
+
+    if (openBlock) {
+      if (fenceMarker === null && line === ':::') {
+        const bodyStartOffset = readLineBreakOffset(source, openBlock.lineEndOffset)
+        const rawBody = source.slice(bodyStartOffset, lineStartOffset)
+
+        blocks.push({
+          closingLine: lineNumber,
+          closingLineEndOffset: lineEndOffset,
+          closingLineStartOffset: lineStartOffset,
+          header: openBlock,
+          rawBody,
+          sourceMap: buildSourceMap({
+            bodyStartOffset,
+            closingLineRange: lineRange,
+            header: openBlock,
+            rawBody,
+            sourceLocator
+          })
+        })
+        openBlock = null
+      } else if (fenceToken) {
+        fenceMarker = fenceMarker === fenceToken ? null : fenceToken
+      }
+    } else if (fenceToken) {
+      fenceMarker = fenceMarker === fenceToken ? null : fenceToken
+    } else if (fenceMarker === null) {
+      const openingMatch = /^(:::\s+)([A-Za-z][\w.-]*)(?:\s+(.*))?$/.exec(line)
+
+      if (openingMatch) {
+        openBlock = {
+          line: lineNumber,
+          lineEndOffset,
+          lineStartOffset,
+          name: openingMatch[2],
+          rawMetadata: openingMatch[3] ?? ''
+        }
+      }
+    }
+
+    currentOffset = lineEndOffset + 1
+  }
+
+  if (openBlock) {
+    return err({
+      kind: 'invalid-document',
+      message: `Directive "${openBlock.name}" starting on line ${openBlock.line} is missing a closing ":::" line.`
+    })
+  }
+
+  return ok(blocks)
+}
+
+function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue> {
+  const metadataResult = parseInlineMetadata(block.header.rawMetadata)
+
+  if (metadataResult.isErr()) {
+    return err(invalidNode(block, metadataResult.error))
+  }
+
+  const metadata = metadataResult.value
+  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'at', 'style'].includes(key))
+
+  if (extraKeys.length > 0) {
+    return err(
+      invalidNode(
+        block,
+        `Node "${block.header.name}" contains unsupported top-level keys: ${extraKeys.join(', ')}.`
+      )
+    )
+  }
+
+  if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
+    return err(invalidNode(block, 'Node is missing a valid id.'))
+  }
+
+  const atResult = parseObjectAt(metadata.id, metadata.at)
+
+  if (atResult.isErr()) {
+    return err(invalidNode(block, atResult.error, metadata.id))
+  }
+
+  const styleResult = parseOptionalObjectStyle(metadata.id, metadata.style)
+
+  if (styleResult.isErr()) {
+    return err(invalidNode(block, styleResult.error, metadata.id))
+  }
+
+  return ok({
+    id: metadata.id,
+    component: block.header.name,
+    at: atResult.value,
+    style: styleResult.value,
+    body: readBlockBody(block.rawBody),
+    position: block.sourceMap.objectRange,
+    sourceMap: block.sourceMap
+  })
+}
+
+function parseEdgeBlock(block: ObjectBlock): Result<CanvasEdge, CanvasParseIssue> {
+  const metadataResult = parseInlineMetadata(block.header.rawMetadata)
+
+  if (metadataResult.isErr()) {
+    return err(invalidEdge(block, metadataResult.error))
+  }
+
+  const metadata = metadataResult.value
+  const extraKeys = Object.keys(metadata).filter(
+    (key) => !['id', 'from', 'to', 'style'].includes(key)
+  )
+
+  if (extraKeys.length > 0) {
+    return err(
+      invalidEdge(
+        block,
+        `Edge contains unsupported top-level keys: ${extraKeys.join(', ')}.`,
+        readOptionalId(metadata.id)
+      )
+    )
+  }
+
+  if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
+    return err(invalidEdge(block, 'Edge is missing a valid id.'))
+  }
+
+  if (
+    typeof metadata.from !== 'string' ||
+    metadata.from.length === 0 ||
+    typeof metadata.to !== 'string' ||
+    metadata.to.length === 0
+  ) {
+    return err(
+      invalidEdge(
+        block,
+        `Edge "${metadata.id}" is missing a valid from/to reference.`,
+        metadata.id
+      )
+    )
+  }
+
+  const styleResult = parseOptionalObjectStyle(metadata.id, metadata.style)
+
+  if (styleResult.isErr()) {
+    return err(invalidEdge(block, styleResult.error, metadata.id))
+  }
+
+  return ok({
+    id: metadata.id,
+    from: metadata.from,
+    to: metadata.to,
+    style: styleResult.value,
+    body: readBlockBody(block.rawBody),
+    position: block.sourceMap.objectRange,
+    sourceMap: block.sourceMap
+  })
+}
+
+function parseInlineMetadata(
+  source: string
+): Result<Record<string, unknown>, string> {
+  if (source.trim().length === 0) {
+    return ok({})
+  }
+
+  const parsedResult = parseYamlMapping(
+    source,
+    'Directive metadata must be a single inline object.'
+  )
+
+  if (parsedResult.isErr()) {
+    return err(parsedResult.error.message)
+  }
+
+  return ok(parsedResult.value)
+}
+
+function parseYamlMapping(
+  source: string,
+  invalidShapeMessage: string
+): Result<Record<string, unknown>, CanvasParseError> {
+  let value: unknown
+
+  try {
+    value = load(source)
+  } catch (error) {
+    return err({
+      kind: 'invalid-document',
+      message: toErrorMessage(error, 'YAML content could not be parsed.')
+    })
+  }
+
+  if (!isRecord(value)) {
+    return err({
+      kind: 'invalid-document',
+      message: invalidShapeMessage
+    })
+  }
+
+  return ok(value)
+}
+
+function parseOptionalStringArray(
+  key: 'style' | 'components',
+  value: unknown
+): Result<string[] | undefined, CanvasParseError> {
+  if (value === undefined) {
+    return ok(undefined)
+  }
+
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    return err({
+      kind: 'invalid-frontmatter',
+      message: `Frontmatter "${key}" must be an array of strings.`
+    })
+  }
+
+  return ok(value)
+}
+
+function parseViewport(value: unknown): Result<CanvasViewport, CanvasParseError> {
   if (value === undefined) {
     return ok(DEFAULT_CANVAS_VIEWPORT)
   }
@@ -238,355 +505,147 @@ function parseViewport(value: unknown): Result<CanvasViewport | undefined, Canva
   })
 }
 
-function parseMarkdownRoot(source: string): Result<MarkdownRoot, CanvasParseError> {
-  try {
-    return ok(unified().use(remarkParse).use(remarkDirective).parse(source) as MarkdownRoot)
-  } catch (error) {
-    return err({
-      kind: 'invalid-document',
-      message: toErrorMessage(error, 'Markdown body could not be parsed.')
-    })
-  }
-}
-
-function parseNoteDirective(
-  node: DirectiveNode,
-  context: ParseContext
-): Result<CanvasNode, CanvasParseIssue> {
-  const attributes = node.attributes ?? {}
-  const id = attributes.id
-  const x = parseNumericAttribute(attributes.x)
-  const y = parseNumericAttribute(attributes.y)
-  const w = parseNumericAttribute(attributes.w)
-  const h = parseNumericAttribute(attributes.h)
-  const color = attributes.color
-  const sourceMap = readDirectiveSourceMap(node, context)
-
-  if (typeof id !== 'string' || id.length === 0) {
-    return err(invalidNode(node, context, 'Note is missing a valid id.'))
+function parseObjectAt(id: string, value: unknown): Result<CanvasObjectAt, string> {
+  if (!isRecord(value)) {
+    return err(`Node "${id}" is missing a valid "at" object.`)
   }
 
-  if (x === null || y === null) {
-    return err(
-      invalidNode(node, context, `Note "${id}" is missing numeric x or y coordinates.`, id)
-    )
+  if ('anchor' in value) {
+    return err(`Node "${id}" uses unsupported "at.anchor" metadata.`)
   }
 
-  if (w === null || h === null) {
-    return err(invalidNode(node, context, `Note "${id}" is missing numeric w or h attributes.`, id))
+  if (typeof value.x !== 'number' || typeof value.y !== 'number') {
+    return err(`Node "${id}" must define numeric "at.x" and "at.y" values.`)
   }
 
-  if (color && !CANVAS_NODE_COLORS.includes(color as (typeof CANVAS_NODE_COLORS)[number])) {
-    return err(
-      invalidNode(node, context, `Note "${id}" has an unsupported color "${color}".`, id)
-    )
+  if ('w' in value && value.w !== undefined && typeof value.w !== 'number') {
+    return err(`Node "${id}" must define numeric "at.w" when present.`)
+  }
+
+  if ('h' in value && value.h !== undefined && typeof value.h !== 'number') {
+    return err(`Node "${id}" must define numeric "at.h" when present.`)
   }
 
   return ok({
-    id,
-    type: 'note',
-    x,
-    y,
-    w,
-    h,
-    color: color ? (color as CanvasNoteNode['color']) : undefined,
-    content: stringifyDirectiveContent(node.children),
-    position: sourceMap.objectRange,
-    sourceMap
+    x: value.x,
+    y: value.y,
+    w: typeof value.w === 'number' ? value.w : undefined,
+    h: typeof value.h === 'number' ? value.h : undefined
   })
 }
 
-const SHAPE_RENDERER_KEYS = [
-  'boardmark.shape.rect',
-  'boardmark.shape.roundRect',
-  'boardmark.shape.ellipse',
-  'boardmark.shape.circle',
-  'boardmark.shape.triangle'
-] as const satisfies CanvasShapeNode['rendererKey'][]
-
-const BUILT_IN_PALETTES = ['neutral', 'amber', 'blue', 'green', 'violet', 'rose'] as const
-const BUILT_IN_TONES = ['default', 'soft', 'muted', 'strong', 'accent'] as const
-
-function parseShapeDirective(
-  node: DirectiveNode,
-  context: ParseContext
-): Result<CanvasShapeNode, CanvasParseIssue> {
-  const attributes = node.attributes ?? {}
-  const id = attributes.id
-  const x = parseNumericAttribute(attributes.x)
-  const y = parseNumericAttribute(attributes.y)
-  const w = parseNumericAttribute(attributes.w)
-  const h = parseNumericAttribute(attributes.h)
-  const rendererKey = attributes.renderer
-  const palette = attributes.palette
-  const tone = attributes.tone
-  const sourceMap = readDirectiveSourceMap(node, context)
-  const label = stringifyDirectiveContent(node.children).trim()
-
-  if (typeof id !== 'string' || id.length === 0) {
-    return err(invalidNode(node, context, 'Shape is missing a valid id.'))
+function parseOptionalObjectStyle(
+  id: string,
+  value: unknown
+): Result<CanvasObjectStyle | undefined, string> {
+  if (value === undefined) {
+    return ok(undefined)
   }
 
-  if (x === null || y === null || w === null || h === null) {
-    return err(
-      invalidNode(
-        node,
-        context,
-        `Shape "${id}" is missing numeric x, y, w, or h attributes.`,
-        id
-      )
-    )
+  if (!isRecord(value)) {
+    return err(`Object "${id}" has an invalid "style" object.`)
   }
 
-  if (
-    typeof rendererKey !== 'string' ||
-    !SHAPE_RENDERER_KEYS.includes(rendererKey as CanvasShapeNode['rendererKey'])
-  ) {
-    return err(
-      invalidNode(
-        node,
-        context,
-        `Shape "${id}" has an unsupported renderer "${rendererKey ?? ''}".`,
-        id
-      )
-    )
+  const themeRef = value.themeRef
+  const overrides = value.overrides
+
+  if (themeRef !== undefined && typeof themeRef !== 'string') {
+    return err(`Object "${id}" must define "style.themeRef" as a string.`)
   }
 
-  if (palette && !BUILT_IN_PALETTES.includes(palette as (typeof BUILT_IN_PALETTES)[number])) {
-    return err(
-      invalidNode(node, context, `Shape "${id}" has an unsupported palette "${palette}".`, id)
-    )
-  }
+  if (overrides !== undefined) {
+    if (!isRecord(overrides)) {
+      return err(`Object "${id}" must define "style.overrides" as an object.`)
+    }
 
-  if (tone && !BUILT_IN_TONES.includes(tone as (typeof BUILT_IN_TONES)[number])) {
-    return err(
-      invalidNode(node, context, `Shape "${id}" has an unsupported tone "${tone}".`, id)
-    )
+    for (const [key, entry] of Object.entries(overrides)) {
+      if (typeof entry !== 'string') {
+        return err(`Object "${id}" must define "style.overrides.${key}" as a string.`)
+      }
+    }
   }
 
   return ok({
-    id,
-    type: 'shape',
-    x,
-    y,
-    w,
-    h,
-    rendererKey: rendererKey as CanvasShapeNode['rendererKey'],
-    label: label.length > 0 ? label : undefined,
-    palette: palette as CanvasShapeNode['palette'],
-    tone: tone as CanvasShapeNode['tone'],
-    position: sourceMap.objectRange,
-    sourceMap
+    themeRef,
+    overrides: overrides as Record<string, string> | undefined
   })
 }
 
-function parseEdgeDirective(
-  node: DirectiveNode,
-  context: ParseContext
-): Result<CanvasEdge, CanvasParseIssue> {
-  const attributes = node.attributes ?? {}
-  const id = attributes.id
-  const from = attributes.from
-  const to = attributes.to
-  const kind = attributes.kind
-  const sourceMap = readDirectiveSourceMap(node, context)
-
-  if (typeof id !== 'string' || id.length === 0) {
-    return err(invalidEdge(node, context, 'Edge is missing a valid id.'))
-  }
-
-  if (typeof from !== 'string' || typeof to !== 'string' || from.length === 0 || to.length === 0) {
-    return err(
-      invalidEdge(node, context, `Edge "${id}" is missing a valid from/to reference.`, id)
-    )
-  }
-
-  if (kind && !CANVAS_EDGE_KINDS.includes(kind as (typeof CANVAS_EDGE_KINDS)[number])) {
-    return err(invalidEdge(node, context, `Edge "${id}" has an unsupported kind "${kind}".`, id))
-  }
-
-  const content = stringifyDirectiveContent(node.children).trim()
-
-  return ok({
-    id,
-    from,
-    to,
-    kind: kind ? (kind as CanvasEdge['kind']) : undefined,
-    content: content.length > 0 ? content : undefined,
-    position: sourceMap.objectRange,
-    sourceMap
-  })
-}
-
-function readDirectiveSourceMap(
-  node: DirectiveNode,
-  context: ParseContext
-): CanvasDirectiveSourceMap {
-  const objectStartLine = readDirectiveStartLine(node, context)
-  const objectEndLine = readDirectiveEndLine(node, context)
-  const openingLineRange = readLineRange(context.sourceLocator, objectStartLine)
-  const closingLineRange = readLineRange(context.sourceLocator, objectEndLine)
-  const bodyStartOffset = readLineBreakOffset(context.sourceLocator, objectStartLine)
-  const bodyEndOffset = closingLineRange.start.offset
-  const bodyRange = readOffsetRange(context.sourceLocator, bodyStartOffset, bodyEndOffset)
-  const objectRange = readOffsetRange(
-    context.sourceLocator,
-    openingLineRange.start.offset,
-    closingLineRange.end.offset
+function buildSourceMap({
+  bodyStartOffset,
+  closingLineRange,
+  header,
+  rawBody,
+  sourceLocator
+}: {
+  bodyStartOffset: number
+  closingLineRange: CanvasSourceRange
+  header: BlockHeader
+  rawBody: string
+  sourceLocator: SourceLocator
+}): CanvasDirectiveSourceMap {
+  const headerLineRange = readLineRange(sourceLocator, header.line)
+  const metadataRange =
+    header.rawMetadata.length > 0
+      ? readOffsetRange(
+          sourceLocator,
+          header.lineStartOffset + (header.lineEndOffset - header.lineStartOffset - header.rawMetadata.length),
+          header.lineEndOffset
+        )
+      : undefined
+  const bodyRange = readOffsetRange(
+    sourceLocator,
+    bodyStartOffset,
+    bodyStartOffset + rawBody.length
   )
 
   return {
-    objectRange,
-    openingLineRange,
+    objectRange: readOffsetRange(
+      sourceLocator,
+      headerLineRange.start.offset,
+      closingLineRange.end.offset
+    ),
+    headerLineRange,
+    metadataRange,
     bodyRange,
     closingLineRange
   }
 }
 
-function invalidNode(
-  node: DirectiveNode,
-  context: ParseContext,
-  message: string,
-  objectId?: string
-): CanvasParseIssue {
+function invalidNode(block: ObjectBlock, message: string, objectId?: string): CanvasParseIssue {
   return {
     level: 'warning',
     kind: 'invalid-node',
     message,
-    line: readDirectiveStartLine(node, context),
+    line: block.header.line,
     objectId
   }
 }
 
-function invalidEdge(
-  node: DirectiveNode,
-  context: ParseContext,
-  message: string,
-  objectId?: string
-): CanvasParseIssue {
+function invalidEdge(block: ObjectBlock, message: string, objectId?: string): CanvasParseIssue {
   return {
     level: 'warning',
     kind: 'invalid-edge',
     message,
-    line: readDirectiveStartLine(node, context),
+    line: block.header.line,
     objectId
   }
 }
 
-function parseNumericAttribute(value: string | null | undefined): number | null {
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return null
+function readBlockBody(rawBody: string): string | undefined {
+  return rawBody.length > 0 ? rawBody : undefined
+}
+
+function readFenceToken(line: string): '```' | '~~~' | null {
+  if (line.startsWith('```')) {
+    return '```'
   }
 
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function parseOptionalNumericAttribute(value: string | null | undefined): number | undefined | null {
-  if (value === null || value === undefined) {
-    return undefined
+  if (line.startsWith('~~~')) {
+    return '~~~'
   }
 
-  return parseNumericAttribute(value)
-}
-
-function readOptionalString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function toErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
-}
-
-function normalizeDirectiveSyntax(source: string): string {
-  const lines = source.split('\n')
-  let fenceMarker: '```' | '~~~' | null = null
-
-  return lines
-    .map((line) => {
-      const trimmed = line.trimStart()
-
-      if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-        const marker = trimmed.startsWith('```') ? '```' : '~~~'
-        fenceMarker = fenceMarker === marker ? null : marker
-        return line
-      }
-
-      if (fenceMarker !== null) {
-        return line
-      }
-
-      const match = /^(\s*):::\s+([A-Za-z][\w-]*)(.*)$/.exec(line)
-
-      if (!match) {
-        return line
-      }
-
-      const [, indent, name, rawAttributes] = match
-      const normalizedAttributes = normalizeDirectiveAttributes(rawAttributes.trim())
-
-      return normalizedAttributes.length > 0
-        ? `${indent}:::${name}{${normalizedAttributes}}`
-        : `${indent}:::${name}`
-    })
-    .join('\n')
-}
-
-function stringifyDirectiveContent(children: unknown[] | undefined): string {
-  const contentRoot: MarkdownRoot = {
-    type: 'root',
-    children: children ?? []
-  }
-
-  return toMarkdown(contentRoot as never)
-}
-
-function normalizeDirectiveAttributes(rawAttributes: string): string {
-  if (rawAttributes.length === 0) {
-    return ''
-  }
-
-  const parts = rawAttributes.split(/\s+/).filter(Boolean)
-
-  return parts
-    .map((part) => {
-      if (part.startsWith('#')) {
-        return part
-      }
-
-      return part
-    })
-    .join(' ')
-}
-
-function splitFrontmatter(
-  source: string
-): Result<{ frontmatterSource: string; content: string; contentStartLine: number }, CanvasParseError> {
-  if (!source.startsWith('---\n')) {
-    return err({
-      kind: 'invalid-frontmatter',
-      message: 'Document must start with YAML frontmatter.'
-    })
-  }
-
-  const closingIndex = source.indexOf('\n---\n', 4)
-
-  if (closingIndex === -1) {
-    return err({
-      kind: 'invalid-frontmatter',
-      message: 'Frontmatter must end with a closing "---" line.'
-    })
-  }
-
-  return ok({
-    frontmatterSource: source.slice(4, closingIndex),
-    content: source.slice(closingIndex + 5),
-    contentStartLine: source.slice(0, closingIndex + 5).split('\n').length
-  })
+  return null
 }
 
 function createSourceLocator(source: string): SourceLocator {
@@ -602,18 +661,6 @@ function createSourceLocator(source: string): SourceLocator {
     source,
     lineStarts
   }
-}
-
-function readDirectiveStartLine(node: DirectiveNode, context: ParseContext): number {
-  return toAbsoluteLine(context, node.position?.start.line ?? 1)
-}
-
-function readDirectiveEndLine(node: DirectiveNode, context: ParseContext): number {
-  return toAbsoluteLine(context, node.position?.end.line ?? readDirectiveStartLine(node, context))
-}
-
-function toAbsoluteLine(context: ParseContext, line: number): number {
-  return context.contentStartLine + line - 1
 }
 
 function readLineRange(sourceLocator: SourceLocator, line: number): CanvasSourceRange {
@@ -649,6 +696,10 @@ function readOffsetRange(
   }
 }
 
+function readLineBreakOffset(source: string, lineEndOffset: number): number {
+  return source[lineEndOffset] === '\n' ? lineEndOffset + 1 : lineEndOffset
+}
+
 function readPointAtOffset(sourceLocator: SourceLocator, offset: number) {
   let lineIndex = 0
 
@@ -680,130 +731,18 @@ function readLineEndOffset(sourceLocator: SourceLocator, line: number): number {
   return nextLineStart
 }
 
-function readLineBreakOffset(sourceLocator: SourceLocator, line: number): number {
-  const nextLineStart = sourceLocator.lineStarts[line]
-
-  return nextLineStart ?? readLineEndOffset(sourceLocator, line)
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
 }
 
-function parseFrontmatterBlock(
-  source: string
-): Result<Record<string, unknown>, CanvasParseError> {
-  const lines = source.split('\n')
-  const document: Record<string, unknown> = {}
-  let index = 0
-
-  while (index < lines.length) {
-    const rawLine = lines[index]
-    const trimmed = rawLine.trim()
-
-    if (trimmed.length === 0) {
-      index += 1
-      continue
-    }
-
-    if (/^\s/.test(rawLine)) {
-      return err({
-        kind: 'invalid-frontmatter',
-        message: `Unexpected indentation in frontmatter at line ${index + 1}.`
-      })
-    }
-
-    const separatorIndex = rawLine.indexOf(':')
-
-    if (separatorIndex === -1) {
-      return err({
-        kind: 'invalid-frontmatter',
-        message: `Frontmatter line ${index + 1} is missing a ":" separator.`
-      })
-    }
-
-    const key = rawLine.slice(0, separatorIndex).trim()
-    const rest = rawLine.slice(separatorIndex + 1).trim()
-
-    if (key.length === 0) {
-      return err({
-        kind: 'invalid-frontmatter',
-        message: `Frontmatter line ${index + 1} has an empty key.`
-      })
-    }
-
-    if (rest.length > 0) {
-      document[key] = parseScalarValue(rest)
-      index += 1
-      continue
-    }
-
-    const nestedObject: Record<string, unknown> = {}
-    index += 1
-
-    while (index < lines.length) {
-      const nestedLine = lines[index]
-
-      if (nestedLine.trim().length === 0) {
-        index += 1
-        continue
-      }
-
-      if (!/^\s+/.test(nestedLine)) {
-        break
-      }
-
-      const trimmedNestedLine = nestedLine.trim()
-      const nestedSeparatorIndex = trimmedNestedLine.indexOf(':')
-
-      if (nestedSeparatorIndex === -1) {
-        return err({
-          kind: 'invalid-frontmatter',
-          message: `Nested frontmatter line ${index + 1} is missing a ":" separator.`
-        })
-      }
-
-      const nestedKey = trimmedNestedLine.slice(0, nestedSeparatorIndex).trim()
-      const nestedValue = trimmedNestedLine.slice(nestedSeparatorIndex + 1).trim()
-
-      if (nestedKey.length === 0 || nestedValue.length === 0) {
-        return err({
-          kind: 'invalid-frontmatter',
-          message: `Nested frontmatter line ${index + 1} must contain a key and value.`
-        })
-      }
-
-      nestedObject[nestedKey] = parseScalarValue(nestedValue)
-      index += 1
-    }
-
-    document[key] = nestedObject
-  }
-
-  return ok(document)
+function readOptionalId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function parseScalarValue(value: string): unknown {
-  if (value === 'true') {
-    return true
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
-  if (value === 'false') {
-    return false
-  }
-
-  if (value === 'null') {
-    return null
-  }
-
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1)
-  }
-
-  const numericValue = Number(value)
-
-  if (Number.isFinite(numericValue) && value.trim() !== '') {
-    return numericValue
-  }
-
-  return value
+function toErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }

@@ -1,13 +1,14 @@
 ---
 type: canvas
-version: 1
+version: 2
+defaultStyle: boardmark.editorial.soft
 viewport:
   x: -180
   y: -120
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72 w=340 h=220 color=yellow
+::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { themeRef: boardmark.editorial.soft } }
 
 # Boardmark Viewer
 
@@ -19,7 +20,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #overview x=468 y=52 w=320 h=220 color=blue
+::: note { id: overview, at: { x: 468, y: 52, w: 320, h: 220 } }
 
 ## What This Shows
 
@@ -30,7 +31,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #workflow x=910 y=96 w=320 h=220 color=green
+::: note { id: workflow, at: { x: 910, y: 96, w: 320, h: 220 } }
 
 ## Reading Flow
 
@@ -42,7 +43,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #structure x=380 y=360 w=360 h=220 color=pink
+::: note { id: structure, at: { x: 380, y: 360, w: 360, h: 220 } }
 
 ## MVP Scope
 
@@ -58,7 +59,7 @@ const viewer = {
 
 :::
 
-::: note #details x=824 y=362 w=360 h=220 color=purple
+::: note { id: details, at: { x: 824, y: 362, w: 360, h: 220 } }
 
 ## Detail Cluster
 
@@ -79,7 +80,7 @@ const viewer = {
 
 :::
 
-::: note #prompting x=1228 y=318 w=320 h=220 color=default
+::: note { id: prompting, at: { x: 1228, y: 318, w: 320, h: 220 } }
 
 ## Prompting Angle
 
@@ -93,19 +94,19 @@ Then turn each note into a task.
 
 :::
 
-::: edge #welcome-overview from=welcome to=overview kind=curve
+::: edge { id: welcome-overview, from: welcome, to: overview }
 main thread
 :::
 
-::: edge #overview-workflow from=overview to=workflow kind=curve
+::: edge { id: overview-workflow, from: overview, to: workflow }
 reading path
 :::
 
-::: edge #welcome-structure from=welcome to=structure kind=curve
+::: edge { id: welcome-structure, from: welcome, to: structure }
 :::
 
-::: edge #structure-details from=structure to=details kind=curve
+::: edge { id: structure-details, from: structure, to: details }
 :::
 
-::: edge #details-prompting from=details to=prompting kind=curve
+::: edge { id: details-prompting, from: details, to: prompting }
 :::

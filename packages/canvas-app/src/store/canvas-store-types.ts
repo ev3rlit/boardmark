@@ -1,13 +1,10 @@
 import type { StoreApi } from 'zustand'
 import type {
-  BuiltInPalette,
-  BuiltInTone,
   CanvasEdge,
   CanvasLoadState,
   CanvasNode,
   CanvasParseIssue,
   CanvasSaveState,
-  CanvasShapeNode,
   CanvasViewport
 } from '@boardmark/canvas-domain'
 import type {
@@ -116,11 +113,9 @@ export type CanvasStoreState = {
   createEdgeFromConnection: (from: string, to: string) => Promise<void>
   createNoteAtViewport: () => Promise<void>
   createShapeAtViewport: (input: {
+    body: string
+    component: string
     height: number
-    label: string
-    palette?: BuiltInPalette
-    rendererKey: CanvasShapeNode['rendererKey']
-    tone?: BuiltInTone
     width: number
   }) => Promise<void>
   createFrameAtViewport: () => Promise<void>

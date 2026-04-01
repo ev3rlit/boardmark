@@ -1,12 +1,10 @@
+import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
 import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import type {
-  BuiltInPalette,
-  BuiltInTone,
   CanvasDirectiveSourceMap,
   CanvasEdge,
   CanvasNode,
-  CanvasShapeNode,
   CanvasSourceRange
 } from '@boardmark/canvas-domain'
 
@@ -26,14 +24,12 @@ export type CanvasDocumentEditIntent =
   | {
       kind: 'create-shape'
       anchorNodeId?: string
+      body: string
+      component: string
       x: number
       y: number
       width: number
       height: number
-      rendererKey: CanvasShapeNode['rendererKey']
-      label: string
-      palette?: BuiltInPalette
-      tone?: BuiltInTone
     }
   | { kind: 'delete-node'; nodeId: string }
   | { kind: 'update-edge-endpoints'; edgeId: string; from: string; to: string }
@@ -63,27 +59,41 @@ export type CanvasDocumentEditService = {
   ) => Result<CanvasDocumentEditResult, CanvasDocumentEditError>
 }
 
+type ParsedDirectiveHeader = {
+  metadata: Record<string, unknown>
+  name: string
+}
+
 export function createCanvasDocumentEditService(): CanvasDocumentEditService {
   return {
     apply(source, record, intent) {
       switch (intent.kind) {
         case 'move-node':
-          return patchNodeOpeningLine(source, record, intent.nodeId, {
-            x: roundGeometry(intent.x).toString(),
-            y: roundGeometry(intent.y).toString()
-          })
+          return patchNodeMetadata(source, record, intent.nodeId, (metadata) => ({
+            ...metadata,
+            at: {
+              ...readMetadataRecord(metadata.at),
+              x: roundGeometry(intent.x),
+              y: roundGeometry(intent.y)
+            }
+          }))
         case 'resize-node':
-          return patchNodeOpeningLine(source, record, intent.nodeId, {
-            x: roundGeometry(intent.x).toString(),
-            y: roundGeometry(intent.y).toString(),
-            w: Math.max(120, roundGeometry(intent.width)).toString(),
-            h: Math.max(120, roundGeometry(intent.height)).toString()
-          })
+          return patchNodeMetadata(source, record, intent.nodeId, (metadata) => ({
+            ...metadata,
+            at: {
+              ...readMetadataRecord(metadata.at),
+              x: roundGeometry(intent.x),
+              y: roundGeometry(intent.y),
+              w: Math.max(120, roundGeometry(intent.width)),
+              h: Math.max(120, roundGeometry(intent.height))
+            }
+          }))
         case 'update-edge-endpoints':
-          return patchEdgeOpeningLine(source, record, intent.edgeId, {
+          return patchEdgeMetadata(source, record, intent.edgeId, (metadata) => ({
+            ...metadata,
             from: intent.from,
             to: intent.to
-          })
+          }))
         case 'replace-object-body':
           return replaceBodyRange(
             source,
@@ -116,11 +126,11 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
   }
 }
 
-function patchNodeOpeningLine(
+function patchNodeMetadata(
   source: string,
   record: CanvasDocumentRecord,
   nodeId: string,
-  attributes: Partial<Record<'x' | 'y' | 'w' | 'h' | 'renderer' | 'palette' | 'tone', string>>
+  patch: (metadata: Record<string, unknown>) => Record<string, unknown>
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
   const node = record.ast.nodes.find((entry) => entry.id === nodeId)
 
@@ -131,14 +141,14 @@ function patchNodeOpeningLine(
     })
   }
 
-  return replaceOpeningLine(source, node.sourceMap, attributes, node.type)
+  return replaceDirectiveHeader(source, node.sourceMap, node.component, patch)
 }
 
-function patchEdgeOpeningLine(
+function patchEdgeMetadata(
   source: string,
   record: CanvasDocumentRecord,
   edgeId: string,
-  attributes: Partial<Record<'from' | 'to' | 'kind', string>>
+  patch: (metadata: Record<string, unknown>) => Record<string, unknown>
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
   const edge = record.ast.edges.find((entry) => entry.id === edgeId)
 
@@ -149,50 +159,36 @@ function patchEdgeOpeningLine(
     })
   }
 
-  return replaceOpeningLine(source, edge.sourceMap, attributes, 'edge')
+  return replaceDirectiveHeader(source, edge.sourceMap, 'edge', patch)
 }
 
-function replaceOpeningLine(
+function replaceDirectiveHeader(
   source: string,
   sourceMap: CanvasDirectiveSourceMap,
-  nextAttributes: Partial<Record<string, string>>,
-  objectType: 'note' | 'shape' | 'edge'
+  expectedName: string,
+  patch: (metadata: Record<string, unknown>) => Record<string, unknown>
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
-  const openingLine = readRangeText(source, sourceMap.openingLineRange)
-  const parseResult = parseOpeningDirective(openingLine)
+  const openingLine = readRangeText(source, sourceMap.headerLineRange)
+  const parseResult = parseDirectiveHeader(openingLine)
 
   if (parseResult.isErr()) {
     return err(parseResult.error)
   }
 
-  if (parseResult.value.name !== objectType) {
+  if (parseResult.value.name !== expectedName) {
     return err({
       kind: 'invalid-object',
-      message: `Cannot patch ${objectType} attributes on a "${parseResult.value.name}" directive.`
+      message: `Cannot patch "${expectedName}" metadata on a "${parseResult.value.name}" directive.`
     })
   }
 
-  const merged = new Map(parseResult.value.attributes)
-
-  for (const [key, value] of Object.entries(nextAttributes)) {
-    if (value === undefined) {
-      merged.delete(key)
-      continue
-    }
-
-    merged.set(key, value)
-  }
-
-  const nextOpeningLine = stringifyOpeningDirective({
-    name: parseResult.value.name,
-    id: parseResult.value.id,
-    attributes: merged,
-    unknownTokens: parseResult.value.unknownTokens
-  })
-  const nextSource = replaceRange(source, sourceMap.openingLineRange, nextOpeningLine)
+  const nextOpeningLine = stringifyDirectiveHeader(
+    parseResult.value.name,
+    patch(parseResult.value.metadata)
+  )
 
   return ok({
-    source: nextSource,
+    source: replaceRange(source, sourceMap.headerLineRange, nextOpeningLine),
     dirty: true
   })
 }
@@ -209,14 +205,8 @@ function replaceBodyRange(
     })
   }
 
-  const nextSource = replaceRange(
-    source,
-    object.sourceMap.bodyRange,
-    serializeBodyFragment(markdown)
-  )
-
   return ok({
-    source: nextSource,
+    source: replaceRange(source, object.sourceMap.bodyRange, serializeBodyFragment(markdown)),
     dirty: true
   })
 }
@@ -234,21 +224,27 @@ function createNote(
     ])
   )
   const block = [
-    `::: note #${nextId} x=${roundGeometry(intent.x)} y=${roundGeometry(intent.y)} w=${roundGeometry(intent.width)} h=${roundGeometry(intent.height)}`,
+    stringifyDirectiveHeader('note', {
+      id: nextId,
+      at: {
+        x: roundGeometry(intent.x),
+        y: roundGeometry(intent.y),
+        w: roundGeometry(intent.width),
+        h: roundGeometry(intent.height)
+      }
+    }),
     ...serializeBodyFragment(intent.markdown).split('\n').filter((line, index, lines) => {
       return !(index === lines.length - 1 && line === '')
     }),
     ':::'
   ].join('\n')
 
-  const nextSource = insertObjectBlock(
-    source,
-    block,
-    record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
-  )
-
   return ok({
-    source: nextSource,
+    source: insertObjectBlock(
+      source,
+      block,
+      record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
+    ),
     dirty: true
   })
 }
@@ -265,39 +261,30 @@ function createShape(
       ...record.ast.edges.map((edge) => edge.id)
     ])
   )
-  const openingTokens = [
-    `::: shape #${nextId}`,
-    `x=${roundGeometry(intent.x)}`,
-    `y=${roundGeometry(intent.y)}`,
-    `w=${roundGeometry(intent.width)}`,
-    `h=${roundGeometry(intent.height)}`,
-    `renderer=${intent.rendererKey}`
-  ]
-
-  if (intent.palette) {
-    openingTokens.push(`palette=${intent.palette}`)
-  }
-
-  if (intent.tone) {
-    openingTokens.push(`tone=${intent.tone}`)
+  const metadata: Record<string, unknown> = {
+    id: nextId,
+    at: {
+      x: roundGeometry(intent.x),
+      y: roundGeometry(intent.y),
+      w: roundGeometry(intent.width),
+      h: roundGeometry(intent.height)
+    }
   }
 
   const block = [
-    openingTokens.join(' '),
-    ...serializeBodyFragment(intent.label).split('\n').filter((line, index, lines) => {
+    stringifyDirectiveHeader(intent.component, metadata),
+    ...serializeBodyFragment(intent.body).split('\n').filter((line, index, lines) => {
       return !(index === lines.length - 1 && line === '')
     }),
     ':::'
   ].join('\n')
 
-  const nextSource = insertObjectBlock(
-    source,
-    block,
-    record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
-  )
-
   return ok({
-    source: nextSource,
+    source: insertObjectBlock(
+      source,
+      block,
+      record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
+    ),
     dirty: true
   })
 }
@@ -317,14 +304,12 @@ function deleteNode(
   }
 
   const connectedEdges = record.ast.edges.filter((edge) => edge.from === nodeId || edge.to === nodeId)
-  const ranges = [
-    node.sourceMap.objectRange,
-    ...connectedEdges.map((edge) => edge.sourceMap.objectRange)
-  ]
-  const nextSource = removeObjectRanges(source, ranges)
 
   return ok({
-    source: nextSource,
+    source: removeObjectRanges(
+      source,
+      [node.sourceMap.objectRange, ...connectedEdges.map((edge) => edge.sourceMap.objectRange)]
+    ),
     dirty: true
   })
 }
@@ -349,7 +334,11 @@ function createEdge(
     ])
   )
   const block = [
-    `::: edge #${nextId} from=${intent.from} to=${intent.to}`,
+    stringifyDirectiveHeader('edge', {
+      id: nextId,
+      from: intent.from,
+      to: intent.to
+    }),
     ...serializeBodyFragment(intent.markdown).split('\n').filter((line, index, lines) => {
       return !(index === lines.length - 1 && line === '')
     }),
@@ -382,99 +371,108 @@ function deleteEdge(
   })
 }
 
-function parseOpeningDirective(
-  openingLine: string
-): Result<
-  {
-    name: 'note' | 'shape' | 'edge'
-    id: string
-    attributes: Map<string, string>
-    unknownTokens: string[]
-  },
-  CanvasDocumentEditError
-> {
-  const tokens = openingLine.trim().split(/\s+/)
+function parseDirectiveHeader(openingLine: string): Result<ParsedDirectiveHeader, CanvasDocumentEditError> {
+  const match = /^(:::\s+)([A-Za-z][\w.-]*)(?:\s+(.*))?$/.exec(openingLine)
 
-  if (
-    tokens[0] !== ':::' ||
-    (tokens[1] !== 'note' && tokens[1] !== 'shape' && tokens[1] !== 'edge')
-  ) {
+  if (!match) {
     return err({
       kind: 'invalid-patch',
       message: `Unsupported directive opening line "${openingLine}".`
     })
   }
 
-  const idToken = tokens.find((token) => token.startsWith('#'))
-
-  if (!idToken) {
-    return err({
-      kind: 'invalid-patch',
-      message: `Directive opening line is missing an object id: "${openingLine}".`
+  if (!match[3]) {
+    return ok({
+      name: match[2],
+      metadata: {}
     })
   }
 
-  const attributes = new Map<string, string>()
-  const unknownTokens: string[] = []
+  try {
+    const metadata = load(match[3])
 
-  for (const token of tokens.slice(2)) {
-    if (token === idToken) {
-      continue
+    if (!isRecord(metadata)) {
+      return err({
+        kind: 'invalid-patch',
+        message: `Directive opening line must contain a metadata object: "${openingLine}".`
+      })
     }
 
-    const separatorIndex = token.indexOf('=')
-
-    if (separatorIndex <= 0) {
-      unknownTokens.push(token)
-      continue
-    }
-
-    const key = token.slice(0, separatorIndex)
-    const value = token.slice(separatorIndex + 1)
-    attributes.set(key, value)
+    return ok({
+      name: match[2],
+      metadata
+    })
+  } catch (error) {
+    return err({
+      kind: 'invalid-patch',
+      message: error instanceof Error ? error.message : `Could not parse "${openingLine}".`
+    })
   }
-
-  return ok({
-    name: tokens[1],
-    id: idToken.slice(1),
-    attributes,
-    unknownTokens
-  })
 }
 
-function stringifyOpeningDirective(input: {
-  name: 'note' | 'shape' | 'edge'
-  id: string
-  attributes: Map<string, string>
-  unknownTokens: string[]
-}) {
-  const tokens = [':::', input.name, `#${input.id}`]
-  const orderedKeys =
-    input.name === 'note'
-      ? ['x', 'y', 'w', 'h', 'color']
-      : input.name === 'shape'
-        ? ['x', 'y', 'w', 'h', 'renderer', 'palette', 'tone']
-        : ['from', 'to', 'kind']
+function stringifyDirectiveHeader(name: string, metadata: Record<string, unknown>) {
+  const orderedMetadata = orderMetadata(name, metadata)
+  const keys = Object.keys(orderedMetadata)
 
-  for (const key of orderedKeys) {
-    const value = input.attributes.get(key)
+  if (keys.length === 0) {
+    return `::: ${name}`
+  }
 
-    if (value !== undefined) {
-      tokens.push(`${key}=${value}`)
+  return `::: ${name} ${serializeInlineObject(orderedMetadata)}`
+}
+
+function orderMetadata(name: string, metadata: Record<string, unknown>) {
+  const ordered: Record<string, unknown> = {}
+  const preferredKeys =
+    name === 'edge'
+      ? ['id', 'from', 'to', 'style']
+      : ['id', 'at', 'style']
+
+  for (const key of preferredKeys) {
+    if (metadata[key] !== undefined) {
+      ordered[key] = metadata[key]
     }
   }
 
-  for (const [key, value] of input.attributes.entries()) {
-    if (orderedKeys.includes(key)) {
-      continue
-    }
+  return ordered
+}
 
-    tokens.push(`${key}=${value}`)
+function serializeInlineObject(value: Record<string, unknown>): string {
+  return `{ ${Object.entries(value)
+    .map(([key, entry]) => `${key}: ${serializeInlineValue(entry)}`)
+    .join(', ')} }`
+}
+
+function serializeInlineValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return isBareString(value) ? value : JSON.stringify(value)
   }
 
-  tokens.push(...input.unknownTokens)
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
 
-  return tokens.join(' ')
+  if (value === null) {
+    return 'null'
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => serializeInlineValue(entry)).join(', ')}]`
+  }
+
+  if (isRecord(value)) {
+    return serializeInlineObject(value)
+  }
+
+  return JSON.stringify(value)
+}
+
+function isBareString(value: string) {
+  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value)
+}
+
+function readMetadataRecord(value: unknown) {
+  return isRecord(value) ? value : {}
 }
 
 function serializeBodyFragment(markdown: string) {
@@ -549,6 +547,10 @@ function readNextId(prefix: 'note' | 'shape' | 'edge', existingIds: Set<string>)
 
 function roundGeometry(value: number) {
   return Math.round(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function exhaustiveGuard(value: never) {

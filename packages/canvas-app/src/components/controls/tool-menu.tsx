@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { getBuiltInRendererContract } from '@boardmark/canvas-renderer'
 import { useStore } from 'zustand'
-import type { CanvasShapeNode } from '@boardmark/canvas-domain'
+import type { BuiltInComponentKey } from '@boardmark/canvas-domain'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ToolMenuProps = {
@@ -107,17 +107,15 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
             <div className="viewer-context-menu-section">
               {SHAPE_MENU_ITEMS.map((item) => (
                 <button
-                  key={item.rendererKey}
+                  key={item.component}
                   className="viewer-context-menu-item"
                   onClick={() => {
-                    const contract = getBuiltInRendererContract(item.rendererKey)
+                    const contract = getBuiltInRendererContract(item.component)
                     setIsShapeMenuOpen(false)
                     void createShapeAtViewport({
+                      body: item.body,
+                      component: item.component,
                       height: contract.defaultSize.height,
-                      label: item.label,
-                      palette: item.palette,
-                      rendererKey: item.rendererKey,
-                      tone: item.tone,
                       width: contract.defaultSize.width
                     })
                   }}
@@ -206,45 +204,60 @@ function ToolMenuButton({
 }
 
 const SHAPE_MENU_ITEMS: Array<{
+  body: string
+  component: BuiltInComponentKey
   icon: LucideIcon
   label: string
-  palette: NonNullable<CanvasShapeNode['palette']>
-  rendererKey: CanvasShapeNode['rendererKey']
-  tone: NonNullable<CanvasShapeNode['tone']>
 }> = [
   {
+    body: createShapeBody('Rectangle', {
+      palette: 'neutral',
+      tone: 'default'
+    }),
+    component: 'boardmark.shape.rect',
     icon: Square,
-    label: 'Rectangle',
-    palette: 'neutral',
-    rendererKey: 'boardmark.shape.rect',
-    tone: 'default'
+    label: 'Rectangle'
   },
   {
+    body: createShapeBody('Rounded rectangle', {
+      palette: 'blue',
+      tone: 'soft'
+    }),
+    component: 'boardmark.shape.roundRect',
     icon: Square,
-    label: 'Rounded rectangle',
-    palette: 'blue',
-    rendererKey: 'boardmark.shape.roundRect',
-    tone: 'soft'
+    label: 'Rounded rectangle'
   },
   {
+    body: createShapeBody('Ellipse', {
+      palette: 'green',
+      tone: 'soft'
+    }),
+    component: 'boardmark.shape.ellipse',
     icon: Circle,
-    label: 'Ellipse',
-    palette: 'green',
-    rendererKey: 'boardmark.shape.ellipse',
-    tone: 'soft'
+    label: 'Ellipse'
   },
   {
+    body: createShapeBody('Circle', {
+      palette: 'violet',
+      tone: 'default'
+    }),
+    component: 'boardmark.shape.circle',
     icon: Circle,
-    label: 'Circle',
-    palette: 'violet',
-    rendererKey: 'boardmark.shape.circle',
-    tone: 'default'
+    label: 'Circle'
   },
   {
+    body: createShapeBody('Triangle', {
+      palette: 'rose',
+      tone: 'default'
+    }),
+    component: 'boardmark.shape.triangle',
     icon: Triangle,
-    label: 'Triangle',
-    palette: 'rose',
-    rendererKey: 'boardmark.shape.triangle',
-    tone: 'default'
+    label: 'Triangle'
   }
 ]
+
+function createShapeBody(label: string, props: Record<string, string>) {
+  return `${label}\n\n\`\`\`yaml props\n${Object.entries(props)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')}\n\`\`\``
+}

@@ -31,7 +31,7 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { BuiltInShapeRendererData, CanvasNode } from '@boardmark/canvas-domain'
+import type { BuiltInComponentKey, CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { readActiveToolMode, type CanvasStore, type CanvasStoreState } from '@canvas-app/store/canvas-store'
 
@@ -56,6 +56,7 @@ export function CanvasScene({
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
+  const defaultStyle = useStore(store, (state) => state.document?.ast.frontmatter.defaultStyle)
   const activeToolMode = useStore(store, readActiveToolMode)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
@@ -73,8 +74,8 @@ export function CanvasScene({
   const isPanMode = activeToolMode === 'pan'
 
   const baseFlowNodes = useMemo(
-    () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds),
-    [nodes, interactionOverrides, selectedNodeIds]
+    () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds, defaultStyle),
+    [nodes, interactionOverrides, selectedNodeIds, defaultStyle]
   )
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const flowEdges = useMemo(
@@ -93,8 +94,8 @@ export function CanvasScene({
           store={store}
         />
       ),
-      'canvas-shape': (props) => (
-        <CanvasShapeNode
+      'canvas-component': (props) => (
+        <CanvasComponentNode
           {...props}
           store={store}
         />
@@ -225,29 +226,24 @@ export function CanvasScene({
 export function readFlowNodes(
   nodes: CanvasNode[],
   interactionOverrides: CanvasStoreState['interactionOverrides'] = {},
-  selectedNodeIds: string[] = []
+  selectedNodeIds: string[] = [],
+  defaultStyle?: string
 ) {
   return nodes.map((node) => {
     const override = interactionOverrides[node.id]
-    const patchedNode =
-      node.type === 'shape'
-        ? {
-            ...node,
-            x: override?.x ?? node.x,
-            y: override?.y ?? node.y,
-            w: override?.w ?? node.w,
-            h: override?.h ?? node.h
-          }
-        : {
-            ...node,
-            x: override?.x ?? node.x,
-            y: override?.y ?? node.y,
-            w: override?.w ?? node.w,
-            h: override?.h ?? node.h
-          }
+    const patchedNode = {
+      ...node,
+      at: {
+        ...node.at,
+        x: override?.x ?? node.at.x,
+        y: override?.y ?? node.at.y,
+        w: override?.w ?? node.at.w,
+        h: override?.h ?? node.at.h
+      }
+    }
 
     return {
-      ...toFlowNode(patchedNode),
+      ...toFlowNode(patchedNode, defaultStyle),
       selected: selectedNodeIds.includes(node.id)
     }
   })
@@ -308,7 +304,6 @@ function CanvasFlowViewportSync({ store, viewport }: CanvasFlowViewportSyncProps
 }
 
 function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
-  const noteData = data as CanvasFlowNodeData & { type: 'note'; content: string }
   const editingState = useStore(store, (state) => state.editingState)
   const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
@@ -365,7 +360,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
       />
       <StickyNoteCard
         className="flex h-full w-full min-h-0 flex-col overflow-hidden"
-        color={noteData.color}
+        color="default"
         selected={selected}
       >
         {isEditing ? (
@@ -395,7 +390,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
           <div className="min-h-0 flex-1 overflow-auto">
             <MarkdownContent
               className="markdown-content note-markdown"
-              content={noteData.content}
+              content={data.body ?? ''}
             />
           </div>
         )}
@@ -410,8 +405,10 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
   )
 }
 
-function CanvasShapeNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
+function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
   const editingState = useStore(store, (state) => state.editingState)
+  const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
+  const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
@@ -428,19 +425,43 @@ function CanvasShapeNode({ id, data, selected, store }: NodeProps<Node<CanvasFlo
     textareaRef.current.select()
   }, [isEditing])
 
-  const rendererKey = data.rendererKey
-
-  if (!rendererKey) {
-    return null
-  }
-
-  const Renderer = BUILT_IN_RENDERER_COMPONENTS[rendererKey]
+  const Renderer = readBuiltInRenderer(data.component)
 
   return (
     <div
       className="max-w-none"
       onDoubleClick={() => startShapeEditing(id)}
     >
+      <NodeResizer
+        isVisible={selected && !isEditing}
+        minWidth={120}
+        minHeight={120}
+        color="rgba(96, 66, 214, 0.72)"
+        handleClassName="boardmark-flow__resize-handle"
+        lineClassName="boardmark-flow__resize-line"
+        onResize={(_event, resize) => {
+          previewNodeResize(id, {
+            x: resize.x,
+            y: resize.y,
+            width: resize.width,
+            height: resize.height
+          })
+        }}
+        onResizeEnd={(_event, resize) => {
+          void commitNodeResize(id, {
+            x: resize.x,
+            y: resize.y,
+            width: resize.width,
+            height: resize.height
+          })
+        }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
+        isConnectable={!isEditing}
+        className="boardmark-flow__handle"
+      />
       {isEditing ? (
         <div className="rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)]">
           <textarea
@@ -464,20 +485,30 @@ function CanvasShapeNode({ id, data, selected, store }: NodeProps<Node<CanvasFlo
             }}
           />
         </div>
-      ) : (
+      ) : Renderer ? (
         <Renderer
-          data={{
-            label: data.label,
-            palette: data.palette,
-            tone: data.tone
-          } satisfies BuiltInShapeRendererData}
-          nodeId={id}
-          rendererKey={rendererKey}
-          selected={selected}
-          width={typeof data.width === 'number' ? data.width : undefined}
+          component={data.component as BuiltInComponentKey}
+          body={data.body}
           height={data.height}
+          nodeId={id}
+          resolvedThemeRef={data.resolvedThemeRef}
+          selected={selected}
+          style={data.style}
+          width={typeof data.width === 'number' ? data.width : undefined}
+        />
+      ) : (
+        <FallbackComponentNode
+          component={data.component}
+          body={data.body}
+          style={data.style}
         />
       )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={!isEditing}
+        className="boardmark-flow__handle"
+      />
     </div>
   )
 }
@@ -562,10 +593,10 @@ function CanvasMarkdownEdge({
                   }
                 }}
               />
-            ) : edgeData.content ? (
+            ) : edgeData.body ? (
               <MarkdownContent
                 className="markdown-content edge-markdown"
-                content={edgeData.content}
+                content={edgeData.body}
               />
             ) : (
               <span className="text-xs text-[var(--color-on-surface-variant)]">Double-click to label</span>
@@ -586,6 +617,42 @@ async function handleConnection(
   }
 
   await createEdgeFromConnection(connection.source, connection.target)
+}
+
+function readBuiltInRenderer(component: string) {
+  if (!(component in BUILT_IN_RENDERER_COMPONENTS)) {
+    return null
+  }
+
+  return BUILT_IN_RENDERER_COMPONENTS[component as BuiltInComponentKey]
+}
+
+function FallbackComponentNode({
+  component,
+  body,
+  style
+}: {
+  component: string
+  body?: string
+  style?: CanvasFlowNodeData['style']
+}) {
+  return (
+    <div
+      className="flex min-h-full min-w-full flex-col justify-between rounded-[1.2rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_96%,white)] px-4 py-3 shadow-[0_20px_40px_rgba(43,52,55,0.08)]"
+      style={{
+        background: style?.overrides?.fill,
+        boxShadow: style?.overrides?.stroke
+          ? `inset 0 0 0 1.5px ${style.overrides.stroke}`
+          : undefined,
+        color: style?.overrides?.text
+      }}
+    >
+      <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">
+        {component}
+      </div>
+      <div className="mt-3 text-sm text-[inherit]">{body ?? 'Custom component placeholder'}</div>
+    </div>
+  )
 }
 
 export function applyNodeChangesToStore({

@@ -18,10 +18,10 @@ describe('canvas document repository', () => {
       },
       source: `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #idea x=10 y=20 w=320 h=220
+::: note { id: idea, at: { x: 10, y: 20, w: 320, h: 220 } }
 Idea
 :::`,
       isTemplate: true
@@ -35,7 +35,7 @@ Idea
 
     expect(result.value.name).toBe('template.canvas.md')
     expect(result.value.ast.nodes).toHaveLength(1)
-    expect(result.value.ast.nodes[0]?.sourceMap.openingLineRange.start.line).toBe(6)
+    expect(result.value.ast.nodes[0]?.sourceMap.headerLineRange.start.line).toBe(6)
     expect(result.value.ast.nodes[0]?.sourceMap.bodyRange.start.line).toBe(7)
     expect(result.value.issues).toEqual([])
     expect(result.value.isTemplate).toBe(true)
@@ -51,7 +51,7 @@ Idea
       },
       source: `---
 type: note
-version: 1
+version: 2
 ---`,
       isTemplate: false
     })
@@ -76,18 +76,18 @@ version: 1
       },
       source: `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #good x=10 y=20 w=320 h=220
+::: note { id: good, at: { x: 10, y: 20, w: 320, h: 220 } }
 Good
 :::
 
-::: note #bad x=nope y=20 w=320 h=220
+::: note { id: bad, at: { x: nope, y: 20, w: 320, h: 220 } }
 Bad
 :::
 
-::: edge #missing from=good to=ghost
+::: edge { id: missing, from: good, to: ghost }
 Broken
 :::`,
       isTemplate: false
@@ -130,10 +130,10 @@ Broken
         },
         source: `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #saved x=30 y=40 w=320 h=220
+::: note { id: saved, at: { x: 30, y: 40, w: 320, h: 220 } }
 Saved
 :::`,
         isTemplate: false

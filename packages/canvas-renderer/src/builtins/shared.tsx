@@ -2,6 +2,7 @@ import type {
   BuiltInPalette,
   BuiltInRendererProps,
   BuiltInTone,
+  CanvasObjectStyle,
   SemanticTokenKey
 } from '@boardmark/canvas-domain'
 
@@ -37,8 +38,13 @@ function resolvePaletteBackground(
 export function readObjectBackground(
   palette: BuiltInPalette | undefined,
   tone: BuiltInTone | undefined,
-  fallback: string
+  fallback: string,
+  style: CanvasObjectStyle | undefined
 ): string {
+  if (style?.overrides?.fill) {
+    return style.overrides.fill
+  }
+
   const base = resolvePaletteBackground(palette ?? 'neutral', fallback)
   const surfaceLowest = readTokenVar('color.surface.lowest', '#ffffff')
   const surfaceLow = readTokenVar('color.surface.low', '#f1f4f6')
@@ -59,18 +65,29 @@ export function readObjectBackground(
   }
 }
 
-export function rendererFrameStyle<TData>(
-  props: BuiltInRendererProps<TData>,
+export function readTextColor(style: CanvasObjectStyle | undefined, fallback = '#2b3437') {
+  return style?.overrides?.text ?? readTokenVar('color.text.primary', fallback)
+}
+
+export function readStrokeColor(style: CanvasObjectStyle | undefined) {
+  return style?.overrides?.stroke
+}
+
+export function rendererFrameStyle(
+  props: BuiltInRendererProps,
   palette: BuiltInPalette | undefined,
   tone: BuiltInTone | undefined,
   fallback: string,
   borderRadius: string
 ) {
+  const stroke = readStrokeColor(props.style)
+
   return {
     width: props.width ?? '100%',
     minHeight: props.height ?? 120,
-    background: readObjectBackground(palette, tone, fallback),
-    color: readTokenVar('color.text.primary', '#2b3437'),
-    borderRadius
+    background: readObjectBackground(palette, tone, fallback, props.style),
+    color: readTextColor(props.style),
+    borderRadius,
+    boxShadow: stroke ? `inset 0 0 0 1.5px ${stroke}` : undefined
   }
 }

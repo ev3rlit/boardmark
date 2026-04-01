@@ -4,46 +4,41 @@ import { getBuiltInRendererContract } from './builtins'
 import {
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
-  type BuiltInPalette,
-  type BuiltInRendererKey,
-  type BuiltInTone,
+  type BuiltInComponentKey,
   type CanvasEdge,
   type CanvasNode,
-  type CanvasNodeColor,
-  type CanvasShapeNode,
+  type CanvasObjectStyle,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
 import { MarkerType, type Edge, type Node, type Viewport } from '@xyflow/react'
 
 export type CanvasFlowNodeData = {
   id: string
-  type: CanvasNode['type']
-  content?: string
-  color?: CanvasNodeColor
+  component: string
+  body?: string
+  style?: CanvasObjectStyle
+  resolvedThemeRef?: string
   height?: number
-  label?: string
-  palette?: BuiltInPalette
-  rendererKey?: BuiltInRendererKey
-  tone?: BuiltInTone
   width?: number
 }
 
 export type CanvasFlowEdgeData = {
   id: string
-  content?: string
+  body?: string
+  style?: CanvasObjectStyle
 }
 
-export function toFlowNode(node: CanvasNode): Node<CanvasFlowNodeData> {
-  if (node.type === 'shape') {
-    return toFlowShapeNode(node)
-  }
+export function toFlowNode(node: CanvasNode, defaultStyle?: string): Node<CanvasFlowNodeData> {
+  const contract = readBuiltInContract(node.component)
+  const width = node.at.w ?? contract?.defaultSize.width ?? DEFAULT_NOTE_WIDTH
+  const height = node.at.h ?? contract?.defaultSize.height ?? DEFAULT_NOTE_HEIGHT
 
   return {
     id: node.id,
-    type: 'canvas-note',
+    type: node.component === 'note' ? 'canvas-note' : 'canvas-component',
     position: {
-      x: node.x,
-      y: node.y
+      x: node.at.x,
+      y: node.at.y
     },
     draggable: true,
     deletable: false,
@@ -51,50 +46,20 @@ export function toFlowNode(node: CanvasNode): Node<CanvasFlowNodeData> {
     connectable: true,
     data: {
       id: node.id,
-      type: 'note',
-      content: node.content,
-      color: node.color,
-      height: node.h,
-      width: node.w
+      component: node.component,
+      body: node.body,
+      style: node.style,
+      resolvedThemeRef: node.style?.themeRef ?? defaultStyle,
+      height,
+      width
     },
-    width: node.w ?? DEFAULT_NOTE_WIDTH,
-    height: node.h ?? DEFAULT_NOTE_HEIGHT,
-    initialWidth: node.w ?? DEFAULT_NOTE_WIDTH,
-    initialHeight: node.h ?? DEFAULT_NOTE_HEIGHT,
+    width,
+    height,
+    initialWidth: width,
+    initialHeight: height,
     style: {
-      width: node.w ?? DEFAULT_NOTE_WIDTH,
-      height: node.h ?? DEFAULT_NOTE_HEIGHT
-    }
-  }
-}
-
-function toFlowShapeNode(node: CanvasShapeNode): Node<CanvasFlowNodeData> {
-  const contract = getBuiltInRendererContract(node.rendererKey)
-
-  return {
-    id: node.id,
-    type: 'canvas-shape',
-    position: {
-      x: node.x,
-      y: node.y
-    },
-    draggable: true,
-    deletable: false,
-    selectable: true,
-    connectable: false,
-    data: {
-      id: node.id,
-      type: 'shape',
-      height: node.h,
-      label: node.label,
-      palette: node.palette,
-      rendererKey: node.rendererKey,
-      tone: node.tone,
-      width: node.w
-    },
-    style: {
-      width: node.w ?? contract.defaultSize.width,
-      height: node.h ?? contract.defaultSize.height
+      width,
+      height
     }
   }
 }
@@ -115,7 +80,8 @@ export function toFlowEdge(edge: CanvasEdge): Edge<CanvasFlowEdgeData> {
     },
     data: {
       id: edge.id,
-      content: edge.content
+      body: edge.body,
+      style: edge.style
     }
   }
 }
@@ -125,5 +91,24 @@ export function toFlowViewport(viewport: CanvasViewport): Viewport {
     x: viewport.x,
     y: viewport.y,
     zoom: viewport.zoom
+  }
+}
+
+function readBuiltInContract(component: string) {
+  if (!isBuiltInComponentKey(component)) {
+    return undefined
+  }
+
+  return getBuiltInRendererContract(component)
+}
+
+function isBuiltInComponentKey(component: string): component is BuiltInComponentKey {
+  return component in {
+    note: true,
+    'boardmark.shape.rect': true,
+    'boardmark.shape.roundRect': true,
+    'boardmark.shape.ellipse': true,
+    'boardmark.shape.circle': true,
+    'boardmark.shape.triangle': true
   }
 }

@@ -1,7 +1,4 @@
 import {
-  type BuiltInPalette,
-  type BuiltInTone,
-  type CanvasShapeNode,
   DEFAULT_CANVAS_VIEWPORT,
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
@@ -36,11 +33,12 @@ type CanvasStoreSubscriptionControls = {
 }
 
 const FRAME_PRESET = {
+  body: createShapeBody('Frame', {
+    palette: 'neutral',
+    tone: 'soft'
+  }),
+  component: 'boardmark.shape.roundRect' as const,
   height: 280,
-  label: 'Frame',
-  palette: 'neutral' as const,
-  rendererKey: 'boardmark.shape.roundRect' as const,
-  tone: 'soft' as const,
   width: 420
 }
 
@@ -714,8 +712,8 @@ export function createCanvasCommandSlice(
       const anchorNode = state.selectedNodeIds[0]
         ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
         : undefined
-      const x = anchorNode ? anchorNode.x + 40 : Math.abs(state.viewport.x) + 120
-      const y = anchorNode ? anchorNode.y + 40 : Math.abs(state.viewport.y) + 120
+      const x = anchorNode ? anchorNode.at.x + 40 : Math.abs(state.viewport.x) + 120
+      const y = anchorNode ? anchorNode.at.y + 40 : Math.abs(state.viewport.y) + 120
 
       await commitCanvasIntent({
         controls,
@@ -736,26 +734,22 @@ export function createCanvasCommandSlice(
     },
 
     async createShapeAtViewport({
+      body,
+      component,
       height,
-      label,
-      palette,
-      rendererKey,
-      tone,
       width
     }: {
+      body: string
+      component: string
       height: number
-      label: string
-      palette?: BuiltInPalette
-      rendererKey: CanvasShapeNode['rendererKey']
-      tone?: BuiltInTone
       width: number
     }) {
       const state = get()
       const anchorNode = state.selectedNodeIds[0]
         ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
         : undefined
-      const x = anchorNode ? anchorNode.x + 48 : Math.abs(state.viewport.x) + 120
-      const y = anchorNode ? anchorNode.y + 48 : Math.abs(state.viewport.y) + 120
+      const x = anchorNode ? anchorNode.at.x + 48 : Math.abs(state.viewport.x) + 120
+      const y = anchorNode ? anchorNode.at.y + 48 : Math.abs(state.viewport.y) + 120
 
       await commitCanvasIntent({
         controls,
@@ -769,10 +763,8 @@ export function createCanvasCommandSlice(
           y,
           width,
           height,
-          rendererKey,
-          label,
-          palette,
-          tone
+          component,
+          body
         },
         set
       })
@@ -822,7 +814,7 @@ export function createCanvasCommandSlice(
     startNoteEditing(nodeId) {
       const node = get().nodes.find((entry) => entry.id === nodeId)
 
-      if (!node || node.type !== 'note') {
+      if (!node || node.component !== 'note') {
         return
       }
 
@@ -830,7 +822,7 @@ export function createCanvasCommandSlice(
         editingState: {
           status: 'note',
           objectId: nodeId,
-          markdown: node.content
+          markdown: node.body ?? ''
         },
         operationError: null
       })
@@ -839,7 +831,7 @@ export function createCanvasCommandSlice(
     startShapeEditing(nodeId) {
       const node = get().nodes.find((entry) => entry.id === nodeId)
 
-      if (!node || node.type !== 'shape') {
+      if (!node || node.component === 'note') {
         return
       }
 
@@ -847,7 +839,7 @@ export function createCanvasCommandSlice(
         editingState: {
           status: 'shape',
           objectId: nodeId,
-          markdown: node.label ?? ''
+          markdown: node.body ?? ''
         },
         operationError: null
       })
@@ -864,7 +856,7 @@ export function createCanvasCommandSlice(
         editingState: {
           status: 'edge',
           edgeId,
-          markdown: edge.content ?? ''
+          markdown: edge.body ?? ''
         },
         operationError: null
       })
@@ -999,6 +991,18 @@ function areSameIds(left: string[], right: string[]) {
 
 function roundGeometry(value: number) {
   return Math.round(value)
+}
+
+function createShapeBody(label: string, props?: Record<string, unknown>) {
+  const normalizedLabel = label.trim()
+
+  if (!props || Object.keys(props).length === 0) {
+    return normalizedLabel
+  }
+
+  return `${normalizedLabel}\n\n\`\`\`yaml props\n${Object.entries(props)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join('\n')}\n\`\`\``
 }
 
 function clampZoom(zoom: number) {

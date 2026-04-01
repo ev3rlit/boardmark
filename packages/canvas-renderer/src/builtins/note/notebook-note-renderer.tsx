@@ -1,12 +1,12 @@
-import type { BuiltInNoteRendererData, BuiltInRendererProps } from '@boardmark/canvas-domain'
+import type { BuiltInRendererProps } from '@boardmark/canvas-domain'
 import { MarkdownContent } from '@boardmark/ui'
 import { rendererFrameStyle } from '../shared'
 
 export function NotebookNoteRenderer(
-  props: BuiltInRendererProps<BuiltInNoteRendererData>
+  props: BuiltInRendererProps
 ) {
-  const palette = props.data.palette ?? 'neutral'
-  const tone = props.data.tone ?? 'soft'
+  const palette = 'neutral'
+  const tone = 'soft'
 
   return (
     <div
@@ -25,7 +25,7 @@ export function NotebookNoteRenderer(
       <div className="relative">
         <MarkdownContent
           className="markdown-content note-markdown"
-          content={props.content ?? ''}
+          content={props.body ?? ''}
         />
       </div>
     </div>

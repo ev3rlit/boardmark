@@ -1,3 +1,5 @@
+import type { CanvasObjectStyle } from './index'
+
 export type SemanticTokenKey =
   | 'color.surface.lowest'
   | 'color.surface.base'
@@ -42,18 +44,17 @@ export type BuiltInShapeVariant =
   | 'circle'
   | 'triangle'
 
-export type BuiltInNoteVariant = 'sticky' | 'note'
+export type BuiltInNoteVariant = 'note'
 
-export type BuiltInNodeType = 'shape' | 'note'
+export type BuiltInComponentCategory = 'shape' | 'note'
 
-export type BuiltInRendererKey =
+export type BuiltInComponentKey =
+  | 'note'
   | 'boardmark.shape.rect'
   | 'boardmark.shape.roundRect'
   | 'boardmark.shape.ellipse'
   | 'boardmark.shape.circle'
   | 'boardmark.shape.triangle'
-  | 'boardmark.note.sticky'
-  | 'boardmark.note.note'
 
 export type BuiltInPalette =
   | 'neutral'
@@ -65,13 +66,12 @@ export type BuiltInPalette =
 
 export type BuiltInTone = 'default' | 'soft' | 'muted' | 'strong' | 'accent'
 
-export type BuiltInShapeRendererData = {
-  label?: string
+export type BuiltInShapeRendererProps = {
   palette?: BuiltInPalette
   tone?: BuiltInTone
 }
 
-export type BuiltInNoteRendererData = {
+export type BuiltInNoteRendererProps = {
   palette?: BuiltInPalette
   tone?: BuiltInTone
 }
@@ -82,23 +82,23 @@ export type BuiltInRendererSize = {
 }
 
 export type BuiltInRendererContract = {
-  rendererKey: BuiltInRendererKey
-  nodeType: BuiltInNodeType
+  component: BuiltInComponentKey
   variant: BuiltInShapeVariant | BuiltInNoteVariant
-  category: 'shape' | 'note'
+  category: BuiltInComponentCategory
   supportsMarkdown: boolean
   defaultSize: BuiltInRendererSize
   tokenUsage: SemanticTokenKey[]
 }
 
-export type BuiltInRendererProps<TData = Record<string, unknown>> = {
+export type BuiltInRendererProps = {
   nodeId: string
-  rendererKey: BuiltInRendererKey
+  component: BuiltInComponentKey
   selected: boolean
   width?: number
   height?: number
-  content?: string
-  data: TData
+  body?: string
+  style?: CanvasObjectStyle
+  resolvedThemeRef?: string
   tokens?: Partial<Record<SemanticTokenKey, string>>
   className?: string
 }

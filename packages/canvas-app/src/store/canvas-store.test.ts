@@ -9,43 +9,43 @@ import { createCanvasStore } from '@canvas-app/store/canvas-store'
 
 const templateSource = `---
 type: canvas
-version: 1
+version: 2
 viewport:
   x: -180
   y: -120
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72 w=320 h=220
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72 w=320 h=220
+::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
 Overview
 :::
 
-::: edge #welcome-overview from=welcome to=overview kind=curve
+::: edge { id: welcome-overview, from: welcome, to: overview }
 main thread
 :::`
 
 const openedSource = `---
 type: canvas
-version: 1
+version: 2
 viewport:
   x: 40
   y: 18
   zoom: 1.2
 ---
 
-::: note #open x=24 y=24 w=320 h=220
+::: note { id: open, at: { x: 24, y: 24, w: 320, h: 220 } }
 Opened Board
 :::
 
-::: note #next x=360 y=24 w=320 h=220
+::: note { id: next, at: { x: 360, y: 24, w: 320, h: 220 } }
 Next
 :::
 
-::: edge #open-next from=open to=ghost kind=curve
+::: edge { id: open-next, from: open, to: ghost }
 broken flow
 :::`
 
@@ -217,10 +217,14 @@ describe('viewer store', () => {
 
     expect(repository.readSource).toHaveBeenCalledWith(
       expect.objectContaining({
-        source: expect.stringContaining('::: note #welcome x=140 y=160')
+        source: expect.stringContaining(
+          '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+        )
       })
     )
-    expect(store.getState().draftSource).toContain('::: note #welcome x=140 y=160 w=320 h=220')
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+    )
     expect(store.getState().isDirty).toBe(true)
   })
 
@@ -235,9 +239,12 @@ describe('viewer store', () => {
     await store.getState().createFrameAtViewport()
 
     expect(store.getState().draftSource).toContain(
-      '::: shape #shape-1 x=300 y=240 w=420 h=280 renderer=boardmark.shape.roundRect palette=neutral tone=soft'
+      '::: boardmark.shape.roundRect { id: shape-1, at: { x: 300, y: 240, w: 420, h: 280 } }'
     )
-    expect(store.getState().nodes.some((node) => node.type === 'shape')).toBe(true)
+    expect(store.getState().draftSource).toContain('```yaml props\npalette: neutral\ntone: soft\n```')
+    expect(
+      store.getState().nodes.some((node) => node.component === 'boardmark.shape.roundRect')
+    ).toBe(true)
   })
 
   it('switches to conflict state when external source changes arrive over a dirty draft', async () => {
@@ -272,7 +279,7 @@ describe('viewer store', () => {
 
   it('keeps the last parsed document when a patch produces invalid source', async () => {
     const repository = createRepository({
-      failOnSource: 'x=NaN'
+      failOnSource: 'x: NaN'
     })
     const store = createCanvasStore({
       documentPicker: createPicker(),

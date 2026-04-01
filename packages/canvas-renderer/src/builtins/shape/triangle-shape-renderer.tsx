@@ -1,16 +1,19 @@
 import type { CSSProperties } from 'react'
-import type { BuiltInRendererProps, BuiltInShapeRendererData } from '@boardmark/canvas-domain'
-import { readObjectBackground } from '../shared'
+import type { BuiltInRendererProps, BuiltInShapeRendererProps } from '@boardmark/canvas-domain'
+import { readBuiltInBodyLabel, readBuiltInBodyProps } from '../body'
+import { readObjectBackground, readTextColor } from '../shared'
 
 export function TriangleShapeRenderer(
-  props: BuiltInRendererProps<BuiltInShapeRendererData>
+  props: BuiltInRendererProps
 ) {
   const width = props.width ?? 160
   const height = props.height ?? 136
-  const palette = props.data.palette ?? 'rose'
-  const tone = props.data.tone ?? 'default'
+  const shapeProps = readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
+  const palette = shapeProps.palette ?? 'rose'
+  const tone = shapeProps.tone ?? 'default'
+  const label = readBuiltInBodyLabel(props.body) ?? 'Triangle'
   const style = {
-    '--boardmark-triangle-fill': readObjectBackground(palette, tone, '#ffffff')
+    '--boardmark-triangle-fill': readObjectBackground(palette, tone, '#ffffff', props.style)
   } as CSSProperties
 
   return (
@@ -24,6 +27,7 @@ export function TriangleShapeRenderer(
       <svg
         aria-hidden="true"
         className="absolute inset-0 drop-shadow-[0_20px_40px_rgba(43,52,55,0.08)]"
+        style={style}
         viewBox={`0 0 ${width} ${height}`}
       >
         <polygon
@@ -34,10 +38,10 @@ export function TriangleShapeRenderer(
       <span
         className="relative px-6 text-center text-sm font-semibold"
         style={{
-          color: 'var(--color-text-primary, #2b3437)'
+          color: readTextColor(props.style)
         }}
       >
-        {props.data.label ?? 'Triangle'}
+        {label}
       </span>
     </div>
   )

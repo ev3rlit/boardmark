@@ -1,5 +1,6 @@
-import type { BuiltInNoteRendererData, BuiltInRendererProps } from '@boardmark/canvas-domain'
+import type { BuiltInRendererProps } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
+import { readTextColor } from '../shared'
 
 const paletteToCardColor = {
   neutral: 'default',
@@ -11,21 +12,23 @@ const paletteToCardColor = {
 } as const
 
 export function StickyNoteRenderer({
-  content = '',
-  data,
-  selected
-}: BuiltInRendererProps<BuiltInNoteRendererData>) {
-  const palette = data.palette ?? 'amber'
+  body = '',
+  selected,
+  style
+}: BuiltInRendererProps) {
+  const palette = 'amber'
 
   return (
-    <StickyNoteCard
-      color={paletteToCardColor[palette]}
-      selected={selected}
-    >
-      <MarkdownContent
-        className="markdown-content note-markdown"
-        content={content}
-      />
-    </StickyNoteCard>
+    <div style={{ color: readTextColor(style) }}>
+      <StickyNoteCard
+        color={paletteToCardColor[palette]}
+        selected={selected}
+      >
+        <MarkdownContent
+          className="markdown-content note-markdown"
+          content={body}
+        />
+      </StickyNoteCard>
+    </div>
   )
 }

@@ -8,10 +8,10 @@ import { createBrowserDocumentBridge } from './document-bridge'
 
 const openedSource = `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #upload x=20 y=20 w=320 h=220
+::: note { id: upload, at: { x: 20, y: 20, w: 320, h: 220 } }
 Uploaded Board
 :::`
 
@@ -39,7 +39,7 @@ describe('Web App', () => {
     expect(screen.getByRole('menuitem', { name: 'New file' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Open file' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Save' })).toBeInTheDocument()
-    expect(store.getState().edges[0]?.content).toBe('main thread')
+    expect(store.getState().edges[0]?.body).toBe('main thread\n')
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
   })
@@ -104,10 +104,10 @@ describe('Web App', () => {
       [
         `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #drop x=24 y=24 w=320 h=220
+::: note { id: drop, at: { x: 24, y: 24, w: 320, h: 220 } }
 Dropped Board
 :::`
       ],
@@ -128,10 +128,10 @@ Dropped Board
         name: droppedFile.name,
         source: `---
 type: canvas
-version: 1
+version: 2
 ---
 
-::: note #drop x=24 y=24 w=320 h=220
+::: note { id: drop, at: { x: 24, y: 24, w: 320, h: 220 } }
 Dropped Board
 :::`
       })

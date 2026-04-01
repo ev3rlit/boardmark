@@ -1,9 +1,4 @@
 export * from './built-in-components'
-import type {
-  BuiltInPalette,
-  BuiltInRendererKey,
-  BuiltInTone
-} from './built-in-components'
 
 export type CanvasViewport = {
   x: number
@@ -14,19 +9,12 @@ export type CanvasViewport = {
 export type CanvasFrontmatter = {
   type: 'canvas'
   version: number
-  style?: string
-  components?: string
+  style?: string[]
+  components?: string[]
   preset?: string
+  defaultStyle?: string
   viewport?: CanvasViewport
 }
-
-export type CanvasNodeColor =
-  | 'yellow'
-  | 'blue'
-  | 'pink'
-  | 'green'
-  | 'purple'
-  | 'default'
 
 export type CanvasSourcePoint = {
   offset: number
@@ -38,52 +26,42 @@ export type CanvasSourceRange = {
   end: CanvasSourcePoint
 }
 
+export type CanvasObjectAt = {
+  x: number
+  y: number
+  w?: number
+  h?: number
+}
+
+export type CanvasObjectStyle = {
+  themeRef?: string
+  overrides?: Record<string, string>
+}
+
 export type CanvasDirectiveSourceMap = {
   objectRange: CanvasSourceRange
-  openingLineRange: CanvasSourceRange
+  headerLineRange: CanvasSourceRange
+  metadataRange?: CanvasSourceRange
   bodyRange: CanvasSourceRange
   closingLineRange: CanvasSourceRange
-  attributeRanges?: Partial<Record<string, CanvasSourceRange>>
 }
 
-export type CanvasNoteNode = {
+export type CanvasNode = {
   id: string
-  type: 'note'
-  x: number
-  y: number
-  w: number
-  h: number
-  color?: CanvasNodeColor
-  content: string
+  component: string
+  at: CanvasObjectAt
+  style?: CanvasObjectStyle
+  body?: string
   position: CanvasSourceRange
   sourceMap: CanvasDirectiveSourceMap
 }
-
-export type CanvasShapeNode = {
-  id: string
-  type: 'shape'
-  x: number
-  y: number
-  w: number
-  h: number
-  rendererKey: Extract<BuiltInRendererKey, `boardmark.shape.${string}`>
-  label?: string
-  palette?: BuiltInPalette
-  tone?: BuiltInTone
-  position: CanvasSourceRange
-  sourceMap: CanvasDirectiveSourceMap
-}
-
-export type CanvasNode = CanvasNoteNode | CanvasShapeNode
-
-export type CanvasEdgeKind = 'curve' | 'straight'
 
 export type CanvasEdge = {
   id: string
   from: string
   to: string
-  kind?: CanvasEdgeKind
-  content?: string
+  style?: CanvasObjectStyle
+  body?: string
   position: CanvasSourceRange
   sourceMap: CanvasDirectiveSourceMap
 }
@@ -140,14 +118,3 @@ export const DEFAULT_NOTE_HEIGHT = 220
 export const MIN_CANVAS_ZOOM = 0.5
 export const MAX_CANVAS_ZOOM = 1.8
 export const ZOOM_STEP = 0.1
-
-export const CANVAS_NODE_COLORS: CanvasNodeColor[] = [
-  'yellow',
-  'blue',
-  'pink',
-  'green',
-  'purple',
-  'default'
-]
-
-export const CANVAS_EDGE_KINDS: CanvasEdgeKind[] = ['curve', 'straight']

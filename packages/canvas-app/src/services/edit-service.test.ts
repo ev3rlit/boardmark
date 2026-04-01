@@ -4,23 +4,24 @@ import { createCanvasDocumentEditService } from '@canvas-app/services/edit-servi
 
 const source = `---
 type: canvas
-version: 1
+version: 2
+defaultStyle: boardmark.editorial.soft
 ---
 
-::: note #welcome x=80 y=72 w=320 h=220 color=yellow
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72 w=320 h=220
+::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
 Overview
 :::
 
-::: edge #welcome-overview from=welcome to=overview kind=curve
+::: edge { id: welcome-overview, from: welcome, to: overview }
 main thread
 :::`
 
 describe('canvas document edit service', () => {
-  it('patches geometry attributes on opening lines', () => {
+  it('patches geometry metadata on inline headers', () => {
     const editService = createCanvasDocumentEditService()
     const repository = createCanvasMarkdownDocumentRepository()
     const recordResult = repository.readSource({
@@ -74,9 +75,11 @@ describe('canvas document edit service', () => {
       return
     }
 
-    expect(reconnected.value.source).toContain('::: note #welcome x=144 y=180 w=420 h=280 color=yellow')
     expect(reconnected.value.source).toContain(
-      '::: edge #welcome-overview from=overview to=welcome kind=curve'
+      '::: note { id: welcome, at: { x: 144, y: 180, w: 420, h: 280 } }'
+    )
+    expect(reconnected.value.source).toContain(
+      '::: edge { id: welcome-overview, from: overview, to: welcome }'
     )
     expect(reconnected.value.source).toContain('Boardmark Viewer\n:::')
   })
@@ -122,7 +125,9 @@ describe('canvas document edit service', () => {
 
     expect(edgeResult.value.source).toContain('Updated note\n:::')
     expect(edgeResult.value.source).toContain('Updated edge\n:::')
-    expect(edgeResult.value.source).toContain('::: note #welcome x=80 y=72 w=320 h=220 color=yellow')
+    expect(edgeResult.value.source).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }'
+    )
   })
 
   it('creates and deletes objects with object-local patches', () => {
@@ -160,10 +165,10 @@ describe('canvas document edit service', () => {
       createdNote._unsafeUnwrap().source,
       createdNoteRecord._unsafeUnwrap(),
       {
-      kind: 'create-edge',
-      from: 'welcome',
-      to: 'overview',
-      markdown: ''
+        kind: 'create-edge',
+        from: 'welcome',
+        to: 'overview',
+        markdown: ''
       }
     )
     const createdEdgeRecord = repository.readSource({
@@ -180,10 +185,13 @@ describe('canvas document edit service', () => {
       source: deletedEdge._unsafeUnwrap().source,
       isTemplate: false
     })
+
     expect(createdEdge.isOk()).toBe(true)
-    expect(createdEdge._unsafeUnwrap().source).toContain('::: edge #edge-1 from=welcome to=overview')
+    expect(createdEdge._unsafeUnwrap().source).toContain(
+      '::: edge { id: edge-1, from: welcome, to: overview }'
+    )
     expect(deletedEdge.isOk()).toBe(true)
-    expect(deletedEdge._unsafeUnwrap().source).not.toContain('::: edge #welcome-overview')
+    expect(deletedEdge._unsafeUnwrap().source).not.toContain('::: edge { id: welcome-overview')
 
     const deletedNode = editService.apply(
       deletedEdge._unsafeUnwrap().source,
@@ -200,12 +208,14 @@ describe('canvas document edit service', () => {
       return
     }
 
-    expect(deletedNode.value.source).toContain('::: note #note-1 x=160 y=132 w=320 h=220')
-    expect(deletedNode.value.source).not.toContain('::: note #welcome')
-    expect(deletedNode.value.source).not.toContain('::: edge #edge-1 from=welcome to=overview')
+    expect(deletedNode.value.source).toContain(
+      '::: note { id: note-1, at: { x: 160, y: 132, w: 320, h: 220 } }'
+    )
+    expect(deletedNode.value.source).not.toContain('::: note { id: welcome')
+    expect(deletedNode.value.source).not.toContain('::: edge { id: edge-1, from: welcome, to: overview }')
   })
 
-  it('creates shape blocks with renderer, geometry, and label metadata', () => {
+  it('creates component blocks with component keys and body payload', () => {
     const editService = createCanvasDocumentEditService()
     const repository = createCanvasMarkdownDocumentRepository()
     const recordResult = repository.readSource({
@@ -225,14 +235,12 @@ describe('canvas document edit service', () => {
     const createdShape = editService.apply(source, recordResult.value, {
       kind: 'create-shape',
       anchorNodeId: 'welcome',
+      body: 'Frame\n\n```yaml props\npalette: neutral\ntone: soft\n```',
+      component: 'boardmark.shape.roundRect',
       x: 180,
       y: 164,
       width: 420,
-      height: 280,
-      rendererKey: 'boardmark.shape.roundRect',
-      label: 'Frame',
-      palette: 'neutral',
-      tone: 'soft'
+      height: 280
     })
 
     expect(createdShape.isOk()).toBe(true)
@@ -242,8 +250,8 @@ describe('canvas document edit service', () => {
     }
 
     expect(createdShape.value.source).toContain(
-      '::: shape #shape-1 x=180 y=164 w=420 h=280 renderer=boardmark.shape.roundRect palette=neutral tone=soft'
+      '::: boardmark.shape.roundRect { id: shape-1, at: { x: 180, y: 164, w: 420, h: 280 } }'
     )
-    expect(createdShape.value.source).toContain('Frame\n:::')
+    expect(createdShape.value.source).toContain('Frame\n\n```yaml props\npalette: neutral\ntone: soft\n```\n:::')
   })
 })

@@ -1,13 +1,14 @@
 ---
 type: canvas
-version: 1
+version: 2
+defaultStyle: boardmark.editorial.soft
 viewport:
   x: -180
   y: -120
   zoom: 0.92
 ---
 
-::: note #welcome x=-145 y=451 w=340 h=220 color=yellow
+::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { themeRef: boardmark.editorial.soft } }
 
 # Boardmark Viewer
 
@@ -19,7 +20,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #overview x=430 y=41 w=320 h=220 color=blue
+::: note { id: overview, at: { x: 468, y: 52, w: 320, h: 220 } }
 
 ## What This Shows
 
@@ -30,7 +31,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #workflow x=1120 y=-81 w=320 h=220 color=green
+::: note { id: workflow, at: { x: 910, y: 96, w: 320, h: 220 } }
 
 ## Reading Flow
 
@@ -42,7 +43,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #structure x=330 y=762 w=360 h=220 color=pink
+::: note { id: structure, at: { x: 380, y: 360, w: 360, h: 220 } }
 
 ## MVP Scope
 
@@ -58,7 +59,7 @@ const viewer = {
 
 :::
 
-::: note #details x=810 y=724 w=360 h=220 color=purple
+::: note { id: details, at: { x: 824, y: 362, w: 360, h: 220 } }
 
 ## Detail Cluster
 
@@ -79,7 +80,7 @@ const viewer = {
 
 :::
 
-::: note #prompting x=1282 y=383 w=320 h=220 color=default
+::: note { id: prompting, at: { x: 1228, y: 318, w: 320, h: 220 } }
 
 ## Prompting Angle
 
@@ -93,43 +94,61 @@ Then turn each note into a task.
 
 :::
 
-::: edge #welcome-overview from=welcome to=overview kind=curve
+::: note { id: note-1, at: { x: -78, y: 177, w: 320, h: 220 } }
+New note
+:::
+
+::: note { id: note-2, at: { x: 100, y: -100, w: 320, h: 220 } }
+New note
+:::
+
+::: note { id: note-3, at: { x: 817, y: 201, w: 320, h: 220 } }
+New note
+:::
+
+::: note { id: note-4, at: { x: -98, y: 748, w: 320, h: 220 } }
+New note
+:::
+
+::: note { id: note-5, at: { x: -120, y: 293, w: 320, h: 220 } }
+New note
+:::
+
+::: note { id: note-6, at: { x: 433, y: 439, w: 320, h: 220 } }
+New note
+:::
+
+::: boardmark.shape.ellipse { id: shape-1, at: { x: -51, y: 1372, w: 200, h: 120 } }
+Ellipse
+
+```yaml props
+palette: green
+tone: soft
+```
+:::
+
+::: boardmark.shape.rect { id: shape-2, at: { x: 212, y: 1391, w: 180, h: 120 } }
+Rectangle
+
+```yaml props
+palette: neutral
+tone: default
+```
+:::
+
+::: edge { id: welcome-overview, from: welcome, to: overview }
 main thread
 :::
 
-::: edge #overview-workflow from=overview to=workflow kind=curve
+::: edge { id: overview-workflow, from: overview, to: workflow }
 reading path
 :::
 
-::: edge #welcome-structure from=welcome to=structure kind=curve
+::: edge { id: welcome-structure, from: welcome, to: structure }
 :::
 
-::: edge #structure-details from=structure to=details kind=curve
+::: edge { id: structure-details, from: structure, to: details }
 :::
 
-::: edge #details-prompting from=details to=prompting kind=curve
-:::
-
-::: note #note-1 x=-78 y=177 w=320 h=220
-New note
-:::
-
-::: note #note-2 x=100 y=-100 w=320 h=220
-New note
-:::
-
-::: note #note-3 x=817 y=201 w=320 h=220
-New note
-:::
-
-::: note #note-4 x=-98 y=748 w=320 h=220
-New note
-:::
-
-::: note #note-5 x=-120 y=293 w=320 h=220
-New note
-:::
-
-::: note #note-6 x=433 y=439 w=320 h=220
-New note
+::: edge { id: details-prompting, from: details, to: prompting }
 :::

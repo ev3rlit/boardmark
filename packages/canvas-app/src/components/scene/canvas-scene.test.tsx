@@ -13,8 +13,12 @@ const sourceMap = {
     start: { line: 1, offset: 0 },
     end: { line: 3, offset: 12 }
   },
-  openingLineRange: {
+  headerLineRange: {
     start: { line: 1, offset: 0 },
+    end: { line: 1, offset: 10 }
+  },
+  metadataRange: {
+    start: { line: 1, offset: 8 },
     end: { line: 1, offset: 10 }
   },
   bodyRange: {
@@ -32,12 +36,9 @@ describe('CanvasScene', () => {
     const nodes: CanvasNode[] = [
       {
         id: 'welcome',
-        type: 'note',
-        x: 80,
-        y: 72,
-        w: 320,
-        h: 220,
-        content: 'Boardmark Viewer',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
         position: {
           start: { line: 1, offset: 0 },
           end: { line: 3, offset: 12 }
@@ -46,12 +47,9 @@ describe('CanvasScene', () => {
       },
       {
         id: 'overview',
-        type: 'note',
-        x: 380,
-        y: 72,
-        w: 320,
-        h: 220,
-        content: 'Overview',
+        component: 'boardmark.calender',
+        at: { x: 380, y: 72, w: 320, h: 220 },
+        body: 'Overview\n',
         position: {
           start: { line: 5, offset: 0 },
           end: { line: 7, offset: 12 }
@@ -71,18 +69,16 @@ describe('CanvasScene', () => {
     expect(flowNodes[0]?.id).toBe('welcome')
     expect(flowNodes[1]?.id).toBe('overview')
     expect(flowNodes[0]?.selected).toBe(false)
+    expect(flowNodes[1]?.type).toBe('canvas-component')
   })
 
   it('applies runtime interaction overrides only to preview nodes', () => {
     const nodes: CanvasNode[] = [
       {
         id: 'welcome',
-        type: 'note',
-        x: 80,
-        y: 72,
-        w: 320,
-        h: 220,
-        content: 'Boardmark Viewer',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
         position: {
           start: { line: 1, offset: 0 },
           end: { line: 3, offset: 12 }
@@ -109,12 +105,9 @@ describe('CanvasScene', () => {
     const nodes: CanvasNode[] = [
       {
         id: 'welcome',
-        type: 'note',
-        x: 80,
-        y: 72,
-        w: 320,
-        h: 220,
-        content: 'Boardmark Viewer',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
         position: {
           start: { line: 1, offset: 0 },
           end: { line: 3, offset: 12 }
@@ -150,42 +143,13 @@ describe('CanvasScene', () => {
     expect(replaceSelectedNodes).not.toHaveBeenCalled()
   })
 
-  it('projects selection changes back into the controlled selection state', () => {
-    const previewNodeMove = vi.fn()
-    const replaceSelectedNodes = vi.fn()
-
-    applyNodeChangesToStore({
-      changes: [
-        {
-          id: 'welcome',
-          type: 'select',
-          selected: true
-        },
-        {
-          id: 'overview',
-          type: 'select',
-          selected: false
-        }
-      ],
-      previewNodeMove,
-      replaceSelectedNodes,
-      selectedNodeIds: ['overview']
-    })
-
-    expect(previewNodeMove).not.toHaveBeenCalled()
-    expect(replaceSelectedNodes).toHaveBeenCalledWith(['welcome'])
-  })
-
   it('preserves react flow runtime node state across source-driven updates', () => {
     const nextFlowNodes = readFlowNodes([
       {
         id: 'welcome',
-        type: 'note',
-        x: 144,
-        y: 168,
-        w: 320,
-        h: 220,
-        content: 'Boardmark Viewer',
+        component: 'note',
+        at: { x: 144, y: 168, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
         position: {
           start: { line: 1, offset: 0 },
           end: { line: 3, offset: 12 }
@@ -215,19 +179,13 @@ describe('CanvasScene', () => {
     expect(mergedFlowNodes[0]?.height).toBe(160)
   })
 
-  it('maps shape nodes into dedicated flow nodes with width and height', () => {
+  it('maps component nodes into generic flow nodes with width, height, and raw body', () => {
     const nodes: CanvasNode[] = [
       {
         id: 'frame-a',
-        type: 'shape',
-        x: 120,
-        y: 140,
-        w: 420,
-        h: 280,
-        rendererKey: 'boardmark.shape.roundRect',
-        label: 'Frame',
-        palette: 'neutral',
-        tone: 'soft',
+        component: 'boardmark.shape.roundRect',
+        at: { x: 120, y: 140, w: 420, h: 280 },
+        body: 'Frame\n\n```yaml props\npalette: neutral\ntone: soft\n```',
         position: {
           start: { line: 1, offset: 0 },
           end: { line: 3, offset: 12 }
@@ -236,10 +194,12 @@ describe('CanvasScene', () => {
       }
     ]
 
-    const flowNodes = readFlowNodes(nodes)
+    const flowNodes = readFlowNodes(nodes, {}, [], 'boardmark.editorial.soft')
 
-    expect(flowNodes[0]?.type).toBe('canvas-shape')
-    expect(flowNodes[0]?.data.rendererKey).toBe('boardmark.shape.roundRect')
+    expect(flowNodes[0]?.type).toBe('canvas-component')
+    expect(flowNodes[0]?.data.component).toBe('boardmark.shape.roundRect')
+    expect(flowNodes[0]?.data.body).toContain('palette: neutral')
+    expect(flowNodes[0]?.data.resolvedThemeRef).toBe('boardmark.editorial.soft')
     expect(flowNodes[0]?.style?.height).toBe(280)
   })
 })

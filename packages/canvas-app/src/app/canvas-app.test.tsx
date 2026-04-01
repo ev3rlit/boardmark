@@ -9,22 +9,22 @@ import { createCanvasStore } from '@canvas-app/store/canvas-store'
 
 const templateSource = `---
 type: canvas
-version: 1
+version: 2
 viewport:
   x: -180
   y: -120
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72 w=320 h=220
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72 w=320 h=220
+::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
 Overview
 :::
 
-::: edge #welcome-overview from=welcome to=overview kind=curve
+::: edge { id: welcome-overview, from: welcome, to: overview }
 main thread
 :::`
 
@@ -33,8 +33,12 @@ const noteSourceMap = {
     start: { line: 1, offset: 0 },
     end: { line: 3, offset: 12 }
   },
-  openingLineRange: {
+  headerLineRange: {
     start: { line: 1, offset: 0 },
+    end: { line: 1, offset: 10 }
+  },
+  metadataRange: {
+    start: { line: 1, offset: 8 },
     end: { line: 1, offset: 10 }
   },
   bodyRange: {
@@ -70,7 +74,7 @@ describe('CanvasApp', () => {
     )
 
     await screen.findByText('Boardmark Viewer')
-    expect(store.getState().edges[0]?.content).toBe('main thread')
+    expect(store.getState().edges[0]?.body).toBe('main thread\n')
     expect(screen.getByRole('application')).toBeInTheDocument()
     expect(screen.getByText('92%')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
@@ -217,8 +221,8 @@ describe('CanvasApp', () => {
 
     expect(createShapeSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        label: 'Triangle',
-        rendererKey: 'boardmark.shape.triangle'
+        body: expect.stringContaining('Triangle'),
+        component: 'boardmark.shape.triangle'
       })
     )
   })
@@ -283,18 +287,15 @@ function createRepository(): CanvasDocumentRepositoryGateway {
         ast: {
           frontmatter: {
             type: 'canvas' as const,
-            version: 1,
+            version: 2,
             viewport: { x: -180, y: -120, zoom: 0.92 }
           },
           nodes: [
             {
               id: 'welcome',
-              type: 'note' as const,
-              x: 80,
-              y: 72,
-              w: 320,
-              h: 220,
-              content: 'Boardmark Viewer',
+              component: 'note',
+              at: { x: 80, y: 72, w: 320, h: 220 },
+              body: 'Boardmark Viewer\n',
               position: {
                 start: { line: 1, offset: 0 },
                 end: { line: 3, offset: 12 }
@@ -303,12 +304,9 @@ function createRepository(): CanvasDocumentRepositoryGateway {
             },
             {
               id: 'overview',
-              type: 'note' as const,
-              x: 380,
-              y: 72,
-              w: 320,
-              h: 220,
-              content: 'Overview',
+              component: 'note',
+              at: { x: 380, y: 72, w: 320, h: 220 },
+              body: 'Overview\n',
               position: {
                 start: { line: 5, offset: 0 },
                 end: { line: 7, offset: 12 }
@@ -327,8 +325,7 @@ function createRepository(): CanvasDocumentRepositoryGateway {
               id: 'welcome-overview',
               from: 'welcome',
               to: 'overview',
-              kind: 'curve' as const,
-              content: 'main thread',
+              body: 'main thread\n',
               position: {
                 start: { line: 9, offset: 0 },
                 end: { line: 11, offset: 12 }
