@@ -5,6 +5,7 @@ import type {
 } from '@boardmark/canvas-repository'
 import {
   createCanvasDocumentSaveService,
+  type CanvasDocumentSaveMode,
   type CanvasDocumentSaveService
 } from '@canvas-app/services/save-service'
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
@@ -53,6 +54,7 @@ export type CanvasDocumentService = {
     document: CanvasDocumentRecord | null
     documentState: CanvasDocumentState | null
     invalidMessage: string | null
+    mode?: CanvasDocumentSaveMode
   }) => Promise<CanvasDocumentCommandResult>
   subscribeExternalChanges: (input: {
     document: CanvasDocumentRecord | null
@@ -207,7 +209,7 @@ export function createCanvasDocumentService({
       }
     },
 
-    async saveCurrentDocument({ document, documentState, invalidMessage }) {
+    async saveCurrentDocument({ document, documentState, invalidMessage, mode = 'explicit' }) {
       if (!document || !documentState) {
         return {
           status: 'error',
@@ -224,7 +226,7 @@ export function createCanvasDocumentService({
         }
       }
 
-      const saveResult = await saveService.save(document, documentState, 'explicit')
+      const saveResult = await saveService.save(document, documentState, mode)
 
       if (saveResult.status === 'cancelled') {
         return {

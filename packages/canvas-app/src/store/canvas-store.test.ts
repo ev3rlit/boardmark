@@ -293,6 +293,57 @@ describe('viewer store', () => {
       zoom: 1.35
     })
   })
+
+  it('autosaves persisted drafts after edit commits', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const persistenceBridge = createPersistenceBridge()
+      const store = createCanvasStore({
+        documentPicker: createPicker(),
+        documentPersistenceBridge: persistenceBridge,
+        documentRepository: createRepository(),
+        templateSource
+      })
+
+      await store.getState().openDocument()
+      await store.getState().commitNodeMove('open', 180, 220)
+
+      expect(store.getState().saveState.status).toBe('saving')
+
+      await vi.advanceTimersByTimeAsync(650)
+
+      expect(persistenceBridge.saveDocument).toHaveBeenCalled()
+      expect(store.getState().isDirty).toBe(false)
+      expect(store.getState().saveState.status).toBe('saved')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not autosave unsaved drafts before a file is attached', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const persistenceBridge = createPersistenceBridge()
+      const store = createCanvasStore({
+        documentPicker: createPicker(),
+        documentPersistenceBridge: persistenceBridge,
+        documentRepository: createRepository(),
+        templateSource
+      })
+
+      await store.getState().hydrateTemplate()
+      await store.getState().commitNodeMove('welcome', 140, 160)
+      await vi.advanceTimersByTimeAsync(650)
+
+      expect(persistenceBridge.saveDocument).not.toHaveBeenCalled()
+      expect(persistenceBridge.saveDocumentAs).not.toHaveBeenCalled()
+      expect(store.getState().isDirty).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 function createPicker(): CanvasDocumentPicker {

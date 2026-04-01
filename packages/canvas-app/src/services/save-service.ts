@@ -41,6 +41,22 @@ export type CanvasDocumentSaveService = {
   flush: () => Promise<void>
 }
 
+type DebouncedSaveInput = {
+  document: CanvasDocumentRecord
+  documentState: CanvasDocumentState
+}
+
+type DebouncedSaveState = {
+  getTimer: () => ReturnType<typeof setTimeout> | null
+  setTimer: (value: ReturnType<typeof setTimeout> | null) => void
+  getSave: () => Promise<CanvasDocumentSaveResult> | null
+  setSave: (value: Promise<CanvasDocumentSaveResult> | null) => void
+  getInput: () => DebouncedSaveInput | null
+  setInput: (value: DebouncedSaveInput | null) => void
+  getResolve: () => ((result: CanvasDocumentSaveResult) => void) | null
+  setResolve: (value: ((result: CanvasDocumentSaveResult) => void) | null) => void
+}
+
 export function createCanvasDocumentSaveService({
   documentPicker,
   documentRepository,
@@ -49,9 +65,78 @@ export function createCanvasDocumentSaveService({
   const queue = new PQueue({ concurrency: 1 })
   let pendingKey: string | null = null
   let pendingSave: Promise<CanvasDocumentSaveResult> | null = null
+  let debouncedTimer: ReturnType<typeof setTimeout> | null = null
+  let debouncedSave: Promise<CanvasDocumentSaveResult> | null = null
+  let debouncedInput:
+    | {
+        document: CanvasDocumentRecord
+        documentState: CanvasDocumentState
+      }
+    | null = null
+  let resolveDebouncedSave: ((result: CanvasDocumentSaveResult) => void) | null = null
 
   return {
     save(document, documentState, mode) {
+      if (mode === 'debounced') {
+        return scheduleDebouncedSave({
+          document,
+          documentPicker,
+          documentRepository,
+          documentPersistenceBridge,
+          documentState,
+          queue,
+          setPending(value) {
+            pendingKey = value.key
+            pendingSave = value.promise
+          },
+          clearPending(promise) {
+            if (pendingSave === promise) {
+              pendingKey = null
+              pendingSave = null
+            }
+          },
+          debouncedState: createDebouncedSaveState({
+            getTimer: () => debouncedTimer,
+            setTimer(value) {
+              debouncedTimer = value
+            },
+            getSave: () => debouncedSave,
+            setSave(value) {
+              debouncedSave = value
+            },
+            getInput: () => debouncedInput,
+            setInput(value) {
+              debouncedInput = value
+            },
+            getResolve: () => resolveDebouncedSave,
+            setResolve(value) {
+              resolveDebouncedSave = value
+            }
+          })
+        })
+      }
+
+      clearDebouncedSave({
+        debouncedState: createDebouncedSaveState({
+          getTimer: () => debouncedTimer,
+          setTimer(value) {
+            debouncedTimer = value
+          },
+          getSave: () => debouncedSave,
+          setSave(value) {
+            debouncedSave = value
+          },
+          getInput: () => debouncedInput,
+          setInput(value) {
+            debouncedInput = value
+          },
+          getResolve: () => resolveDebouncedSave,
+          setResolve(value) {
+            resolveDebouncedSave = value
+          }
+        })
+      })
+
       const saveKey = readSaveKey(documentState, mode)
 
       if (pendingSave && pendingKey === saveKey) {
@@ -93,9 +178,203 @@ export function createCanvasDocumentSaveService({
     },
 
     async flush() {
+      if (debouncedTimer) {
+        clearTimeout(debouncedTimer)
+        debouncedTimer = null
+        const inflight = debouncedSave
+
+        if (debouncedInput && resolveDebouncedSave) {
+          void enqueueSave({
+            document: debouncedInput.document,
+            documentPicker,
+            documentRepository,
+            documentPersistenceBridge,
+            documentState: debouncedInput.documentState,
+            mode: 'debounced',
+            queue,
+            setPending(value) {
+              pendingKey = value.key
+              pendingSave = value.promise
+            },
+            clearPending(promise) {
+              if (pendingSave === promise) {
+                pendingKey = null
+                pendingSave = null
+              }
+            }
+          }).then((result) => {
+            resolveDebouncedSave?.(result)
+            clearDebouncedSave({
+              debouncedState: createDebouncedSaveState({
+                getTimer: () => debouncedTimer,
+                setTimer(value) {
+                  debouncedTimer = value
+                },
+                getSave: () => debouncedSave,
+                setSave(value) {
+                  debouncedSave = value
+                },
+                getInput: () => debouncedInput,
+                setInput(value) {
+                  debouncedInput = value
+                },
+                getResolve: () => resolveDebouncedSave,
+                setResolve(value) {
+                  resolveDebouncedSave = value
+                }
+              })
+            })
+          })
+        }
+
+        if (inflight) {
+          await inflight
+        }
+      }
+
       await queue.onIdle()
     }
   }
+}
+
+function scheduleDebouncedSave({
+  document,
+  documentPicker,
+  documentRepository,
+  documentPersistenceBridge,
+  documentState,
+  queue,
+  setPending,
+  clearPending,
+  debouncedState
+}: {
+  document: CanvasDocumentRecord
+  documentPicker: CanvasDocumentPicker
+  documentRepository: CanvasDocumentRepositoryGateway
+  documentPersistenceBridge?: CanvasDocumentPersistenceBridge
+  documentState: CanvasDocumentState
+  queue: PQueue
+  setPending: (value: { key: string; promise: Promise<CanvasDocumentSaveResult> }) => void
+  clearPending: (promise: Promise<CanvasDocumentSaveResult>) => void
+  debouncedState: DebouncedSaveState
+}) {
+  debouncedState.setInput({
+    document,
+    documentState
+  })
+
+  const currentTimer = debouncedState.getTimer()
+
+  if (currentTimer) {
+    clearTimeout(currentTimer)
+  }
+
+  if (!debouncedState.getSave()) {
+    debouncedState.setSave(new Promise<CanvasDocumentSaveResult>((resolve) => {
+      debouncedState.setResolve(resolve)
+    }))
+  }
+
+  debouncedState.setTimer(setTimeout(() => {
+    const nextInput = debouncedState.getInput()
+    const resolve = debouncedState.getResolve()
+
+    if (!nextInput || !resolve) {
+      clearDebouncedSave({ debouncedState })
+      return
+    }
+
+    void enqueueSave({
+      document: nextInput.document,
+      documentPicker,
+      documentRepository,
+      documentPersistenceBridge,
+      documentState: nextInput.documentState,
+      mode: 'debounced',
+      queue,
+      setPending,
+      clearPending
+    }).then((result) => {
+      resolve(result)
+      clearDebouncedSave({ debouncedState })
+    })
+  }, 600))
+
+  return debouncedState.getSave() as Promise<CanvasDocumentSaveResult>
+}
+
+function clearDebouncedSave({
+  debouncedState
+}: {
+  debouncedState: DebouncedSaveState
+}) {
+  const timer = debouncedState.getTimer()
+
+  if (timer) {
+    clearTimeout(timer)
+  }
+
+  debouncedState.setTimer(null)
+  debouncedState.setSave(null)
+  debouncedState.setInput(null)
+  debouncedState.setResolve(null)
+}
+
+function enqueueSave({
+  document,
+  documentPicker,
+  documentRepository,
+  documentPersistenceBridge,
+  documentState,
+  mode,
+  queue,
+  setPending,
+  clearPending
+}: {
+  document: CanvasDocumentRecord
+  documentPicker: CanvasDocumentPicker
+  documentRepository: CanvasDocumentRepositoryGateway
+  documentPersistenceBridge?: CanvasDocumentPersistenceBridge
+  documentState: CanvasDocumentState
+  mode: CanvasDocumentSaveMode
+  queue: PQueue
+  setPending: (value: { key: string; promise: Promise<CanvasDocumentSaveResult> }) => void
+  clearPending: (promise: Promise<CanvasDocumentSaveResult>) => void
+}) {
+  const saveKey = readSaveKey(documentState, mode)
+  const nextSave = queue
+    .add(async () =>
+      runSave({
+        document,
+        documentPicker,
+        documentRepository,
+        documentPersistenceBridge,
+        documentState,
+        mode
+      })
+    )
+    .then((result: void | CanvasDocumentSaveResult) => {
+      if (result) {
+        return result
+      }
+
+      return {
+        status: 'error' as const,
+        message: 'Save queue returned no result.'
+      }
+    })
+
+  setPending({
+    key: saveKey,
+    promise: nextSave
+  })
+  void nextSave.finally(() => clearPending(nextSave))
+
+  return nextSave
+}
+
+function createDebouncedSaveState(state: DebouncedSaveState): DebouncedSaveState {
+  return state
 }
 
 async function runSave({

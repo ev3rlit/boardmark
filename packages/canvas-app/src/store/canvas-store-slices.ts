@@ -99,12 +99,14 @@ function applyDocumentCommandResult({
 
 function applyEditingOutcome({
   controls,
+  documentService,
   get,
   outcome,
   onSuccess,
   set
 }: {
   controls: CanvasStoreSubscriptionControls
+  documentService: CanvasDocumentService
   get: CanvasStoreGetState
   outcome: CanvasEditingOutcome
   onSuccess?: () => void
@@ -136,6 +138,12 @@ function applyEditingOutcome({
   }
 
   void controls.resubscribeExternalChanges()
+  void schedulePersistedAutosave({
+    controls,
+    documentService,
+    get,
+    set
+  })
 }
 
 function applyConflictOutcome({
@@ -178,6 +186,7 @@ function applyConflictOutcome({
 
 async function commitCanvasIntent({
   controls,
+  documentService,
   editingService,
   get,
   intent,
@@ -185,6 +194,7 @@ async function commitCanvasIntent({
   set
 }: {
   controls: CanvasStoreSubscriptionControls
+  documentService: CanvasDocumentService
   editingService: CanvasEditingService
   get: CanvasStoreGetState
   intent: CanvasDocumentEditIntent
@@ -205,11 +215,62 @@ async function commitCanvasIntent({
 
   applyEditingOutcome({
     controls,
+    documentService,
     get,
     outcome,
     onSuccess,
     set
   })
+}
+
+let autosaveSequence = 0
+
+async function schedulePersistedAutosave({
+  controls,
+  documentService,
+  get,
+  set
+}: {
+  controls: CanvasStoreSubscriptionControls
+  documentService: CanvasDocumentService
+  get: CanvasStoreGetState
+  set: CanvasStoreSetState
+}) {
+  const state = get()
+
+  if (!state.document || !state.documentState?.isPersisted || state.conflictState.status === 'conflict') {
+    return
+  }
+
+  const currentSequence = autosaveSequence + 1
+  autosaveSequence = currentSequence
+
+  set({
+    saveState: { status: 'saving' },
+    operationError: null
+  })
+
+  const result = await documentService.saveCurrentDocument({
+    document: state.document,
+    documentState: state.documentState,
+    invalidMessage: state.invalidState.status === 'invalid' ? state.invalidState.message : null,
+    mode: 'debounced'
+  })
+
+  if (autosaveSequence !== currentSequence) {
+    return
+  }
+
+  applyDocumentCommandResult({
+    controls,
+    get,
+    result,
+    set
+  })
+
+  if (result.status === 'saved') {
+    await controls.resubscribeExternalChanges()
+  }
 }
 
 export function createCanvasDocumentSlice() {
@@ -552,6 +613,7 @@ export function createCanvasCommandSlice(
       clearInteractionOverride(set, get, nodeId)
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent: {
@@ -581,6 +643,7 @@ export function createCanvasCommandSlice(
       clearInteractionOverride(set, get, nodeId)
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent: {
@@ -595,6 +658,7 @@ export function createCanvasCommandSlice(
     async reconnectEdge(edgeId, from, to) {
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent: {
@@ -610,6 +674,7 @@ export function createCanvasCommandSlice(
     async createEdgeFromConnection(from, to) {
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent: {
@@ -632,6 +697,7 @@ export function createCanvasCommandSlice(
 
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent: {
@@ -653,6 +719,7 @@ export function createCanvasCommandSlice(
         for (const nodeId of [...state.selectedNodeIds]) {
           await commitCanvasIntent({
             controls,
+            documentService: services.documentService,
             editingService: services.editingService,
             get,
             intent: {
@@ -669,6 +736,7 @@ export function createCanvasCommandSlice(
         for (const edgeId of [...state.selectedEdgeIds]) {
           await commitCanvasIntent({
             controls,
+            documentService: services.documentService,
             editingService: services.editingService,
             get,
             intent: {
@@ -753,6 +821,7 @@ export function createCanvasCommandSlice(
 
       await commitCanvasIntent({
         controls,
+        documentService: services.documentService,
         editingService: services.editingService,
         get,
         intent,
