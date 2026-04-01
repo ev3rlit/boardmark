@@ -276,7 +276,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                   if (selectedNodeIds[0]) {
                     const selectedNode = nodes.find((node) => node.id === selectedNodeIds[0])
 
-                    if (selectedNode?.type === 'shape') {
+                    if (selectedNode && selectedNode.component !== 'note') {
                       startShapeEditing(selectedNode.id)
                       return
                     }
