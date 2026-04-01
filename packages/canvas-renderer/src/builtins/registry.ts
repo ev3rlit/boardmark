@@ -1,8 +1,7 @@
 import type {
-  BuiltInRendererContract,
-  BuiltInRendererKey
+  BuiltInComponentKey,
+  BuiltInRendererContract
 } from '@boardmark/canvas-domain'
-import { StickyNoteRenderer } from './note/sticky-note-renderer'
 import { NotebookNoteRenderer } from './note/notebook-note-renderer'
 import { CircleShapeRenderer } from './shape/circle-shape-renderer'
 import { EllipseShapeRenderer } from './shape/ellipse-shape-renderer'
@@ -11,12 +10,19 @@ import { RoundRectShapeRenderer } from './shape/round-rect-shape-renderer'
 import { TriangleShapeRenderer } from './shape/triangle-shape-renderer'
 
 export const BUILT_IN_RENDERER_CONTRACTS: Record<
-  BuiltInRendererKey,
+  BuiltInComponentKey,
   BuiltInRendererContract
 > = {
+  note: {
+    component: 'note',
+    variant: 'note',
+    category: 'note',
+    supportsMarkdown: true,
+    defaultSize: { width: 340, height: 240 },
+    tokenUsage: ['color.surface.lowest', 'color.text.primary', 'color.accent.primary', 'shadow.note']
+  },
   'boardmark.shape.rect': {
-    rendererKey: 'boardmark.shape.rect',
-    nodeType: 'shape',
+    component: 'boardmark.shape.rect',
     variant: 'rect',
     category: 'shape',
     supportsMarkdown: false,
@@ -24,8 +30,7 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
     tokenUsage: ['color.object.neutral', 'color.text.primary', 'radius.md', 'shadow.float']
   },
   'boardmark.shape.roundRect': {
-    rendererKey: 'boardmark.shape.roundRect',
-    nodeType: 'shape',
+    component: 'boardmark.shape.roundRect',
     variant: 'roundRect',
     category: 'shape',
     supportsMarkdown: false,
@@ -33,8 +38,7 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
     tokenUsage: ['color.object.blue', 'color.text.primary', 'radius.xl', 'shadow.float']
   },
   'boardmark.shape.ellipse': {
-    rendererKey: 'boardmark.shape.ellipse',
-    nodeType: 'shape',
+    component: 'boardmark.shape.ellipse',
     variant: 'ellipse',
     category: 'shape',
     supportsMarkdown: false,
@@ -42,8 +46,7 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
     tokenUsage: ['color.object.green', 'color.text.primary', 'shadow.float']
   },
   'boardmark.shape.circle': {
-    rendererKey: 'boardmark.shape.circle',
-    nodeType: 'shape',
+    component: 'boardmark.shape.circle',
     variant: 'circle',
     category: 'shape',
     supportsMarkdown: false,
@@ -51,52 +54,24 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
     tokenUsage: ['color.object.violet', 'color.text.primary', 'shadow.float']
   },
   'boardmark.shape.triangle': {
-    rendererKey: 'boardmark.shape.triangle',
-    nodeType: 'shape',
+    component: 'boardmark.shape.triangle',
     variant: 'triangle',
     category: 'shape',
     supportsMarkdown: false,
     defaultSize: { width: 160, height: 136 },
     tokenUsage: ['color.object.rose', 'color.text.primary', 'shadow.float']
-  },
-  'boardmark.note.sticky': {
-    rendererKey: 'boardmark.note.sticky',
-    nodeType: 'note',
-    variant: 'sticky',
-    category: 'note',
-    supportsMarkdown: true,
-    defaultSize: { width: 320, height: 220 },
-    tokenUsage: [
-      'color.object.amber',
-      'color.object.blue',
-      'color.object.green',
-      'color.object.violet',
-      'color.object.rose',
-      'color.text.primary',
-      'shadow.note'
-    ]
-  },
-  'boardmark.note.note': {
-    rendererKey: 'boardmark.note.note',
-    nodeType: 'note',
-    variant: 'note',
-    category: 'note',
-    supportsMarkdown: true,
-    defaultSize: { width: 340, height: 240 },
-    tokenUsage: ['color.surface.lowest', 'color.text.primary', 'color.accent.primary', 'shadow.note']
   }
 }
 
 export const BUILT_IN_RENDERER_COMPONENTS = {
+  note: NotebookNoteRenderer,
   'boardmark.shape.rect': RectShapeRenderer,
   'boardmark.shape.roundRect': RoundRectShapeRenderer,
   'boardmark.shape.ellipse': EllipseShapeRenderer,
   'boardmark.shape.circle': CircleShapeRenderer,
-  'boardmark.shape.triangle': TriangleShapeRenderer,
-  'boardmark.note.sticky': StickyNoteRenderer,
-  'boardmark.note.note': NotebookNoteRenderer
+  'boardmark.shape.triangle': TriangleShapeRenderer
 } as const
 
-export function getBuiltInRendererContract(rendererKey: BuiltInRendererKey) {
-  return BUILT_IN_RENDERER_CONTRACTS[rendererKey]
+export function getBuiltInRendererContract(component: BuiltInComponentKey) {
+  return BUILT_IN_RENDERER_CONTRACTS[component]
 }
