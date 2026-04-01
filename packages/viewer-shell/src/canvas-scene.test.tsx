@@ -3,7 +3,7 @@ import type { CanvasNode } from '@boardmark/canvas-domain'
 import { readFlowNodes } from './canvas-scene'
 
 describe('CanvasScene', () => {
-  it('maps the store selection set onto flow nodes', () => {
+  it('maps canvas nodes into react flow nodes without mutating selection state', () => {
     const nodes: CanvasNode[] = [
       {
         id: 'welcome',
@@ -29,9 +29,10 @@ describe('CanvasScene', () => {
       }
     ]
 
-    const flowNodes = readFlowNodes(nodes, ['welcome', 'overview'])
+    const flowNodes = readFlowNodes(nodes)
 
-    expect(flowNodes[0]?.selected).toBe(true)
-    expect(flowNodes[1]?.selected).toBe(true)
+    expect(flowNodes[0]?.id).toBe('welcome')
+    expect(flowNodes[1]?.id).toBe('overview')
+    expect(flowNodes[0]?.selected).toBeUndefined()
   })
 })

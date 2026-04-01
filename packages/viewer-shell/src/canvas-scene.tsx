@@ -45,15 +45,12 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
   const toolMode = useStore(store, (state) => state.toolMode)
-  const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const clearSelectedNodes = useStore(store, (state) => state.clearSelectedNodes)
   const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
-  const setPrimarySelectedNode = useStore(store, (state) => state.setPrimarySelectedNode)
-  const toggleSelectedNode = useStore(store, (state) => state.toggleSelectedNode)
 
   const flowNodes = useMemo(
-    () => readFlowNodes(nodes, selectedNodeIds),
-    [nodes, selectedNodeIds]
+    () => readFlowNodes(nodes),
+    [nodes]
   )
   const flowEdges = useMemo(() => edges.map(toFlowEdge), [edges])
 
@@ -78,23 +75,8 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => clearSelectedNodes()}
-        onNodeClick={(event, node) => {
-          const allowsMultiSelect = supportsMultiSelect && (event.shiftKey || event.metaKey || event.ctrlKey)
-
-          if (allowsMultiSelect) {
-            toggleSelectedNode(node.id)
-            return
-          }
-
-          setPrimarySelectedNode(node.id)
-        }}
+        multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onSelectionChange={({ nodes: selectedNodes }) => {
-          if (!supportsMultiSelect) {
-            const primaryNode = selectedNodes[0]
-            setPrimarySelectedNode(primaryNode?.id ?? null)
-            return
-          }
-
           replaceSelectedNodes(selectedNodes.map((node) => node.id))
         }}
       >
@@ -119,11 +101,8 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   )
 }
 
-export function readFlowNodes(nodes: CanvasNode[], selectedNodeIds: string[]) {
-  return nodes.map((node) => ({
-    ...toFlowNode(node),
-    selected: selectedNodeIds.includes(node.id)
-  }))
+export function readFlowNodes(nodes: CanvasNode[]) {
+  return nodes.map(toFlowNode)
 }
 
 type CanvasFlowViewportSyncProps = {
