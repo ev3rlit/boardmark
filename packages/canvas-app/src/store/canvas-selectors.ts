@@ -40,7 +40,9 @@ export function selectCanvasStatusPanelState(state: CanvasStoreState) {
 
 export function selectCanvasToolMenuState(state: CanvasStoreState) {
   return {
+    createFrameAtViewport: state.createFrameAtViewport,
     createNoteAtViewport: state.createNoteAtViewport,
+    createShapeAtViewport: state.createShapeAtViewport,
     editingState: state.editingState,
     setToolMode: state.setToolMode
   }

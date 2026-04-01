@@ -112,4 +112,32 @@ describe('CanvasScene', () => {
 
     expect(flowNodes[0]?.selected).toBe(true)
   })
+
+  it('maps shape nodes into dedicated flow nodes with width and height', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'frame-a',
+        type: 'shape',
+        x: 120,
+        y: 140,
+        w: 420,
+        h: 280,
+        rendererKey: 'boardmark.shape.roundRect',
+        label: 'Frame',
+        palette: 'neutral',
+        tone: 'soft',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ]
+
+    const flowNodes = readFlowNodes(nodes)
+
+    expect(flowNodes[0]?.type).toBe('canvas-shape')
+    expect(flowNodes[0]?.data.rendererKey).toBe('boardmark.shape.roundRect')
+    expect(flowNodes[0]?.style?.height).toBe(280)
+  })
 })

@@ -24,12 +24,13 @@ import {
 } from '@xyflow/react'
 import { useStore } from 'zustand'
 import {
+  BUILT_IN_RENDERER_COMPONENTS,
   toFlowEdge,
   toFlowNode,
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { CanvasNode } from '@boardmark/canvas-domain'
+import type { BuiltInShapeRendererData, CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { readActiveToolMode, type CanvasStore, type CanvasStoreState } from '@canvas-app/store/canvas-store'
 
@@ -86,6 +87,12 @@ export function CanvasScene({
     () => ({
       'canvas-note': (props) => (
         <CanvasNoteNode
+          {...props}
+          store={store}
+        />
+      ),
+      'canvas-shape': (props) => (
+        <CanvasShapeNode
           {...props}
           store={store}
         />
@@ -216,17 +223,28 @@ export function readFlowNodes(
   interactionOverrides: CanvasStoreState['interactionOverrides'] = {},
   selectedNodeIds: string[] = []
 ) {
-  return nodes.map((node) =>
-    ({
-      ...toFlowNode({
-        ...node,
-        x: interactionOverrides[node.id]?.x ?? node.x,
-        y: interactionOverrides[node.id]?.y ?? node.y,
-        w: interactionOverrides[node.id]?.w ?? node.w
-      }),
+  return nodes.map((node) => {
+    const override = interactionOverrides[node.id]
+    const patchedNode =
+      node.type === 'shape'
+        ? {
+            ...node,
+            x: override?.x ?? node.x,
+            y: override?.y ?? node.y,
+            w: override?.w ?? node.w
+          }
+        : {
+            ...node,
+            x: override?.x ?? node.x,
+            y: override?.y ?? node.y,
+            w: override?.w ?? node.w
+          }
+
+    return {
+      ...toFlowNode(patchedNode),
       selected: selectedNodeIds.includes(node.id)
-    })
-  )
+    }
+  })
 }
 
 type CanvasFlowViewportSyncProps = {
@@ -260,6 +278,7 @@ function CanvasFlowViewportSync({ store, viewport }: CanvasFlowViewportSyncProps
 }
 
 function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
+  const noteData = data as CanvasFlowNodeData & { type: 'note'; content: string }
   const editingState = useStore(store, (state) => state.editingState)
   const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
@@ -305,7 +324,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         className="boardmark-flow__handle"
       />
       <StickyNoteCard
-        color={data.color}
+        color={noteData.color}
         selected={selected}
       >
         {isEditing ? (
@@ -332,7 +351,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         ) : (
           <MarkdownContent
             className="markdown-content note-markdown"
-            content={data.content}
+            content={noteData.content}
           />
         )}
       </StickyNoteCard>
@@ -342,6 +361,78 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         isConnectable={!isEditing}
         className="boardmark-flow__handle"
       />
+    </div>
+  )
+}
+
+function CanvasShapeNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
+  const editingState = useStore(store, (state) => state.editingState)
+  const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
+  const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
+  const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
+  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
+  const isEditing = editingState.status === 'shape' && editingState.objectId === id
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (!isEditing || !textareaRef.current) {
+      return
+    }
+
+    textareaRef.current.focus()
+    textareaRef.current.select()
+  }, [isEditing])
+
+  const rendererKey = data.rendererKey
+
+  if (!rendererKey) {
+    return null
+  }
+
+  const Renderer = BUILT_IN_RENDERER_COMPONENTS[rendererKey]
+
+  return (
+    <div
+      className="max-w-none"
+      onDoubleClick={() => startShapeEditing(id)}
+    >
+      {isEditing ? (
+        <div className="rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)]">
+          <textarea
+            ref={textareaRef}
+            aria-label={`Edit ${id}`}
+            className="min-h-18 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
+            value={editingState.markdown}
+            onBlur={() => void commitInlineEditing()}
+            onChange={(event) => updateEditingMarkdown(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                cancelInlineEditing()
+                return
+              }
+
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void commitInlineEditing()
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <Renderer
+          data={{
+            label: data.label,
+            palette: data.palette,
+            tone: data.tone
+          } satisfies BuiltInShapeRendererData}
+          nodeId={id}
+          rendererKey={rendererKey}
+          selected={selected}
+          width={typeof data.width === 'number' ? data.width : undefined}
+          height={data.height}
+        />
+      )}
     </div>
   )
 }

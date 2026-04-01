@@ -224,6 +224,22 @@ describe('viewer store', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
+  it('creates frame presets as round-rect shape nodes', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().createFrameAtViewport()
+
+    expect(store.getState().draftSource).toContain(
+      '::: shape #shape-1 x=300 y=240 w=420 h=280 renderer=boardmark.shape.roundRect palette=neutral tone=soft'
+    )
+    expect(store.getState().nodes.some((node) => node.type === 'shape')).toBe(true)
+  })
+
   it('switches to conflict state when external source changes arrive over a dirty draft', async () => {
     const externalChangeRef: { current: null | ((source: string) => void) } = {
       current: null

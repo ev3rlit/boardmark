@@ -13,8 +13,10 @@ import {
   type CanvasEdge,
   type CanvasFrontmatter,
   type CanvasNode,
+  type CanvasNoteNode,
   type CanvasParseError,
   type CanvasParseIssue,
+  type CanvasShapeNode,
   type CanvasSourceRange,
   type CanvasViewport
 } from '../../canvas-domain/src/index'
@@ -86,6 +88,18 @@ export function parseCanvasDocument(
       }
 
       pendingEdges.push(edgeResult.value)
+      return
+    }
+
+    if (directive.name === 'shape') {
+      const shapeResult = parseShapeDirective(directive, context)
+
+      if (shapeResult.isErr()) {
+        issues.push(shapeResult.error)
+        return
+      }
+
+      nodes.push(shapeResult.value)
       return
     }
 
@@ -273,8 +287,92 @@ function parseNoteDirective(
     x,
     y,
     w: w ?? undefined,
-    color: color ? (color as CanvasNode['color']) : undefined,
+    color: color ? (color as CanvasNoteNode['color']) : undefined,
     content: stringifyDirectiveContent(node.children),
+    position: sourceMap.objectRange,
+    sourceMap
+  })
+}
+
+const SHAPE_RENDERER_KEYS = [
+  'boardmark.shape.rect',
+  'boardmark.shape.roundRect',
+  'boardmark.shape.ellipse',
+  'boardmark.shape.circle',
+  'boardmark.shape.triangle'
+] as const satisfies CanvasShapeNode['rendererKey'][]
+
+const BUILT_IN_PALETTES = ['neutral', 'amber', 'blue', 'green', 'violet', 'rose'] as const
+const BUILT_IN_TONES = ['default', 'soft', 'muted', 'strong', 'accent'] as const
+
+function parseShapeDirective(
+  node: DirectiveNode,
+  context: ParseContext
+): Result<CanvasShapeNode, CanvasParseIssue> {
+  const attributes = node.attributes ?? {}
+  const id = attributes.id
+  const x = parseNumericAttribute(attributes.x)
+  const y = parseNumericAttribute(attributes.y)
+  const w = parseNumericAttribute(attributes.w)
+  const h = parseNumericAttribute(attributes.h)
+  const rendererKey = attributes.renderer
+  const palette = attributes.palette
+  const tone = attributes.tone
+  const sourceMap = readDirectiveSourceMap(node, context)
+  const label = stringifyDirectiveContent(node.children).trim()
+
+  if (typeof id !== 'string' || id.length === 0) {
+    return err(invalidNode(node, context, 'Shape is missing a valid id.'))
+  }
+
+  if (x === null || y === null || w === null || h === null) {
+    return err(
+      invalidNode(
+        node,
+        context,
+        `Shape "${id}" is missing numeric x, y, w, or h attributes.`,
+        id
+      )
+    )
+  }
+
+  if (
+    typeof rendererKey !== 'string' ||
+    !SHAPE_RENDERER_KEYS.includes(rendererKey as CanvasShapeNode['rendererKey'])
+  ) {
+    return err(
+      invalidNode(
+        node,
+        context,
+        `Shape "${id}" has an unsupported renderer "${rendererKey ?? ''}".`,
+        id
+      )
+    )
+  }
+
+  if (palette && !BUILT_IN_PALETTES.includes(palette as (typeof BUILT_IN_PALETTES)[number])) {
+    return err(
+      invalidNode(node, context, `Shape "${id}" has an unsupported palette "${palette}".`, id)
+    )
+  }
+
+  if (tone && !BUILT_IN_TONES.includes(tone as (typeof BUILT_IN_TONES)[number])) {
+    return err(
+      invalidNode(node, context, `Shape "${id}" has an unsupported tone "${tone}".`, id)
+    )
+  }
+
+  return ok({
+    id,
+    type: 'shape',
+    x,
+    y,
+    w,
+    h,
+    rendererKey: rendererKey as CanvasShapeNode['rendererKey'],
+    label: label.length > 0 ? label : undefined,
+    palette: palette as CanvasShapeNode['palette'],
+    tone: tone as CanvasShapeNode['tone'],
     position: sourceMap.objectRange,
     sourceMap
   })

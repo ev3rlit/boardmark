@@ -39,26 +39,34 @@ Connects **two** ideas.
       zoom: 1
     })
     expect(result.value.ast.nodes).toHaveLength(2)
-    expect(result.value.ast.nodes[0]?.content).toContain('```ts')
-    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.objectRange)).toBe(`::: note #idea-a x=100 y=120 color=yellow
+    const firstNode = result.value.ast.nodes[0]
+
+    expect(firstNode?.type).toBe('note')
+
+    if (!firstNode || firstNode.type !== 'note') {
+      return
+    }
+
+    expect(firstNode.content).toContain('```ts')
+    expect(readRangeText(source, firstNode.sourceMap.objectRange)).toBe(`::: note #idea-a x=100 y=120 color=yellow
 # Idea A
 
 \`\`\`ts
 const a = 1
 \`\`\`
 :::`)
-    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.openingLineRange)).toBe(
+    expect(readRangeText(source, firstNode.sourceMap.openingLineRange)).toBe(
       '::: note #idea-a x=100 y=120 color=yellow'
     )
-    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.bodyRange)).toBe(`# Idea A
+    expect(readRangeText(source, firstNode.sourceMap.bodyRange)).toBe(`# Idea A
 
 \`\`\`ts
 const a = 1
 \`\`\`
 `)
-    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.closingLineRange)).toBe(':::')
-    expect(result.value.ast.nodes[0]?.sourceMap.objectRange.start.line).toBe(6)
-    expect(result.value.ast.nodes[0]?.sourceMap.closingLineRange.start.line).toBe(12)
+    expect(readRangeText(source, firstNode.sourceMap.closingLineRange)).toBe(':::')
+    expect(firstNode.sourceMap.objectRange.start.line).toBe(6)
+    expect(firstNode.sourceMap.closingLineRange.start.line).toBe(12)
     expect(result.value.ast.edges).toHaveLength(1)
     expect(readRangeText(source, result.value.ast.edges[0]?.sourceMap.openingLineRange)).toBe(
       '::: edge #flow from=idea-a to=idea-b kind=curve'
@@ -190,6 +198,41 @@ console.log('skip')
         })
       ])
     )
+  })
+
+  it('parses shape directives with renderer metadata and label body', () => {
+    const source = `---
+type: canvas
+version: 1
+---
+
+::: shape #frame-a x=120 y=140 w=420 h=280 renderer=boardmark.shape.roundRect palette=neutral tone=soft
+Frame
+:::`
+
+    const result = parseCanvasDocument(source)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.ast.nodes).toHaveLength(1)
+    const firstNode = result.value.ast.nodes[0]
+
+    expect(firstNode?.type).toBe('shape')
+
+    if (!firstNode || firstNode.type !== 'shape') {
+      return
+    }
+
+    expect(firstNode.rendererKey).toBe('boardmark.shape.roundRect')
+    expect(firstNode.palette).toBe('neutral')
+    expect(firstNode.tone).toBe('soft')
+    expect(firstNode.label).toBe('Frame')
+    expect(firstNode.w).toBe(420)
+    expect(firstNode.h).toBe(280)
   })
 })
 

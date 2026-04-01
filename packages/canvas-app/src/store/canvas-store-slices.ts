@@ -1,4 +1,7 @@
 import {
+  type BuiltInPalette,
+  type BuiltInTone,
+  type CanvasShapeNode,
   DEFAULT_CANVAS_VIEWPORT,
   DEFAULT_NOTE_WIDTH,
   MAX_CANVAS_ZOOM,
@@ -29,6 +32,15 @@ type CanvasStoreSliceServices = {
 type CanvasStoreSubscriptionControls = {
   clearExternalSubscription: () => void
   resubscribeExternalChanges: () => Promise<void>
+}
+
+const FRAME_PRESET = {
+  height: 280,
+  label: 'Frame',
+  palette: 'neutral' as const,
+  rendererKey: 'boardmark.shape.roundRect' as const,
+  tone: 'soft' as const,
+  width: 420
 }
 
 function applyDocumentCommandResult({
@@ -342,8 +354,11 @@ export function createCanvasCommandSlice(
   | 'reconnectEdge'
   | 'createEdgeFromConnection'
   | 'createNoteAtViewport'
+  | 'createShapeAtViewport'
+  | 'createFrameAtViewport'
   | 'deleteSelection'
   | 'startNoteEditing'
+  | 'startShapeEditing'
   | 'startEdgeEditing'
   | 'updateEditingMarkdown'
   | 'commitInlineEditing'
@@ -712,6 +727,53 @@ export function createCanvasCommandSlice(
       })
     },
 
+    async createShapeAtViewport({
+      height,
+      label,
+      palette,
+      rendererKey,
+      tone,
+      width
+    }: {
+      height: number
+      label: string
+      palette?: BuiltInPalette
+      rendererKey: CanvasShapeNode['rendererKey']
+      tone?: BuiltInTone
+      width: number
+    }) {
+      const state = get()
+      const anchorNode = state.selectedNodeIds[0]
+        ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
+        : undefined
+      const x = anchorNode ? anchorNode.x + 48 : Math.abs(state.viewport.x) + 120
+      const y = anchorNode ? anchorNode.y + 48 : Math.abs(state.viewport.y) + 120
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        intent: {
+          kind: 'create-shape',
+          anchorNodeId: anchorNode?.id,
+          x,
+          y,
+          width,
+          height,
+          rendererKey,
+          label,
+          palette,
+          tone
+        },
+        set
+      })
+    },
+
+    async createFrameAtViewport() {
+      await get().createShapeAtViewport(FRAME_PRESET)
+    },
+
     async deleteSelection() {
       const state = get()
 
@@ -752,7 +814,7 @@ export function createCanvasCommandSlice(
     startNoteEditing(nodeId) {
       const node = get().nodes.find((entry) => entry.id === nodeId)
 
-      if (!node) {
+      if (!node || node.type !== 'note') {
         return
       }
 
@@ -761,6 +823,23 @@ export function createCanvasCommandSlice(
           status: 'note',
           objectId: nodeId,
           markdown: node.content
+        },
+        operationError: null
+      })
+    },
+
+    startShapeEditing(nodeId) {
+      const node = get().nodes.find((entry) => entry.id === nodeId)
+
+      if (!node || node.type !== 'shape') {
+        return
+      }
+
+      set({
+        editingState: {
+          status: 'shape',
+          objectId: nodeId,
+          markdown: node.label ?? ''
         },
         operationError: null
       })
@@ -807,7 +886,7 @@ export function createCanvasCommandSlice(
       }
 
       const intent: CanvasDocumentEditIntent =
-        state.editingState.status === 'note'
+        state.editingState.status === 'note' || state.editingState.status === 'shape'
           ? {
               kind: 'replace-object-body',
               objectId: state.editingState.objectId,

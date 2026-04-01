@@ -1,10 +1,13 @@
 import type { StoreApi } from 'zustand'
 import type {
+  BuiltInPalette,
+  BuiltInTone,
   CanvasEdge,
   CanvasLoadState,
   CanvasNode,
   CanvasParseIssue,
   CanvasSaveState,
+  CanvasShapeNode,
   CanvasViewport
 } from '@boardmark/canvas-domain'
 import type {
@@ -26,6 +29,7 @@ export type CanvasDropState =
 export type CanvasEditingState =
   | { status: 'idle' }
   | { status: 'note'; objectId: string; markdown: string }
+  | { status: 'shape'; objectId: string; markdown: string }
   | { status: 'edge'; edgeId: string; markdown: string }
 
 export type CanvasConflictState =
@@ -100,8 +104,18 @@ export type CanvasStoreState = {
   reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
   createEdgeFromConnection: (from: string, to: string) => Promise<void>
   createNoteAtViewport: () => Promise<void>
+  createShapeAtViewport: (input: {
+    height: number
+    label: string
+    palette?: BuiltInPalette
+    rendererKey: CanvasShapeNode['rendererKey']
+    tone?: BuiltInTone
+    width: number
+  }) => Promise<void>
+  createFrameAtViewport: () => Promise<void>
   deleteSelection: () => Promise<void>
   startNoteEditing: (nodeId: string) => void
+  startShapeEditing: (nodeId: string) => void
   startEdgeEditing: (edgeId: string) => void
   updateEditingMarkdown: (markdown: string) => void
   commitInlineEditing: () => Promise<void>

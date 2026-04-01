@@ -46,8 +46,38 @@ describe('canvas renderer helpers', () => {
     expect(node.position).toEqual({ x: 100, y: 80 })
     expect(node.draggable).toBe(true)
     expect(node.connectable).toBe(true)
+    expect(node.initialWidth).toBe(360)
+    expect(node.initialHeight).toBe(220)
     expect(node.data.color).toBe('yellow')
     expect(node.style?.width).toBe(360)
+    expect(node.style?.minHeight).toBe(220)
+  })
+
+  it('maps a canvas shape to an interactive react flow shape node', () => {
+    const node = toFlowNode({
+      id: 'shape-a',
+      type: 'shape',
+      x: 120,
+      y: 140,
+      w: 420,
+      h: 280,
+      rendererKey: 'boardmark.shape.roundRect',
+      label: 'Frame',
+      palette: 'neutral',
+      tone: 'soft',
+      position: {
+        start: { line: 1, offset: 0 },
+        end: { line: 3, offset: 12 }
+      },
+      sourceMap
+    })
+
+    expect(node.type).toBe('canvas-shape')
+    expect(node.position).toEqual({ x: 120, y: 140 })
+    expect(node.data.rendererKey).toBe('boardmark.shape.roundRect')
+    expect(node.data.label).toBe('Frame')
+    expect(node.style?.width).toBe(420)
+    expect(node.style?.height).toBe(280)
   })
 
   it('maps a canvas edge and viewport to react flow data', () => {

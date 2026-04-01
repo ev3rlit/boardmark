@@ -200,4 +200,46 @@ describe('canvas document edit service', () => {
     expect(deletedNode.value.source).not.toContain('::: note #welcome')
     expect(deletedNode.value.source).not.toContain('::: edge #edge-1 from=welcome to=overview')
   })
+
+  it('creates shape blocks with renderer, geometry, and label metadata', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'shape-test',
+        name: 'shape.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const createdShape = editService.apply(source, recordResult.value, {
+      kind: 'create-shape',
+      anchorNodeId: 'welcome',
+      x: 180,
+      y: 164,
+      width: 420,
+      height: 280,
+      rendererKey: 'boardmark.shape.roundRect',
+      label: 'Frame',
+      palette: 'neutral',
+      tone: 'soft'
+    })
+
+    expect(createdShape.isOk()).toBe(true)
+
+    if (createdShape.isErr()) {
+      return
+    }
+
+    expect(createdShape.value.source).toContain(
+      '::: shape #shape-1 x=180 y=164 w=420 h=280 renderer=boardmark.shape.roundRect palette=neutral tone=soft'
+    )
+    expect(createdShape.value.source).toContain('Frame\n:::')
+  })
 })

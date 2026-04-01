@@ -1,12 +1,32 @@
 import { err, ok, type Result } from 'neverthrow'
 import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
-import type { CanvasDirectiveSourceMap, CanvasEdge, CanvasNode, CanvasSourceRange } from '@boardmark/canvas-domain'
+import type {
+  BuiltInPalette,
+  BuiltInTone,
+  CanvasDirectiveSourceMap,
+  CanvasEdge,
+  CanvasNode,
+  CanvasShapeNode,
+  CanvasSourceRange
+} from '@boardmark/canvas-domain'
 
 export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
   | { kind: 'move-node'; nodeId: string; x: number; y: number }
   | { kind: 'resize-node'; nodeId: string; width: number }
   | { kind: 'create-note'; anchorNodeId?: string; x: number; y: number; width: number; markdown: string }
+  | {
+      kind: 'create-shape'
+      anchorNodeId?: string
+      x: number
+      y: number
+      width: number
+      height: number
+      rendererKey: CanvasShapeNode['rendererKey']
+      label: string
+      palette?: BuiltInPalette
+      tone?: BuiltInTone
+    }
   | { kind: 'delete-node'; nodeId: string }
   | { kind: 'update-edge-endpoints'; edgeId: string; from: string; to: string }
   | { kind: 'replace-edge-body'; edgeId: string; markdown: string }
@@ -67,6 +87,8 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
           )
         case 'create-note':
           return createNote(source, record, intent)
+        case 'create-shape':
+          return createShape(source, record, intent)
         case 'delete-node':
           return deleteNode(source, record, intent.nodeId)
         case 'create-edge':
@@ -87,7 +109,7 @@ function patchNodeOpeningLine(
   source: string,
   record: CanvasDocumentRecord,
   nodeId: string,
-  attributes: Partial<Record<'x' | 'y' | 'w', string>>
+  attributes: Partial<Record<'x' | 'y' | 'w' | 'h' | 'renderer' | 'palette' | 'tone', string>>
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
   const node = record.ast.nodes.find((entry) => entry.id === nodeId)
 
@@ -98,7 +120,7 @@ function patchNodeOpeningLine(
     })
   }
 
-  return replaceOpeningLine(source, node.sourceMap, attributes, 'note')
+  return replaceOpeningLine(source, node.sourceMap, attributes, node.type)
 }
 
 function patchEdgeOpeningLine(
@@ -123,7 +145,7 @@ function replaceOpeningLine(
   source: string,
   sourceMap: CanvasDirectiveSourceMap,
   nextAttributes: Partial<Record<string, string>>,
-  objectType: 'note' | 'edge'
+  objectType: 'note' | 'shape' | 'edge'
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
   const openingLine = readRangeText(source, sourceMap.openingLineRange)
   const parseResult = parseOpeningDirective(openingLine)
@@ -203,6 +225,55 @@ function createNote(
   const block = [
     `::: note #${nextId} x=${roundGeometry(intent.x)} y=${roundGeometry(intent.y)} w=${roundGeometry(intent.width)}`,
     ...serializeBodyFragment(intent.markdown).split('\n').filter((line, index, lines) => {
+      return !(index === lines.length - 1 && line === '')
+    }),
+    ':::'
+  ].join('\n')
+
+  const nextSource = insertObjectBlock(
+    source,
+    block,
+    record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
+  )
+
+  return ok({
+    source: nextSource,
+    dirty: true
+  })
+}
+
+function createShape(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'create-shape' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const nextId = readNextId(
+    'shape',
+    new Set([
+      ...record.ast.nodes.map((node) => node.id),
+      ...record.ast.edges.map((edge) => edge.id)
+    ])
+  )
+  const openingTokens = [
+    `::: shape #${nextId}`,
+    `x=${roundGeometry(intent.x)}`,
+    `y=${roundGeometry(intent.y)}`,
+    `w=${roundGeometry(intent.width)}`,
+    `h=${roundGeometry(intent.height)}`,
+    `renderer=${intent.rendererKey}`
+  ]
+
+  if (intent.palette) {
+    openingTokens.push(`palette=${intent.palette}`)
+  }
+
+  if (intent.tone) {
+    openingTokens.push(`tone=${intent.tone}`)
+  }
+
+  const block = [
+    openingTokens.join(' '),
+    ...serializeBodyFragment(intent.label).split('\n').filter((line, index, lines) => {
       return !(index === lines.length - 1 && line === '')
     }),
     ':::'
@@ -304,7 +375,7 @@ function parseOpeningDirective(
   openingLine: string
 ): Result<
   {
-    name: 'note' | 'edge'
+    name: 'note' | 'shape' | 'edge'
     id: string
     attributes: Map<string, string>
     unknownTokens: string[]
@@ -313,7 +384,10 @@ function parseOpeningDirective(
 > {
   const tokens = openingLine.trim().split(/\s+/)
 
-  if (tokens[0] !== ':::' || (tokens[1] !== 'note' && tokens[1] !== 'edge')) {
+  if (
+    tokens[0] !== ':::' ||
+    (tokens[1] !== 'note' && tokens[1] !== 'shape' && tokens[1] !== 'edge')
+  ) {
     return err({
       kind: 'invalid-patch',
       message: `Unsupported directive opening line "${openingLine}".`
@@ -358,7 +432,7 @@ function parseOpeningDirective(
 }
 
 function stringifyOpeningDirective(input: {
-  name: 'note' | 'edge'
+  name: 'note' | 'shape' | 'edge'
   id: string
   attributes: Map<string, string>
   unknownTokens: string[]
@@ -367,7 +441,9 @@ function stringifyOpeningDirective(input: {
   const orderedKeys =
     input.name === 'note'
       ? ['x', 'y', 'w', 'color']
-      : ['from', 'to', 'kind']
+      : input.name === 'shape'
+        ? ['x', 'y', 'w', 'h', 'renderer', 'palette', 'tone']
+        : ['from', 'to', 'kind']
 
   for (const key of orderedKeys) {
     const value = input.attributes.get(key)
@@ -450,7 +526,7 @@ function readRangeText(source: string, range: CanvasSourceRange) {
   return source.slice(range.start.offset, range.end.offset)
 }
 
-function readNextId(prefix: 'note' | 'edge', existingIds: Set<string>) {
+function readNextId(prefix: 'note' | 'shape' | 'edge', existingIds: Set<string>) {
   let index = 1
 
   while (existingIds.has(`${prefix}-${index}`)) {

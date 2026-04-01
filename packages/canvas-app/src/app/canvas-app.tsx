@@ -47,7 +47,9 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const editingState = useStore(store, selectCanvasEditingState)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
+  const nodes = useStore(store, (state) => state.nodes)
   const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
+  const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
   const [objectContextMenu, setObjectContextMenu] = useState<ObjectContextMenuState | null>(null)
@@ -272,6 +274,13 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                   setObjectContextMenu(null)
 
                   if (selectedNodeIds[0]) {
+                    const selectedNode = nodes.find((node) => node.id === selectedNodeIds[0])
+
+                    if (selectedNode?.type === 'shape') {
+                      startShapeEditing(selectedNode.id)
+                      return
+                    }
+
                     startNoteEditing(selectedNodeIds[0])
                     return
                   }

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
   CanvasDocumentPicker,
   CanvasDocumentRepositoryGateway
@@ -73,8 +73,8 @@ describe('CanvasApp', () => {
     expect(store.getState().edges[0]?.content).toBe('main thread')
     expect(screen.getByRole('application')).toBeInTheDocument()
     expect(screen.getByText('92%')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Shape' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Frame' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeInTheDocument()
   })
@@ -186,6 +186,70 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDisabled()
+  })
+
+  it('opens the shape menu and dispatches the selected shape preset', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const createShapeSpy = vi.spyOn(store.getState(), 'createShapeAtViewport')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropImport: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shape' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Triangle' }))
+
+    expect(createShapeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: 'Triangle',
+        rendererKey: 'boardmark.shape.triangle'
+      })
+    )
+  })
+
+  it('dispatches frame creation from the tool menu', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const createFrameSpy = vi.spyOn(store.getState(), 'createFrameAtViewport')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropImport: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Frame' }))
+
+    expect(createFrameSpy).toHaveBeenCalled()
   })
 })
 

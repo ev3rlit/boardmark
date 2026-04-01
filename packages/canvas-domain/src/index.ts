@@ -1,4 +1,9 @@
 export * from './built-in-components'
+import type {
+  BuiltInPalette,
+  BuiltInRendererKey,
+  BuiltInTone
+} from './built-in-components'
 
 export type CanvasViewport = {
   x: number
@@ -41,7 +46,7 @@ export type CanvasDirectiveSourceMap = {
   attributeRanges?: Partial<Record<string, CanvasSourceRange>>
 }
 
-export type CanvasNode = {
+export type CanvasNoteNode = {
   id: string
   type: 'note'
   x: number
@@ -52,6 +57,23 @@ export type CanvasNode = {
   position: CanvasSourceRange
   sourceMap: CanvasDirectiveSourceMap
 }
+
+export type CanvasShapeNode = {
+  id: string
+  type: 'shape'
+  x: number
+  y: number
+  w: number
+  h: number
+  rendererKey: Extract<BuiltInRendererKey, `boardmark.shape.${string}`>
+  label?: string
+  palette?: BuiltInPalette
+  tone?: BuiltInTone
+  position: CanvasSourceRange
+  sourceMap: CanvasDirectiveSourceMap
+}
+
+export type CanvasNode = CanvasNoteNode | CanvasShapeNode
 
 export type CanvasEdgeKind = 'curve' | 'straight'
 
