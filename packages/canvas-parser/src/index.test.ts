@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { CanvasSourceRange } from '@boardmark/canvas-domain'
 import { parseCanvasDocument } from './index'
 
 describe('parseCanvasDocument', () => {
@@ -39,7 +40,33 @@ Connects **two** ideas.
     })
     expect(result.value.ast.nodes).toHaveLength(2)
     expect(result.value.ast.nodes[0]?.content).toContain('```ts')
+    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.objectRange)).toBe(`::: note #idea-a x=100 y=120 color=yellow
+# Idea A
+
+\`\`\`ts
+const a = 1
+\`\`\`
+:::`)
+    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.openingLineRange)).toBe(
+      '::: note #idea-a x=100 y=120 color=yellow'
+    )
+    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.bodyRange)).toBe(`# Idea A
+
+\`\`\`ts
+const a = 1
+\`\`\`
+`)
+    expect(readRangeText(source, result.value.ast.nodes[0]?.sourceMap.closingLineRange)).toBe(':::')
+    expect(result.value.ast.nodes[0]?.sourceMap.objectRange.start.line).toBe(6)
+    expect(result.value.ast.nodes[0]?.sourceMap.closingLineRange.start.line).toBe(12)
     expect(result.value.ast.edges).toHaveLength(1)
+    expect(readRangeText(source, result.value.ast.edges[0]?.sourceMap.openingLineRange)).toBe(
+      '::: edge #flow from=idea-a to=idea-b kind=curve'
+    )
+    expect(readRangeText(source, result.value.ast.edges[0]?.sourceMap.bodyRange)).toBe(
+      'Connects **two** ideas.\n'
+    )
+    expect(result.value.ast.edges[0]?.sourceMap.objectRange.start.line).toBe(18)
     expect(result.value.issues).toEqual([])
   })
 
@@ -165,3 +192,11 @@ console.log('skip')
     )
   })
 })
+
+function readRangeText(source: string, range: CanvasSourceRange | undefined): string {
+  if (!range) {
+    return ''
+  }
+
+  return source.slice(range.start.offset, range.end.offset)
+}

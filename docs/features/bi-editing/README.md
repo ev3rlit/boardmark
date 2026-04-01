@@ -126,12 +126,12 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
   - `.canvas.md` source string
 - projection
   - `CanvasDocumentRecord`
-  - `ViewerStore`
+  - `CanvasStore`
   - canvas render state
 
 핵심 읽기 경로:
 
-`source -> Repository -> CanvasDocumentRecord -> ViewerStore -> Canvas`
+`source -> Repository -> CanvasDocumentRecord -> CanvasStore -> Canvas`
 
 핵심 쓰기 경로:
 
@@ -187,6 +187,21 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 
 ## 5. 사용자 경험 정의
 
+### 5.0 Interaction UX 원칙
+
+이 단계에서는 별도의 inspector 패널을 만들지 않는다.
+
+첫 버전의 편집 UX는 아래 원칙으로 고정한다.
+
+- 편집은 canvas 위 직접 조작을 기본으로 한다.
+- note/edge content 수정은 object 직접 진입 방식으로 한다.
+- geometry 수정은 drag / resize / reconnect 같은 마우스 조작을 기본으로 한다.
+- 구조 편집은 선택 상태 + 직접 연결 + 키보드 shortcut을 우선한다.
+- conflict / 외부 변경 상태는 최소한의 status banner + action button으로 노출한다.
+
+즉 첫 버전의 목표는 “풍부한 editing chrome”이 아니라  
+**직관적인 마우스/키보드 중심 interaction이 실제 source patch pipeline과 일관되게 연결되는 것**이다.
+
 ### 5.1 Content Edit 흐름
 
 사용자가 UI에서 note body나 edge label body를 수정하면:
@@ -198,6 +213,12 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 5. patch된 source를 repository로 다시 정규화한다.
 6. 성공하면 canvas는 새 record로 갱신된다.
 
+첫 버전의 content editing 진입은 아래처럼 둔다.
+
+- note 본문: note 더블클릭으로 inline editing 진입
+- edge label 본문: label 더블클릭으로 inline editing 진입
+- commit / cancel은 Enter, Escape, blur 같은 명확한 사용자 액션으로 처리한다
+
 ### 5.2 Geometry Edit 흐름
 
 사용자가 note를 drag / resize 하면:
@@ -208,6 +229,13 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 4. `x`, `y`, `w` 값만 최소 범위 patch로 바꾼다.
 5. patch된 source를 repository로 다시 정규화한다.
 
+첫 버전의 geometry interaction은 아래처럼 둔다.
+
+- note move: drag end에서 commit
+- note resize: resize end에서 commit
+- edge reconnect: 연결 변경 commit 시 `from`, `to` patch
+- drag 중에는 runtime preview만 갱신하고 source는 건드리지 않는다
+
 ### 5.3 External Raw Edit 흐름
 
 사용자가 VS Code에서 raw `.canvas.md`를 수정하면:
@@ -216,6 +244,11 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 2. local draft가 clean이면 즉시 reload 한다.
 3. local draft가 dirty면 conflict 상태로 전환한다.
 4. conflict 상태에서는 local draft 유지 또는 disk reload 중 하나를 명시적으로 선택하게 한다.
+
+첫 버전의 conflict UX는 별도 패널이 아니라 status area의 간단한 배너/액션 버튼으로 처리한다.
+
+- `Reload from disk`
+- `Keep local draft`
 
 ---
 
@@ -230,12 +263,12 @@ flowchart TD
   subgraph Presentation["Presentation Layer"]
     Desktop["Desktop Shell<br/>Electron host"]
     Web["Web Shell<br/>Browser host"]
-    ViewerShell["Shared Viewer Shell"]
+    CanvasApp["Shared Viewer Shell"]
     CanvasUI["Canvas Viewer UI"]
   end
 
   subgraph Application["Application Layer"]
-    ViewerStore["Viewer Store"]
+    CanvasStore["Viewer Store"]
     SaveService["CanvasDocumentSaveService"]
   end
 
@@ -252,12 +285,12 @@ flowchart TD
 
   FileSystem["Local File System"]
 
-  Desktop --> ViewerShell
-  Web --> ViewerShell
-  ViewerShell --> CanvasUI
-  ViewerShell --> ViewerStore
-  ViewerStore --> SaveService
-  ViewerStore --> Repository
+  Desktop --> CanvasApp
+  Web --> CanvasApp
+  CanvasApp --> CanvasUI
+  CanvasApp --> CanvasStore
+  CanvasStore --> SaveService
+  CanvasStore --> Repository
   SaveService --> DesktopBridge
   SaveService --> BrowserBridge
   DesktopBridge --> FileSystem
@@ -273,12 +306,12 @@ flowchart TD
 ```mermaid
 flowchart TD
   subgraph Presentation["Presentation Layer"]
-    ViewerShell["Shared Viewer Shell"]
+    CanvasApp["Shared Viewer Shell"]
     CanvasUI["Canvas Interaction UI"]
   end
 
   subgraph Application["Application Layer"]
-    ViewerStore["Viewer Store<br/>draftSource + parsedRecord + conflictState"]
+    CanvasStore["Viewer Store<br/>draftSource + parsedRecord + conflictState"]
     EditService["CanvasDocumentEditService"]
     Reconciler["External Change Reconciler"]
     SaveService["CanvasDocumentSaveService"]
@@ -307,9 +340,9 @@ flowchart TD
 
   FileSystem["Local File System"]
 
-  CanvasUI --> ViewerStore
-  ViewerStore --> EditService
-  ViewerStore --> Reconciler
+  CanvasUI --> CanvasStore
+  CanvasStore --> EditService
+  CanvasStore --> Reconciler
   EditService --> Intent
   EditService --> SourceMap
   EditService --> Fragment
@@ -318,12 +351,12 @@ flowchart TD
   Fragment --> Applier
   Geometry --> Applier
   Structure --> Applier
-  Applier --> ViewerStore
-  Reconciler --> ViewerStore
-  ViewerStore --> Repository
+  Applier --> CanvasStore
+  Reconciler --> CanvasStore
+  CanvasStore --> Repository
   Repository --> Record
   Repository --> Parser
-  ViewerStore --> SaveService
+  CanvasStore --> SaveService
   SaveService --> DesktopBridge
   SaveService --> BrowserBridge
   Vscode --> FileSystem
@@ -539,6 +572,9 @@ type CanvasDocumentEditService = {
 - geometry commit은 drag end / resize end에서만 수행한다.
 - content edit commit은 explicit apply 또는 debounce apply로 수행할 수 있지만, save와는 분리한다.
 - 모든 commit은 `UI -> Command -> EditService -> Patch Strategy -> Patch Applier -> Repository.readSource(...)` 경로를 유지한다.
+- inspector는 도입하지 않는다.
+- content edit는 object 더블클릭 기반 inline editing으로 시작한다.
+- delete/create/selection 해제 같은 기본 조작은 keyboard interaction을 적극 활용한다.
 
 ### 7.1.1 Runtime Interaction Overlay State
 
@@ -573,6 +609,12 @@ drag 중에는 이 derived position을 runtime interaction state로 덮어씌워
 - source range 모델을 단순하게 유지할 수 있다.
 - UI 구현과 patch engine을 분리할 수 있다.
 - content block UI가 바뀌어도 body fragment serialization 계약만 유지하면 된다.
+
+첫 버전의 UI surface는 아래를 기본으로 한다.
+
+- note는 카드 내부 markdown view를 inline editor로 일시 전환한다.
+- edge는 label 위치에서 inline editor를 연다.
+- 편집 UI는 canvas 맥락을 벗어나지 않고 object-local하게 열린다.
 
 ### 7.3 위치와 크기 수정 방식
 
@@ -620,6 +662,12 @@ drag 중에는 이 derived position을 runtime interaction state로 덮어씌워
 
 bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` polling method 추가를 Phase 5에서 구체화한다.
 
+첫 버전 UX 원칙:
+
+- conflict는 최소한의 상태 배너로 surface 한다.
+- 선택지는 `reload` 대 `keep local` 두 개만 제공한다.
+- 복잡한 diff viewer, merge UI, inspector 연계는 도입하지 않는다.
+
 ### 7.6 Save Integration
 
 - 저장은 계속 save service만 수행한다.
@@ -648,6 +696,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 - `resize-node`
 - `update-edge-endpoints`
 - opening line attribute patch 구현
+- canvas 직접 drag/resize/reconnect interaction을 commit pipeline에 연결
 
 완료 기준:
 
@@ -659,6 +708,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 - `replace-object-body`
 - `replace-edge-body`
 - body fragment 전체 교체 patch 구현
+- note/edge 더블클릭 inline edit와 keyboard commit/cancel 연결
 
 완료 기준:
 
@@ -670,6 +720,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 - `delete-node`
 - `create-edge`
 - `delete-edge`
+- inspector 없이 선택/마우스/키보드만으로 구조 편집 진입
 
 완료 기준:
 
@@ -680,6 +731,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 - 외부 raw source 변경 reconcile
 - conflict UX 정리
 - save service와 draft session 결합
+- 배너 기반 `Reload from disk` / `Keep local draft` action 연결
 
 완료 기준:
 

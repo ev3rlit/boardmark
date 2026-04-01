@@ -9,6 +9,7 @@ import {
   CANVAS_NODE_COLORS,
   DEFAULT_CANVAS_VIEWPORT,
   type CanvasAST,
+  type CanvasDirectiveSourceMap,
   type CanvasEdge,
   type CanvasFrontmatter,
   type CanvasNode,
@@ -39,6 +40,16 @@ type ParseSuccess = {
   issues: CanvasParseIssue[]
 }
 
+type ParseContext = {
+  sourceLocator: SourceLocator
+  contentStartLine: number
+}
+
+type SourceLocator = {
+  source: string
+  lineStarts: number[]
+}
+
 export function parseCanvasDocument(
   source: string
 ): Result<ParseSuccess, CanvasParseError> {
@@ -50,6 +61,10 @@ export function parseCanvasDocument(
 
   const normalizedBody = normalizeDirectiveSyntax(frontmatterResult.value.content)
   const rootResult = parseMarkdownRoot(normalizedBody)
+  const context: ParseContext = {
+    sourceLocator: createSourceLocator(source),
+    contentStartLine: frontmatterResult.value.contentStartLine
+  }
 
   if (rootResult.isErr()) {
     return err(rootResult.error)
@@ -63,7 +78,7 @@ export function parseCanvasDocument(
     const directive = node as DirectiveNode
 
     if (directive.name === 'edge') {
-      const edgeResult = parseEdgeDirective(directive)
+      const edgeResult = parseEdgeDirective(directive, context)
 
       if (edgeResult.isErr()) {
         issues.push(edgeResult.error)
@@ -79,12 +94,12 @@ export function parseCanvasDocument(
         level: 'warning',
         kind: 'unsupported-node-type',
         message: `Unsupported node type "${directive.name}" was skipped.`,
-        line: directive.position?.start.line
+        line: readDirectiveStartLine(directive, context)
       })
       return
     }
 
-    const nodeResult = parseNoteDirective(directive)
+    const nodeResult = parseNoteDirective(directive, context)
 
     if (nodeResult.isErr()) {
       issues.push(nodeResult.error)
@@ -123,7 +138,7 @@ export function parseCanvasDocument(
 
 function parseFrontmatter(
   source: string
-): Result<{ frontmatter: CanvasFrontmatter; content: string }, CanvasParseError> {
+): Result<{ frontmatter: CanvasFrontmatter; content: string; contentStartLine: number }, CanvasParseError> {
   const splitResult = splitFrontmatter(source)
 
   if (splitResult.isErr()) {
@@ -174,7 +189,8 @@ function parseFrontmatter(
       preset: readOptionalString(frontmatter.preset),
       viewport: viewportResult.value
     },
-    content: splitResult.value.content
+    content: splitResult.value.content,
+    contentStartLine: splitResult.value.contentStartLine
   })
 }
 
@@ -219,28 +235,36 @@ function parseMarkdownRoot(source: string): Result<MarkdownRoot, CanvasParseErro
   }
 }
 
-function parseNoteDirective(node: DirectiveNode): Result<CanvasNode, CanvasParseIssue> {
+function parseNoteDirective(
+  node: DirectiveNode,
+  context: ParseContext
+): Result<CanvasNode, CanvasParseIssue> {
   const attributes = node.attributes ?? {}
   const id = attributes.id
   const x = parseNumericAttribute(attributes.x)
   const y = parseNumericAttribute(attributes.y)
   const w = parseOptionalNumericAttribute(attributes.w)
   const color = attributes.color
+  const sourceMap = readDirectiveSourceMap(node, context)
 
   if (typeof id !== 'string' || id.length === 0) {
-    return err(invalidNode(node, 'Note is missing a valid id.'))
+    return err(invalidNode(node, context, 'Note is missing a valid id.'))
   }
 
   if (x === null || y === null) {
-    return err(invalidNode(node, `Note "${id}" is missing numeric x or y coordinates.`, id))
+    return err(
+      invalidNode(node, context, `Note "${id}" is missing numeric x or y coordinates.`, id)
+    )
   }
 
   if (w === null) {
-    return err(invalidNode(node, `Note "${id}" has an invalid width.`, id))
+    return err(invalidNode(node, context, `Note "${id}" has an invalid width.`, id))
   }
 
   if (color && !CANVAS_NODE_COLORS.includes(color as (typeof CANVAS_NODE_COLORS)[number])) {
-    return err(invalidNode(node, `Note "${id}" has an unsupported color "${color}".`, id))
+    return err(
+      invalidNode(node, context, `Note "${id}" has an unsupported color "${color}".`, id)
+    )
   }
 
   return ok({
@@ -251,27 +275,34 @@ function parseNoteDirective(node: DirectiveNode): Result<CanvasNode, CanvasParse
     w: w ?? undefined,
     color: color ? (color as CanvasNode['color']) : undefined,
     content: stringifyDirectiveContent(node.children),
-    position: readPosition(node)
+    position: sourceMap.objectRange,
+    sourceMap
   })
 }
 
-function parseEdgeDirective(node: DirectiveNode): Result<CanvasEdge, CanvasParseIssue> {
+function parseEdgeDirective(
+  node: DirectiveNode,
+  context: ParseContext
+): Result<CanvasEdge, CanvasParseIssue> {
   const attributes = node.attributes ?? {}
   const id = attributes.id
   const from = attributes.from
   const to = attributes.to
   const kind = attributes.kind
+  const sourceMap = readDirectiveSourceMap(node, context)
 
   if (typeof id !== 'string' || id.length === 0) {
-    return err(invalidEdge(node, 'Edge is missing a valid id.'))
+    return err(invalidEdge(node, context, 'Edge is missing a valid id.'))
   }
 
   if (typeof from !== 'string' || typeof to !== 'string' || from.length === 0 || to.length === 0) {
-    return err(invalidEdge(node, `Edge "${id}" is missing a valid from/to reference.`, id))
+    return err(
+      invalidEdge(node, context, `Edge "${id}" is missing a valid from/to reference.`, id)
+    )
   }
 
   if (kind && !CANVAS_EDGE_KINDS.includes(kind as (typeof CANVAS_EDGE_KINDS)[number])) {
-    return err(invalidEdge(node, `Edge "${id}" has an unsupported kind "${kind}".`, id))
+    return err(invalidEdge(node, context, `Edge "${id}" has an unsupported kind "${kind}".`, id))
   }
 
   const content = stringifyDirectiveContent(node.children).trim()
@@ -282,39 +313,62 @@ function parseEdgeDirective(node: DirectiveNode): Result<CanvasEdge, CanvasParse
     to,
     kind: kind ? (kind as CanvasEdge['kind']) : undefined,
     content: content.length > 0 ? content : undefined,
-    position: readPosition(node)
+    position: sourceMap.objectRange,
+    sourceMap
   })
 }
 
-function readPosition(node: DirectiveNode): CanvasSourceRange {
+function readDirectiveSourceMap(
+  node: DirectiveNode,
+  context: ParseContext
+): CanvasDirectiveSourceMap {
+  const objectStartLine = readDirectiveStartLine(node, context)
+  const objectEndLine = readDirectiveEndLine(node, context)
+  const openingLineRange = readLineRange(context.sourceLocator, objectStartLine)
+  const closingLineRange = readLineRange(context.sourceLocator, objectEndLine)
+  const bodyStartOffset = readLineBreakOffset(context.sourceLocator, objectStartLine)
+  const bodyEndOffset = closingLineRange.start.offset
+  const bodyRange = readOffsetRange(context.sourceLocator, bodyStartOffset, bodyEndOffset)
+  const objectRange = readOffsetRange(
+    context.sourceLocator,
+    openingLineRange.start.offset,
+    closingLineRange.end.offset
+  )
+
   return {
-    start: {
-      offset: node.position?.start.offset ?? 0,
-      line: node.position?.start.line ?? 1
-    },
-    end: {
-      offset: node.position?.end.offset ?? 0,
-      line: node.position?.end.line ?? 1
-    }
+    objectRange,
+    openingLineRange,
+    bodyRange,
+    closingLineRange
   }
 }
 
-function invalidNode(node: DirectiveNode, message: string, objectId?: string): CanvasParseIssue {
+function invalidNode(
+  node: DirectiveNode,
+  context: ParseContext,
+  message: string,
+  objectId?: string
+): CanvasParseIssue {
   return {
     level: 'warning',
     kind: 'invalid-node',
     message,
-    line: node.position?.start.line,
+    line: readDirectiveStartLine(node, context),
     objectId
   }
 }
 
-function invalidEdge(node: DirectiveNode, message: string, objectId?: string): CanvasParseIssue {
+function invalidEdge(
+  node: DirectiveNode,
+  context: ParseContext,
+  message: string,
+  objectId?: string
+): CanvasParseIssue {
   return {
     level: 'warning',
     kind: 'invalid-edge',
     message,
-    line: node.position?.start.line,
+    line: readDirectiveStartLine(node, context),
     objectId
   }
 }
@@ -411,7 +465,7 @@ function normalizeDirectiveAttributes(rawAttributes: string): string {
 
 function splitFrontmatter(
   source: string
-): Result<{ frontmatterSource: string; content: string }, CanvasParseError> {
+): Result<{ frontmatterSource: string; content: string; contentStartLine: number }, CanvasParseError> {
   if (!source.startsWith('---\n')) {
     return err({
       kind: 'invalid-frontmatter',
@@ -430,8 +484,106 @@ function splitFrontmatter(
 
   return ok({
     frontmatterSource: source.slice(4, closingIndex),
-    content: source.slice(closingIndex + 5)
+    content: source.slice(closingIndex + 5),
+    contentStartLine: source.slice(0, closingIndex + 5).split('\n').length
   })
+}
+
+function createSourceLocator(source: string): SourceLocator {
+  const lineStarts = [0]
+
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '\n') {
+      lineStarts.push(index + 1)
+    }
+  }
+
+  return {
+    source,
+    lineStarts
+  }
+}
+
+function readDirectiveStartLine(node: DirectiveNode, context: ParseContext): number {
+  return toAbsoluteLine(context, node.position?.start.line ?? 1)
+}
+
+function readDirectiveEndLine(node: DirectiveNode, context: ParseContext): number {
+  return toAbsoluteLine(context, node.position?.end.line ?? readDirectiveStartLine(node, context))
+}
+
+function toAbsoluteLine(context: ParseContext, line: number): number {
+  return context.contentStartLine + line - 1
+}
+
+function readLineRange(sourceLocator: SourceLocator, line: number): CanvasSourceRange {
+  const startOffset = readLineStartOffset(sourceLocator, line)
+  const endOffset = readLineEndOffset(sourceLocator, line)
+
+  return {
+    start: {
+      offset: startOffset,
+      line
+    },
+    end: {
+      offset: endOffset,
+      line
+    }
+  }
+}
+
+function readOffsetRange(
+  sourceLocator: SourceLocator,
+  startOffset: number,
+  endOffset: number
+): CanvasSourceRange {
+  const normalizedStartOffset = Math.max(0, Math.min(startOffset, sourceLocator.source.length))
+  const normalizedEndOffset = Math.max(
+    normalizedStartOffset,
+    Math.min(endOffset, sourceLocator.source.length)
+  )
+
+  return {
+    start: readPointAtOffset(sourceLocator, normalizedStartOffset),
+    end: readPointAtOffset(sourceLocator, normalizedEndOffset)
+  }
+}
+
+function readPointAtOffset(sourceLocator: SourceLocator, offset: number) {
+  let lineIndex = 0
+
+  while (
+    lineIndex + 1 < sourceLocator.lineStarts.length &&
+    sourceLocator.lineStarts[lineIndex + 1] <= offset
+  ) {
+    lineIndex += 1
+  }
+
+  return {
+    offset,
+    line: lineIndex + 1
+  }
+}
+
+function readLineStartOffset(sourceLocator: SourceLocator, line: number): number {
+  return sourceLocator.lineStarts[line - 1] ?? sourceLocator.source.length
+}
+
+function readLineEndOffset(sourceLocator: SourceLocator, line: number): number {
+  const startOffset = readLineStartOffset(sourceLocator, line)
+  const nextLineStart = sourceLocator.lineStarts[line] ?? sourceLocator.source.length
+
+  if (nextLineStart > startOffset && sourceLocator.source[nextLineStart - 1] === '\n') {
+    return nextLineStart - 1
+  }
+
+  return nextLineStart
+}
+
+function readLineBreakOffset(sourceLocator: SourceLocator, line: number): number {
+  const nextLineStart = sourceLocator.lineStarts[line]
+
+  return nextLineStart ?? readLineEndOffset(sourceLocator, line)
 }
 
 function parseFrontmatterBlock(

@@ -22,7 +22,7 @@
 | `@boardmark/canvas-parser` | `packages/canvas-parser/src/index.ts` | `.canvas.md` source → AST 파싱. remark/unified + remark-directive 기반 |
 | `@boardmark/canvas-repository` | `packages/canvas-repository/src/index.ts` | 정규화 경계. source → parse → CanvasDocumentRecord 생성 |
 | `@boardmark/canvas-renderer` | `packages/canvas-renderer/src/index.ts` | ReactFlow 기반 canvas 렌더링 |
-| `@boardmark/viewer-shell` | `packages/viewer-shell/src/index.ts` | ViewerStore(Zustand), SaveService, DocumentSession, ViewerShell 컴포넌트 |
+| `@boardmark/canvas-app` | `packages/canvas-app/src/index.ts` | CanvasStore(Zustand), SaveService, DocumentSession, CanvasApp 컴포넌트 |
 | `@boardmark/ui` | `packages/ui` | 공통 UI 컴포넌트 |
 | `@boardmark/desktop` | `apps/desktop` | Electron 호스트 |
 | `@boardmark/web` | `apps/web` | 브라우저 호스트 |
@@ -34,7 +34,7 @@
   → parseCanvasDocument(source)          # canvas-parser
   → buildRecord(parseResult)             # canvas-repository
   → CanvasDocumentRecord                 # { locator, name, source, ast, issues }
-  → ViewerStore.applyDocumentRecord()    # viewer-shell
+  → CanvasStore.applyDocumentRecord()    # canvas-app
   → nodes[], edges[], viewport           # derived state
   → Canvas UI render                     # canvas-renderer
 ```
@@ -87,8 +87,8 @@ type CanvasDocumentRepository = {
   save: (input) => ResultAsync<CanvasDocumentRecord, Error>
 }
 
-// viewer-shell
-type ViewerDocumentSession = {
+// canvas-app
+type CanvasDocumentState = {
   locator: CanvasDocumentLocator
   fileHandle: FileSystemFileHandle | null
   isPersisted: boolean
@@ -136,7 +136,7 @@ type CanvasDirectiveSourceMap = {
 
 3. **canvas-repository 변경 없음** (parser 출력이 바뀌면 record에 자동 반영)
 
-4. **viewer-store를 draft-aware로 확장 준비** (Phase 2에서 본격 구현)
+4. **canvas-store를 draft-aware로 확장 준비** (Phase 2에서 본격 구현)
 
 ### 완료 기준
 

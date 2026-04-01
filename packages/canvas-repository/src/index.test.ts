@@ -35,6 +35,8 @@ Idea
 
     expect(result.value.name).toBe('template.canvas.md')
     expect(result.value.ast.nodes).toHaveLength(1)
+    expect(result.value.ast.nodes[0]?.sourceMap.openingLineRange.start.line).toBe(6)
+    expect(result.value.ast.nodes[0]?.sourceMap.bodyRange.start.line).toBe(7)
     expect(result.value.issues).toEqual([])
     expect(result.value.isTemplate).toBe(true)
   })
