@@ -6,8 +6,27 @@ import {
   toFlowViewport
 } from './index'
 
+const sourceMap = {
+  objectRange: {
+    start: { line: 1, offset: 0 },
+    end: { line: 3, offset: 12 }
+  },
+  openingLineRange: {
+    start: { line: 1, offset: 0 },
+    end: { line: 1, offset: 10 }
+  },
+  bodyRange: {
+    start: { line: 2, offset: 11 },
+    end: { line: 3, offset: 12 }
+  },
+  closingLineRange: {
+    start: { line: 3, offset: 9 },
+    end: { line: 3, offset: 12 }
+  }
+} as const
+
 describe('canvas renderer helpers', () => {
-  it('maps a canvas note to a non-draggable react flow node', () => {
+  it('maps a canvas note to an interactive react flow node', () => {
     const node = toFlowNode({
       id: 'a',
       type: 'note',
@@ -19,12 +38,14 @@ describe('canvas renderer helpers', () => {
       position: {
         start: { line: 1, offset: 0 },
         end: { line: 3, offset: 12 }
-      }
+      },
+      sourceMap
     })
 
     expect(node.type).toBe('canvas-note')
     expect(node.position).toEqual({ x: 100, y: 80 })
-    expect(node.draggable).toBe(false)
+    expect(node.draggable).toBe(true)
+    expect(node.connectable).toBe(true)
     expect(node.data.color).toBe('yellow')
     expect(node.style?.width).toBe(360)
   })
@@ -39,6 +60,17 @@ describe('canvas renderer helpers', () => {
       position: {
         start: { line: 1, offset: 0 },
         end: { line: 2, offset: 12 }
+      },
+      sourceMap: {
+        ...sourceMap,
+        objectRange: {
+          start: { line: 1, offset: 0 },
+          end: { line: 2, offset: 12 }
+        },
+        closingLineRange: {
+          start: { line: 2, offset: 9 },
+          end: { line: 2, offset: 12 }
+        }
       }
     })
     const viewport = toFlowViewport({ x: -120, y: -40, zoom: 1 })

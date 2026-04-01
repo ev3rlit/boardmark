@@ -327,7 +327,8 @@ export function createViewerStore({
           status: 'saved',
           path: saveResult.path
         },
-        lastSavedAt: saveResult.savedAt
+        lastSavedAt: saveResult.savedAt,
+        viewport: get().viewport
       })
       await subscribeToExternalChanges()
     },
@@ -379,11 +380,22 @@ export function createViewerStore({
     },
 
     setPrimarySelectedNode(nodeId) {
-      set((state) => ({
-        ...state,
-        selectedNodeIds: nodeId ? [nodeId] : [],
-        selectedEdgeIds: []
-      }))
+      set((state) => {
+        const nextSelectedNodeIds = nodeId ? [nodeId] : []
+
+        if (
+          areSameIds(state.selectedNodeIds, nextSelectedNodeIds) &&
+          state.selectedEdgeIds.length === 0
+        ) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: nextSelectedNodeIds,
+          selectedEdgeIds: []
+        }
+      })
     },
 
     toggleSelectedNode(nodeId) {
@@ -400,27 +412,57 @@ export function createViewerStore({
     },
 
     replaceSelectedNodes(nodeIds) {
-      set((state) => ({
-        ...state,
-        selectedNodeIds: [...new Set(nodeIds)],
-        selectedEdgeIds: nodeIds.length > 0 ? [] : state.selectedEdgeIds
-      }))
+      set((state) => {
+        const nextSelectedNodeIds = [...new Set(nodeIds)]
+        const nextSelectedEdgeIds = nodeIds.length > 0 ? [] : state.selectedEdgeIds
+
+        if (
+          areSameIds(state.selectedNodeIds, nextSelectedNodeIds) &&
+          areSameIds(state.selectedEdgeIds, nextSelectedEdgeIds)
+        ) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: nextSelectedNodeIds,
+          selectedEdgeIds: nextSelectedEdgeIds
+        }
+      })
     },
 
     replaceSelectedEdges(edgeIds) {
-      set((state) => ({
-        ...state,
-        selectedEdgeIds: [...new Set(edgeIds)],
-        selectedNodeIds: edgeIds.length > 0 ? [] : state.selectedNodeIds
-      }))
+      set((state) => {
+        const nextSelectedEdgeIds = [...new Set(edgeIds)]
+        const nextSelectedNodeIds = edgeIds.length > 0 ? [] : state.selectedNodeIds
+
+        if (
+          areSameIds(state.selectedEdgeIds, nextSelectedEdgeIds) &&
+          areSameIds(state.selectedNodeIds, nextSelectedNodeIds)
+        ) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedEdgeIds: nextSelectedEdgeIds,
+          selectedNodeIds: nextSelectedNodeIds
+        }
+      })
     },
 
     clearSelection() {
-      set((state) => ({
-        ...state,
-        selectedNodeIds: [],
-        selectedEdgeIds: []
-      }))
+      set((state) => {
+        if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedNodeIds: [],
+          selectedEdgeIds: []
+        }
+      })
     },
 
     clearSelectedNodes() {
@@ -733,7 +775,8 @@ export function createViewerStore({
           fileHandle: state.documentSession.fileHandle,
           isPersisted: state.documentSession.isPersisted,
           persistedSnapshotSource: state.conflictState.diskSource
-        })
+        }),
+        viewport: get().viewport
       })
       await subscribeToExternalChanges()
     },
@@ -893,7 +936,10 @@ async function commitEditIntent({
       isPersisted: state.documentSession.isPersisted,
       persistedSnapshotSource: state.documentSession.persistedSnapshotSource,
       currentSource: editResult.value.source
-    })
+    }),
+    viewport: state.viewport,
+    selectedNodeIds: state.selectedNodeIds,
+    selectedEdgeIds: state.selectedEdgeIds
   })
   await onSuccess()
 }
@@ -939,7 +985,8 @@ async function reconcileExternalSource(
       isPersisted: state.documentSession.isPersisted,
       persistedSnapshotSource: source,
       currentSource: source
-    })
+    }),
+    viewport: state.viewport
   })
 }
 
@@ -983,6 +1030,9 @@ function applyDocumentRecord(
     saveState?: CanvasSaveState
     lastSavedAt?: number | null
     dropState?: ViewerDropState
+    viewport?: CanvasViewport
+    selectedNodeIds?: string[]
+    selectedEdgeIds?: string[]
   }
 ) {
   const documentSession =
@@ -999,9 +1049,9 @@ function applyDocumentRecord(
     documentSession,
     nodes: record.ast.nodes,
     edges: record.ast.edges,
-    viewport: record.ast.frontmatter.viewport ?? DEFAULT_CANVAS_VIEWPORT,
-    selectedNodeIds: [],
-    selectedEdgeIds: [],
+    viewport: options?.viewport ?? record.ast.frontmatter.viewport ?? DEFAULT_CANVAS_VIEWPORT,
+    selectedNodeIds: options?.selectedNodeIds ?? [],
+    selectedEdgeIds: options?.selectedEdgeIds ?? [],
     parseIssues: record.issues,
     loadState: { status: 'ready' },
     saveState: options?.saveState ?? { status: 'idle' },
@@ -1028,6 +1078,14 @@ function clearInteractionOverride(
   set({
     interactionOverrides: overrides
   })
+}
+
+function areSameIds(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((value, index) => value === right[index])
 }
 
 function roundGeometry(value: number) {

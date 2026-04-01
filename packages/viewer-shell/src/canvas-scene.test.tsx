@@ -60,7 +60,7 @@ describe('CanvasScene', () => {
 
     expect(flowNodes[0]?.id).toBe('welcome')
     expect(flowNodes[1]?.id).toBe('overview')
-    expect(flowNodes[0]?.selected).toBeUndefined()
+    expect(flowNodes[0]?.selected).toBe(false)
   })
 
   it('applies runtime interaction overrides only to preview nodes', () => {
@@ -90,5 +90,26 @@ describe('CanvasScene', () => {
 
     expect(flowNodes[0]?.position).toEqual({ x: 140, y: 164 })
     expect(flowNodes[0]?.style?.width).toBe(420)
+  })
+
+  it('projects selected node ids back into controlled flow nodes', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        type: 'note',
+        x: 80,
+        y: 72,
+        content: 'Boardmark Viewer',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ]
+
+    const flowNodes = readFlowNodes(nodes, {}, ['welcome'])
+
+    expect(flowNodes[0]?.selected).toBe(true)
   })
 })

@@ -41,8 +41,11 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
   const toolMode = useStore(store, (state) => state.toolMode)
+  const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
+  const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
   const clearSelection = useStore(store, (state) => state.clearSelection)
+  const setPrimarySelectedNode = useStore(store, (state) => state.setPrimarySelectedNode)
   const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
   const replaceSelectedEdges = useStore(store, (state) => state.replaceSelectedEdges)
   const previewNodeMove = useStore(store, (state) => state.previewNodeMove)
@@ -54,10 +57,17 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   const editingState = useStore(store, (state) => state.editingState)
 
   const flowNodes = useMemo(
-    () => readFlowNodes(nodes, interactionOverrides),
-    [nodes, interactionOverrides]
+    () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds),
+    [nodes, interactionOverrides, selectedNodeIds]
   )
-  const flowEdges = useMemo(() => edges.map(toFlowEdge), [edges])
+  const flowEdges = useMemo(
+    () =>
+      edges.map((edge) => ({
+        ...toFlowEdge(edge),
+        selected: selectedEdgeIds.includes(edge.id)
+      })),
+    [edges, selectedEdgeIds]
+  )
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       'canvas-note': (props) => (
@@ -104,6 +114,12 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => clearSelection()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
+        onNodeClick={(_event, node) => {
+          setPrimarySelectedNode(node.id)
+        }}
+        onEdgeClick={(_event, edge) => {
+          replaceSelectedEdges([edge.id])
+        }}
         onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
           replaceSelectedNodes(selectedNodes.map((node) => node.id))
           replaceSelectedEdges(selectedEdges.map((edge) => edge.id))
@@ -148,14 +164,18 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
 
 export function readFlowNodes(
   nodes: CanvasNode[],
-  interactionOverrides: ViewerStoreState['interactionOverrides'] = {}
+  interactionOverrides: ViewerStoreState['interactionOverrides'] = {},
+  selectedNodeIds: string[] = []
 ) {
   return nodes.map((node) =>
-    toFlowNode({
-      ...node,
-      x: interactionOverrides[node.id]?.x ?? node.x,
-      y: interactionOverrides[node.id]?.y ?? node.y,
-      w: interactionOverrides[node.id]?.w ?? node.w
+    ({
+      ...toFlowNode({
+        ...node,
+        x: interactionOverrides[node.id]?.x ?? node.x,
+        y: interactionOverrides[node.id]?.y ?? node.y,
+        w: interactionOverrides[node.id]?.w ?? node.w
+      }),
+      selected: selectedNodeIds.includes(node.id)
     })
   )
 }

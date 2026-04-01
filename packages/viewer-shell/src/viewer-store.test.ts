@@ -271,6 +271,28 @@ describe('viewer store', () => {
     expect(store.getState().lastParsedDocument?.ast.nodes[0]?.id).toBe('welcome')
     expect(store.getState().nodes[0]?.id).toBe('welcome')
   })
+
+  it('preserves the current viewport across local edit commits', async () => {
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().setViewport({
+      x: 320,
+      y: 240,
+      zoom: 1.35
+    })
+    await store.getState().commitNodeMove('welcome', 140, 160)
+
+    expect(store.getState().viewport).toEqual({
+      x: 320,
+      y: 240,
+      zoom: 1.35
+    })
+  })
 })
 
 function createPicker(): CanvasDocumentPicker {

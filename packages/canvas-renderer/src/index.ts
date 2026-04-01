@@ -28,10 +28,10 @@ export function toFlowNode(node: CanvasNode): Node<CanvasFlowNodeData> {
       x: node.x,
       y: node.y
     },
-    draggable: false,
+    draggable: true,
     deletable: false,
     selectable: true,
-    connectable: false,
+    connectable: true,
     data: {
       id: node.id,
       content: node.content,
