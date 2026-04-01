@@ -10,7 +10,7 @@ import type {
   CanvasDocumentSaveInput,
   CanvasDocumentSourceInput
 } from '../../../../packages/canvas-repository/src/index'
-import type { ViewerDocumentPersistenceBridge } from '@boardmark/viewer-shell'
+import type { CanvasDocumentPersistenceBridge } from '@boardmark/canvas-app'
 
 const IPC_CHANNELS = {
   pickOpenLocator: 'boardmark/document/pick-open-locator',
@@ -24,7 +24,7 @@ const IPC_CHANNELS = {
 } as const
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
-  persistence: ViewerDocumentPersistenceBridge
+  persistence: CanvasDocumentPersistenceBridge
 }
 
 const documentBridge: DesktopDocumentBridge = {

@@ -1,9 +1,0 @@
-{
-  "name": "@boardmark/viewer-shell",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "dependencies": {
-    "lucide-react": "^1.7.0"
-  }
-}

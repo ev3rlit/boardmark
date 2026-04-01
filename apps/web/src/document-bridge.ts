@@ -11,7 +11,7 @@ import {
   type CanvasFileDocumentLocator,
   type CanvasMemoryDocumentLocator
 } from '@boardmark/canvas-repository'
-import type { ViewerDocumentPersistenceBridge } from '@boardmark/viewer-shell'
+import type { CanvasDocumentPersistenceBridge } from '@boardmark/canvas-app'
 
 type BrowserDocumentBridgeOptions = {
   rootDocument?: Document
@@ -32,7 +32,7 @@ type PersistedDocumentSource = {
 }
 
 type BrowserDocumentBridge = BoardmarkDocumentBridge & {
-  persistence: ViewerDocumentPersistenceBridge
+  persistence: CanvasDocumentPersistenceBridge
 }
 
 export function createBrowserDocumentBridge(
@@ -47,7 +47,7 @@ export function createBrowserDocumentBridge(
   let openSequence = 0
   let fileSequence = 0
   const fileSources = new Map<string, PersistedDocumentSource>()
-  const persistence: ViewerDocumentPersistenceBridge = {
+  const persistence: CanvasDocumentPersistenceBridge = {
     async openDocument() {
       if (!rootWindow.showOpenFilePicker) {
         return unsupportedPickerResult('open-failed', 'File System Access API is not available.')

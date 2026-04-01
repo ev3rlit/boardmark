@@ -18,12 +18,14 @@
     "types": ["node", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
+      "@canvas-app": ["packages/canvas-app/src/index.ts"],
+      "@canvas-app/*": ["packages/canvas-app/src/*"],
       "@boardmark/canvas-domain": ["packages/canvas-domain/src/index.ts"],
       "@boardmark/canvas-parser": ["packages/canvas-parser/src/index.ts"],
       "@boardmark/canvas-repository": ["packages/canvas-repository/src/index.ts"],
       "@boardmark/canvas-renderer": ["packages/canvas-renderer/src/index.ts"],
-      "@boardmark/viewer-shell": ["packages/viewer-shell/src/index.ts"],
-      "@boardmark/viewer-shell/*": ["packages/viewer-shell/src/*"],
+      "@boardmark/canvas-app": ["packages/canvas-app/src/index.ts"],
+      "@boardmark/canvas-app/*": ["packages/canvas-app/src/*"],
       "@boardmark/ui": ["packages/ui/src/index.ts"],
       "@fixtures/*": ["fixtures/*"]
     }

@@ -11,15 +11,20 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
+      '@canvas-app/': `${resolve(currentDirectory, '../../packages/canvas-app/src')}/`,
+      '@canvas-app': resolve(
+        currentDirectory,
+        '../../packages/canvas-app/src/index.ts'
+      ),
       '@fixtures': resolve(currentDirectory, '../../fixtures'),
       '@boardmark/canvas-repository': resolve(
         currentDirectory,
         '../../packages/canvas-repository/src/index.ts'
       ),
-      '@boardmark/viewer-shell/': `${resolve(currentDirectory, '../../packages/viewer-shell/src')}/`,
-      '@boardmark/viewer-shell': resolve(
+      '@boardmark/canvas-app/': `${resolve(currentDirectory, '../../packages/canvas-app/src')}/`,
+      '@boardmark/canvas-app': resolve(
         currentDirectory,
-        '../../packages/viewer-shell/src/index.ts'
+        '../../packages/canvas-app/src/index.ts'
       )
     }
   },

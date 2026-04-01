@@ -126,7 +126,7 @@ importers:
 
   packages/ui: {}
 
-  packages/viewer-shell:
+  packages/canvas-app:
     dependencies:
       lucide-react:
         specifier: ^1.7.0

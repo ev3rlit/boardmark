@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
-import { createViewerStore } from '@boardmark/viewer-shell'
+import { createCanvasStore } from '@boardmark/canvas-app'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import { createBrowserDocumentBridge } from './document-bridge'
@@ -28,18 +28,20 @@ describe('Web App', () => {
   })
 
   it('renders the bundled sample board on startup and shows save state', async () => {
+    const user = userEvent.setup()
     const store = createWebStore(async () => defaultTemplateSource)
 
     render(<App store={store} />)
 
     await screen.findByText('Boardmark Viewer')
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
 
-    expect(screen.getByRole('button', { name: 'Open File' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'New file' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Open file' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Save' })).toBeInTheDocument()
     expect(store.getState().edges[0]?.content).toBe('main thread')
-    expect(screen.getByText(/Reset to the bundled sample board/)).toBeInTheDocument()
-    expect(screen.getByText(/Unsaved draft/)).toBeInTheDocument()
-    expect(screen.getByText(/Drag a markdown canvas into the shell/)).toBeInTheDocument()
+    expect(store.getState().documentState?.isPersisted).toBe(false)
+    expect(store.getState().isDirty).toBe(true)
   })
 
   it('opens a local .canvas.md file through the browser persistence bridge', async () => {
@@ -50,10 +52,12 @@ describe('Web App', () => {
     render(<App store={store} />)
 
     await screen.findByText('Boardmark Viewer')
-    await user.click(screen.getByRole('button', { name: 'Open File' }))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
 
     await waitFor(() => expect(screen.getByText('Uploaded Board')).toBeInTheDocument())
-    expect(screen.getByText(/Persisted document/)).toBeInTheDocument()
+    expect(store.getState().documentState?.isPersisted).toBe(true)
+    expect(store.getState().document?.name).toBe('uploaded.canvas.md')
   })
 
   it('surfaces parse failures from broken uploads', async () => {
@@ -64,7 +68,8 @@ describe('Web App', () => {
     render(<App store={store} />)
 
     await screen.findByText('Boardmark Viewer')
-    await user.click(screen.getByRole('button', { name: 'Open File' }))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
 
     await waitFor(() =>
       expect(screen.getByText(/Canvas repository could not parse/)).toBeInTheDocument()
@@ -79,9 +84,11 @@ describe('Web App', () => {
     render(<App store={store} />)
 
     await screen.findByText('Boardmark Viewer')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Save' }))
 
-    await waitFor(() => expect(screen.getByText(/all changes saved/)).toBeInTheDocument())
+    await waitFor(() => expect(store.getState().saveState.status).toBe('saved'))
+    expect(store.getState().isDirty).toBe(false)
   })
 
   it('shows drop active UI and replaces the current draft on drop', async () => {
@@ -132,7 +139,7 @@ Dropped Board
 
     await waitFor(() => expect(store.getState().document?.name).toBe('dropped.canvas.md'))
     expect(store.getState().document?.name).toBe('dropped.canvas.md')
-    expect(store.getState().documentSession?.isPersisted).toBe(false)
+    expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
   })
 })
@@ -144,7 +151,7 @@ function createWebStore(readFileText: (file: File) => Promise<string>) {
     readFileText
   })
 
-  return createViewerStore({
+  return createCanvasStore({
     documentPicker: bridge.picker,
     documentPersistenceBridge: bridge.persistence,
     documentRepository: bridge.repository,

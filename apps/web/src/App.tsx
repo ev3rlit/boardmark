@@ -1,10 +1,10 @@
 import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
-import { ViewerShell, createViewerStore, type ViewerStore } from '@boardmark/viewer-shell'
+import { CanvasApp, createCanvasStore, type CanvasStore } from '@boardmark/canvas-app'
 import { createBrowserDocumentBridge } from './document-bridge'
 
 const browserBridge = createBrowserDocumentBridge()
 
-const defaultViewerStore = createViewerStore({
+const defaultCanvasStore = createCanvasStore({
   documentPicker: browserBridge.picker,
   documentPersistenceBridge: browserBridge.persistence,
   documentRepository: browserBridge.repository,
@@ -21,12 +21,12 @@ const webCapabilities = {
 } as const
 
 type AppProps = {
-  store?: ViewerStore
+  store?: CanvasStore
 }
 
-export function App({ store = defaultViewerStore }: AppProps) {
+export function App({ store = defaultCanvasStore }: AppProps) {
   return (
-    <ViewerShell
+    <CanvasApp
       store={store}
       capabilities={webCapabilities}
     />

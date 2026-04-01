@@ -1,14 +1,14 @@
 import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
 import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
 import {
-  ViewerShell,
-  createViewerStore,
-  type ViewerDocumentPersistenceBridge,
-  type ViewerStore
-} from '@boardmark/viewer-shell'
+  CanvasApp,
+  createCanvasStore,
+  type CanvasDocumentPersistenceBridge,
+  type CanvasStore
+} from '@boardmark/canvas-app'
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
-  persistence?: ViewerDocumentPersistenceBridge
+  persistence?: CanvasDocumentPersistenceBridge
 }
 
 const fallbackBridge: DesktopDocumentBridge =
@@ -79,7 +79,7 @@ const fallbackBridge: DesktopDocumentBridge =
         }
       }
 
-export const defaultViewerStore = createViewerStore({
+export const defaultCanvasStore = createCanvasStore({
   documentPicker: fallbackBridge.picker,
   documentPersistenceBridge: fallbackBridge.persistence,
   documentRepository: fallbackBridge.repository,
@@ -96,12 +96,12 @@ const desktopCapabilities = {
 } as const
 
 type AppProps = {
-  store?: ViewerStore
+  store?: CanvasStore
 }
 
-export function App({ store = defaultViewerStore }: AppProps) {
+export function App({ store = defaultCanvasStore }: AppProps) {
   return (
-    <ViewerShell
+    <CanvasApp
       store={store}
       capabilities={desktopCapabilities}
     />
