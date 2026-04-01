@@ -76,6 +76,16 @@ export function createBrowserDocumentBridge(
         }
       }
 
+      const permissionResult = await ensureHandlePermission({
+        fileHandle,
+        mode: 'readwrite',
+        fallbackMessage: `Could not access "${fileHandle.name}".`
+      })
+
+      if (!permissionResult.ok) {
+        return permissionResult
+      }
+
       const fileResult = await readHandleSource({
         fileHandle,
         fallbackMessage: `Could not read "${fileHandle.name}".`,
@@ -161,6 +171,16 @@ export function createBrowserDocumentBridge(
       }
 
       const fileHandle = handleResult.value
+      const permissionResult = await ensureHandlePermission({
+        fileHandle,
+        mode: 'readwrite',
+        fallbackMessage: `Could not access "${fileHandle.name}".`
+      })
+
+      if (!permissionResult.ok) {
+        return permissionResult
+      }
+
       const writeResult = await writeHandleSource({
         fileHandle,
         source: input.source,
@@ -558,6 +578,16 @@ async function writeHandleSource({
   source: string
   fallbackMessage: string
 }): Promise<{ ok: true } | { ok: false; error: CanvasDocumentPickerError }> {
+  const permissionResult = await ensureHandlePermission({
+    fileHandle,
+    mode: 'readwrite',
+    fallbackMessage
+  })
+
+  if (!permissionResult.ok) {
+    return permissionResult
+  }
+
   return fileHandle.createWritable().then(
     async (stream) => {
       await stream.write(source)
@@ -600,6 +630,55 @@ async function writeCanvasFile({
   }
 
   return toAsyncResult(documentRepository.readSource(input))
+}
+
+async function ensureHandlePermission({
+  fileHandle,
+  mode,
+  fallbackMessage
+}: {
+  fileHandle: FileSystemFileHandle
+  mode: 'read' | 'readwrite'
+  fallbackMessage: string
+}): Promise<{ ok: true } | { ok: false; error: CanvasDocumentPickerError }> {
+  const permissionHandle = fileHandle as FileSystemFileHandle & {
+    queryPermission?: (descriptor: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>
+    requestPermission?: (descriptor: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>
+  }
+
+  if (
+    typeof permissionHandle.queryPermission !== 'function' ||
+    typeof permissionHandle.requestPermission !== 'function'
+  ) {
+    return { ok: true }
+  }
+
+  try {
+    const queryState = await permissionHandle.queryPermission({ mode })
+
+    if (queryState === 'granted') {
+      return { ok: true }
+    }
+
+    const requestState = await permissionHandle.requestPermission({ mode })
+
+    if (requestState === 'granted') {
+      return { ok: true }
+    }
+
+    return {
+      ok: false,
+      error: {
+        code: 'cancelled',
+        message: 'The permission request was cancelled.'
+      }
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: toPickerError('save-failed', error, fallbackMessage)
+    }
+  }
 }
 
 function unsupportedPickerResult(

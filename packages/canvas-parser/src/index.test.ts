@@ -9,7 +9,7 @@ type: canvas
 version: 1
 ---
 
-::: note #idea-a x=100 y=120 color=yellow
+::: note #idea-a x=100 y=120 w=320 h=220 color=yellow
 # Idea A
 
 \`\`\`ts
@@ -17,7 +17,7 @@ const a = 1
 \`\`\`
 :::
 
-::: note #idea-b x=420 y=240
+::: note #idea-b x=420 y=240 w=320 h=220
 Idea B
 :::
 
@@ -48,7 +48,7 @@ Connects **two** ideas.
     }
 
     expect(firstNode.content).toContain('```ts')
-    expect(readRangeText(source, firstNode.sourceMap.objectRange)).toBe(`::: note #idea-a x=100 y=120 color=yellow
+    expect(readRangeText(source, firstNode.sourceMap.objectRange)).toBe(`::: note #idea-a x=100 y=120 w=320 h=220 color=yellow
 # Idea A
 
 \`\`\`ts
@@ -56,8 +56,10 @@ const a = 1
 \`\`\`
 :::`)
     expect(readRangeText(source, firstNode.sourceMap.openingLineRange)).toBe(
-      '::: note #idea-a x=100 y=120 color=yellow'
+      '::: note #idea-a x=100 y=120 w=320 h=220 color=yellow'
     )
+    expect(firstNode.w).toBe(320)
+    expect(firstNode.h).toBe(220)
     expect(readRangeText(source, firstNode.sourceMap.bodyRange)).toBe(`# Idea A
 
 \`\`\`ts
@@ -100,11 +102,11 @@ type: canvas
 version: 1
 ---
 
-::: note #good x=10 y=20
+::: note #good x=10 y=20 w=320 h=220
 Good
 :::
 
-::: note #bad x=oops y=20
+::: note #bad x=oops y=20 w=320 h=220
 Bad
 :::
 `
@@ -133,11 +135,11 @@ type: canvas
 version: 1
 ---
 
-::: note #a x=10 y=10
+::: note #a x=10 y=10 w=320 h=220
 A
 :::
 
-::: note #b x=220 y=10
+::: note #b x=220 y=10 w=320 h=220
 B
 :::
 

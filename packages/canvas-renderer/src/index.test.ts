@@ -33,6 +33,7 @@ describe('canvas renderer helpers', () => {
       x: 100,
       y: 80,
       w: 360,
+      h: 220,
       color: 'yellow',
       content: 'A',
       position: {
@@ -46,11 +47,15 @@ describe('canvas renderer helpers', () => {
     expect(node.position).toEqual({ x: 100, y: 80 })
     expect(node.draggable).toBe(true)
     expect(node.connectable).toBe(true)
+    expect(node.width).toBe(360)
+    expect(node.height).toBe(220)
     expect(node.initialWidth).toBe(360)
     expect(node.initialHeight).toBe(220)
     expect(node.data.color).toBe('yellow')
+    expect(node.data.width).toBe(360)
+    expect(node.data.height).toBe(220)
     expect(node.style?.width).toBe(360)
-    expect(node.style?.minHeight).toBe(220)
+    expect(node.style?.height).toBe(220)
   })
 
   it('maps a canvas shape to an interactive react flow shape node', () => {

@@ -21,7 +21,7 @@ type: canvas
 version: 1
 ---
 
-::: note #idea x=10 y=20
+::: note #idea x=10 y=20 w=320 h=220
 Idea
 :::`,
       isTemplate: true
@@ -79,11 +79,11 @@ type: canvas
 version: 1
 ---
 
-::: note #good x=10 y=20
+::: note #good x=10 y=20 w=320 h=220
 Good
 :::
 
-::: note #bad x=nope y=20
+::: note #bad x=nope y=20 w=320 h=220
 Bad
 :::
 
@@ -133,7 +133,7 @@ type: canvas
 version: 1
 ---
 
-::: note #saved x=30 y=40
+::: note #saved x=30 y=40 w=320 h=220
 Saved
 :::`,
         isTemplate: false

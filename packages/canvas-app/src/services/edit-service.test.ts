@@ -7,11 +7,11 @@ type: canvas
 version: 1
 ---
 
-::: note #welcome x=80 y=72 w=320 color=yellow
+::: note #welcome x=80 y=72 w=320 h=220 color=yellow
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72
+::: note #overview x=380 y=72 w=320 h=220
 Overview
 :::
 
@@ -51,7 +51,10 @@ describe('canvas document edit service', () => {
     const resized = editService.apply(moved._unsafeUnwrap().source, movedRecord._unsafeUnwrap(), {
       kind: 'resize-node',
       nodeId: 'welcome',
-      width: 420
+      x: 144,
+      y: 180,
+      width: 420,
+      height: 280
     })
     const resizedRecord = repository.readSource({
       locator: recordResult.value.locator,
@@ -71,7 +74,7 @@ describe('canvas document edit service', () => {
       return
     }
 
-    expect(reconnected.value.source).toContain('::: note #welcome x=144 y=180 w=420 color=yellow')
+    expect(reconnected.value.source).toContain('::: note #welcome x=144 y=180 w=420 h=280 color=yellow')
     expect(reconnected.value.source).toContain(
       '::: edge #welcome-overview from=overview to=welcome kind=curve'
     )
@@ -119,7 +122,7 @@ describe('canvas document edit service', () => {
 
     expect(edgeResult.value.source).toContain('Updated note\n:::')
     expect(edgeResult.value.source).toContain('Updated edge\n:::')
-    expect(edgeResult.value.source).toContain('::: note #welcome x=80 y=72 w=320 color=yellow')
+    expect(edgeResult.value.source).toContain('::: note #welcome x=80 y=72 w=320 h=220 color=yellow')
   })
 
   it('creates and deletes objects with object-local patches', () => {
@@ -145,6 +148,7 @@ describe('canvas document edit service', () => {
       x: 160,
       y: 132,
       width: 320,
+      height: 220,
       markdown: 'New note'
     })
     const createdNoteRecord = repository.readSource({
@@ -196,7 +200,7 @@ describe('canvas document edit service', () => {
       return
     }
 
-    expect(deletedNode.value.source).toContain('::: note #note-1 x=160 y=132 w=320')
+    expect(deletedNode.value.source).toContain('::: note #note-1 x=160 y=132 w=320 h=220')
     expect(deletedNode.value.source).not.toContain('::: note #welcome')
     expect(deletedNode.value.source).not.toContain('::: edge #edge-1 from=welcome to=overview')
   })

@@ -16,11 +16,11 @@ viewport:
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72
+::: note #welcome x=80 y=72 w=320 h=220
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72
+::: note #overview x=380 y=72 w=320 h=220
 Overview
 :::
 
@@ -37,11 +37,11 @@ viewport:
   zoom: 1.2
 ---
 
-::: note #open x=24 y=24
+::: note #open x=24 y=24 w=320 h=220
 Opened Board
 :::
 
-::: note #next x=360 y=24
+::: note #next x=360 y=24 w=320 h=220
 Next
 :::
 
@@ -220,7 +220,7 @@ describe('viewer store', () => {
         source: expect.stringContaining('::: note #welcome x=140 y=160')
       })
     )
-    expect(store.getState().draftSource).toContain('::: note #welcome x=140 y=160')
+    expect(store.getState().draftSource).toContain('::: note #welcome x=140 y=160 w=320 h=220')
     expect(store.getState().isDirty).toBe(true)
   })
 

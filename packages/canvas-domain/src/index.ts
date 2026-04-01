@@ -51,7 +51,8 @@ export type CanvasNoteNode = {
   type: 'note'
   x: number
   y: number
-  w?: number
+  w: number
+  h: number
   color?: CanvasNodeColor
   content: string
   position: CanvasSourceRange

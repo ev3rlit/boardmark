@@ -6,7 +6,7 @@ type: canvas
 version: 1
 ---
 
-::: note #upload x=20 y=20
+::: note #upload x=20 y=20 w=320 h=220
 Uploaded Board
 :::`
 
@@ -26,6 +26,7 @@ describe('browser document bridge', () => {
     const result = await bridge.persistence.openDocument()
 
     expect(window.showOpenFilePicker).toHaveBeenCalled()
+    expect(openHandle.queryPermissionMock).toHaveBeenCalledWith({ mode: 'readwrite' })
     expect(result.ok).toBe(true)
 
     if (!result.ok) {
@@ -98,6 +99,7 @@ describe('browser document bridge', () => {
     })
 
     expect(saveResult.ok).toBe(true)
+    expect(openHandle.requestPermissionMock).toHaveBeenCalledTimes(1)
     expect(openHandle.writeMock).toHaveBeenCalledWith(nextSource)
     expect(window.showOpenFilePicker).toHaveBeenCalledTimes(1)
   })
@@ -137,11 +139,21 @@ describe('browser document bridge', () => {
 
 function createFileHandle(name: string, source: string | (() => string)) {
   const writeMock = vi.fn(async (_nextSource: BlobPart) => {})
+  let permissionState: PermissionState = 'prompt'
+  const queryPermissionMock = vi.fn(async () => permissionState)
+  const requestPermissionMock = vi.fn(async () => {
+    permissionState = 'granted'
+    return permissionState
+  })
 
   const handle = {
     kind: 'file',
     name,
     writeMock,
+    queryPermissionMock,
+    queryPermission: queryPermissionMock,
+    requestPermissionMock,
+    requestPermission: requestPermissionMock,
     async createWritable() {
       return {
         close: vi.fn(async () => {}),
@@ -154,7 +166,11 @@ function createFileHandle(name: string, source: string | (() => string)) {
         type: 'text/markdown'
       })
     }
-  } as unknown as FileSystemFileHandle & { writeMock: typeof writeMock }
+  } as unknown as FileSystemFileHandle & {
+    queryPermissionMock: typeof queryPermissionMock
+    requestPermissionMock: typeof requestPermissionMock
+    writeMock: typeof writeMock
+  }
 
   return handle
 }

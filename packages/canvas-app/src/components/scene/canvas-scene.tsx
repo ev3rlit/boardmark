@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -9,6 +9,7 @@ import {
   Position,
   ReactFlow,
   SelectionMode,
+  applyNodeChanges,
   getBezierPath,
   useOnViewportChange,
   useReactFlow,
@@ -71,10 +72,11 @@ export function CanvasScene({
   const editingState = useStore(store, (state) => state.editingState)
   const isPanMode = activeToolMode === 'pan'
 
-  const flowNodes = useMemo(
+  const baseFlowNodes = useMemo(
     () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds),
     [nodes, interactionOverrides, selectedNodeIds]
   )
+  const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const flowEdges = useMemo(
     () =>
       edges.map((edge) => ({
@@ -112,6 +114,10 @@ export function CanvasScene({
     [store]
   )
 
+  useEffect(() => {
+    setFlowNodes((currentFlowNodes) => mergeFlowNodes(baseFlowNodes, currentFlowNodes))
+  }, [baseFlowNodes])
+
   return (
     <div className="h-full w-full">
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
@@ -140,6 +146,7 @@ export function CanvasScene({
         onPaneContextMenu={() => onPaneContextMenu?.()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
+          setFlowNodes((currentFlowNodes) => applyNodeChanges(changes, currentFlowNodes))
           applyNodeChangesToStore({
             changes,
             previewNodeMove,
@@ -153,9 +160,6 @@ export function CanvasScene({
             replaceSelectedEdges,
             selectedEdgeIds
           })
-        }}
-        onNodeDrag={(_event, node) => {
-          previewNodeMove(node.id, node.position.x, node.position.y)
         }}
         onNodeDragStop={(_event, node) => {
           void commitNodeMove(node.id, node.position.x, node.position.y)
@@ -231,18 +235,44 @@ export function readFlowNodes(
             ...node,
             x: override?.x ?? node.x,
             y: override?.y ?? node.y,
-            w: override?.w ?? node.w
+            w: override?.w ?? node.w,
+            h: override?.h ?? node.h
           }
         : {
             ...node,
             x: override?.x ?? node.x,
             y: override?.y ?? node.y,
-            w: override?.w ?? node.w
+            w: override?.w ?? node.w,
+            h: override?.h ?? node.h
           }
 
     return {
       ...toFlowNode(patchedNode),
       selected: selectedNodeIds.includes(node.id)
+    }
+  })
+}
+
+export function mergeFlowNodes(
+  nextFlowNodes: Node<CanvasFlowNodeData>[],
+  currentFlowNodes: Node<CanvasFlowNodeData>[]
+) {
+  const currentFlowNodesById = new Map(currentFlowNodes.map((node) => [node.id, node]))
+
+  return nextFlowNodes.map((nextFlowNode) => {
+    const currentFlowNode = currentFlowNodesById.get(nextFlowNode.id)
+
+    if (!currentFlowNode) {
+      return nextFlowNode
+    }
+
+    return {
+      ...nextFlowNode,
+      dragging: currentFlowNode.dragging,
+      height: currentFlowNode.height,
+      measured: currentFlowNode.measured,
+      resizing: currentFlowNode.resizing,
+      width: currentFlowNode.width
     }
   })
 }
@@ -300,7 +330,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
 
   return (
     <div
-      className="max-w-none"
+      className="h-full w-full max-w-none"
       onDoubleClick={() => startNoteEditing(id)}
     >
       <NodeResizer
@@ -311,10 +341,20 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         handleClassName="boardmark-flow__resize-handle"
         lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
-          previewNodeResize(id, resize.width)
+          previewNodeResize(id, {
+            x: resize.x,
+            y: resize.y,
+            width: resize.width,
+            height: resize.height
+          })
         }}
         onResizeEnd={(_event, resize) => {
-          void commitNodeResize(id, resize.width)
+          void commitNodeResize(id, {
+            x: resize.x,
+            y: resize.y,
+            width: resize.width,
+            height: resize.height
+          })
         }}
       />
       <Handle
@@ -324,35 +364,40 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         className="boardmark-flow__handle"
       />
       <StickyNoteCard
+        className="flex h-full w-full min-h-0 flex-col overflow-hidden"
         color={noteData.color}
         selected={selected}
       >
         {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            aria-label={`Edit ${id}`}
-            className="min-h-32 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
-            value={editingState.markdown}
-            onChange={(event) => updateEditingMarkdown(event.target.value)}
-            onBlur={() => void commitInlineEditing()}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                cancelInlineEditing()
-                return
-              }
+          <div className="min-h-0 flex-1">
+            <textarea
+              ref={textareaRef}
+              aria-label={`Edit ${id}`}
+              className="h-full min-h-0 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
+              value={editingState.markdown}
+              onChange={(event) => updateEditingMarkdown(event.target.value)}
+              onBlur={() => void commitInlineEditing()}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  cancelInlineEditing()
+                  return
+                }
 
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void commitInlineEditing()
-              }
-            }}
-          />
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault()
+                  void commitInlineEditing()
+                }
+              }}
+            />
+          </div>
         ) : (
-          <MarkdownContent
-            className="markdown-content note-markdown"
-            content={noteData.content}
-          />
+          <div className="min-h-0 flex-1 overflow-auto">
+            <MarkdownContent
+              className="markdown-content note-markdown"
+              content={noteData.content}
+            />
+          </div>
         )}
       </StickyNoteCard>
       <Handle
@@ -543,7 +588,7 @@ async function handleConnection(
   await createEdgeFromConnection(connection.source, connection.target)
 }
 
-function applyNodeChangesToStore({
+export function applyNodeChangesToStore({
   changes,
   previewNodeMove,
   replaceSelectedNodes,

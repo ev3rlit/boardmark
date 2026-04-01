@@ -257,7 +257,8 @@ function parseNoteDirective(
   const id = attributes.id
   const x = parseNumericAttribute(attributes.x)
   const y = parseNumericAttribute(attributes.y)
-  const w = parseOptionalNumericAttribute(attributes.w)
+  const w = parseNumericAttribute(attributes.w)
+  const h = parseNumericAttribute(attributes.h)
   const color = attributes.color
   const sourceMap = readDirectiveSourceMap(node, context)
 
@@ -271,8 +272,8 @@ function parseNoteDirective(
     )
   }
 
-  if (w === null) {
-    return err(invalidNode(node, context, `Note "${id}" has an invalid width.`, id))
+  if (w === null || h === null) {
+    return err(invalidNode(node, context, `Note "${id}" is missing numeric w or h attributes.`, id))
   }
 
   if (color && !CANVAS_NODE_COLORS.includes(color as (typeof CANVAS_NODE_COLORS)[number])) {
@@ -286,7 +287,8 @@ function parseNoteDirective(
     type: 'note',
     x,
     y,
-    w: w ?? undefined,
+    w,
+    h,
     color: color ? (color as CanvasNoteNode['color']) : undefined,
     content: stringifyDirectiveContent(node.children),
     position: sourceMap.objectRange,

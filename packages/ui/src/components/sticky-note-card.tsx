@@ -13,11 +13,13 @@ type StickyNoteCardProps = {
     | 'rose'
     | 'neutral'
   selected?: boolean
+  className?: string
   children: ReactNode
 }
 
 export function StickyNoteCard({
   color = 'default',
+  className,
   selected = false,
   children
 }: StickyNoteCardProps) {
@@ -26,7 +28,8 @@ export function StickyNoteCard({
       className={[
         'rounded-[1.4rem] px-5 py-4 shadow-[0_24px_60px_rgba(43,52,55,0.08)] transition-transform duration-200',
         'bg-[var(--note-surface)] text-[var(--color-on-surface)]',
-        selected ? 'translate-y-[-2px] ring-2 ring-[color:color-mix(in_oklab,var(--color-primary)_28%,transparent)]' : '',
+        selected ? 'ring-2 ring-[color:color-mix(in_oklab,var(--color-primary)_28%,transparent)]' : '',
+        className ?? '',
         noteColorClassName(color)
       ].join(' ')}
     >

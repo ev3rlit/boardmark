@@ -3,6 +3,7 @@ import {
   type BuiltInTone,
   type CanvasShapeNode,
   DEFAULT_CANVAS_VIEWPORT,
+  DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
   MAX_CANVAS_ZOOM,
   MIN_CANVAS_ZOOM,
@@ -641,20 +642,23 @@ export function createCanvasCommandSlice(
       })
     },
 
-    previewNodeResize(nodeId, width) {
+    previewNodeResize(nodeId, geometry) {
       set((state) => ({
         ...state,
         interactionOverrides: {
           ...state.interactionOverrides,
           [nodeId]: {
             ...state.interactionOverrides[nodeId],
-            w: roundGeometry(width)
+            x: roundGeometry(geometry.x),
+            y: roundGeometry(geometry.y),
+            w: roundGeometry(geometry.width),
+            h: roundGeometry(geometry.height)
           }
         }
       }))
     },
 
-    async commitNodeResize(nodeId, width) {
+    async commitNodeResize(nodeId, geometry) {
       clearInteractionOverride(set, get, nodeId)
       await commitCanvasIntent({
         controls,
@@ -664,7 +668,10 @@ export function createCanvasCommandSlice(
         intent: {
           kind: 'resize-node',
           nodeId,
-          width
+          x: geometry.x,
+          y: geometry.y,
+          width: geometry.width,
+          height: geometry.height
         },
         set
       })
@@ -721,6 +728,7 @@ export function createCanvasCommandSlice(
           x,
           y,
           width: DEFAULT_NOTE_WIDTH,
+          height: DEFAULT_NOTE_HEIGHT,
           markdown: 'New note'
         },
         set

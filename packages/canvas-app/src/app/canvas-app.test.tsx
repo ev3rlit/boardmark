@@ -16,11 +16,11 @@ viewport:
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72
+::: note #welcome x=80 y=72 w=320 h=220
 Boardmark Viewer
 :::
 
-::: note #overview x=380 y=72
+::: note #overview x=380 y=72 w=320 h=220
 Overview
 :::
 
@@ -292,6 +292,8 @@ function createRepository(): CanvasDocumentRepositoryGateway {
               type: 'note' as const,
               x: 80,
               y: 72,
+              w: 320,
+              h: 220,
               content: 'Boardmark Viewer',
               position: {
                 start: { line: 1, offset: 0 },
@@ -304,6 +306,8 @@ function createRepository(): CanvasDocumentRepositoryGateway {
               type: 'note' as const,
               x: 380,
               y: 72,
+              w: 320,
+              h: 220,
               content: 'Overview',
               position: {
                 start: { line: 5, offset: 0 },

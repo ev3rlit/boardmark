@@ -46,6 +46,7 @@ export type CanvasInteractionOverrides = Record<
     x: number
     y: number
     w: number
+    h: number
   }>
 >
 
@@ -99,8 +100,18 @@ export type CanvasStoreState = {
   setPanShortcutActive: (active: boolean) => void
   previewNodeMove: (nodeId: string, x: number, y: number) => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
-  previewNodeResize: (nodeId: string, width: number) => void
-  commitNodeResize: (nodeId: string, width: number) => Promise<void>
+  previewNodeResize: (nodeId: string, geometry: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }) => void
+  commitNodeResize: (nodeId: string, geometry: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }) => Promise<void>
   reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
   createEdgeFromConnection: (from: string, to: string) => Promise<void>
   createNoteAtViewport: () => Promise<void>

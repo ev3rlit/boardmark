@@ -11,7 +11,7 @@ type: canvas
 version: 1
 ---
 
-::: note #upload x=20 y=20
+::: note #upload x=20 y=20 w=320 h=220
 Uploaded Board
 :::`
 
@@ -107,7 +107,7 @@ type: canvas
 version: 1
 ---
 
-::: note #drop x=24 y=24
+::: note #drop x=24 y=24 w=320 h=220
 Dropped Board
 :::`
       ],
@@ -131,7 +131,7 @@ type: canvas
 version: 1
 ---
 
-::: note #drop x=24 y=24
+::: note #drop x=24 y=24 w=320 h=220
 Dropped Board
 :::`
       })

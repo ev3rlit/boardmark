@@ -13,8 +13,16 @@ import type {
 export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
   | { kind: 'move-node'; nodeId: string; x: number; y: number }
-  | { kind: 'resize-node'; nodeId: string; width: number }
-  | { kind: 'create-note'; anchorNodeId?: string; x: number; y: number; width: number; markdown: string }
+  | { kind: 'resize-node'; nodeId: string; x: number; y: number; width: number; height: number }
+  | {
+      kind: 'create-note'
+      anchorNodeId?: string
+      x: number
+      y: number
+      width: number
+      height: number
+      markdown: string
+    }
   | {
       kind: 'create-shape'
       anchorNodeId?: string
@@ -66,7 +74,10 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
           })
         case 'resize-node':
           return patchNodeOpeningLine(source, record, intent.nodeId, {
-            w: Math.max(120, roundGeometry(intent.width)).toString()
+            x: roundGeometry(intent.x).toString(),
+            y: roundGeometry(intent.y).toString(),
+            w: Math.max(120, roundGeometry(intent.width)).toString(),
+            h: Math.max(120, roundGeometry(intent.height)).toString()
           })
         case 'update-edge-endpoints':
           return patchEdgeOpeningLine(source, record, intent.edgeId, {
@@ -223,7 +234,7 @@ function createNote(
     ])
   )
   const block = [
-    `::: note #${nextId} x=${roundGeometry(intent.x)} y=${roundGeometry(intent.y)} w=${roundGeometry(intent.width)}`,
+    `::: note #${nextId} x=${roundGeometry(intent.x)} y=${roundGeometry(intent.y)} w=${roundGeometry(intent.width)} h=${roundGeometry(intent.height)}`,
     ...serializeBodyFragment(intent.markdown).split('\n').filter((line, index, lines) => {
       return !(index === lines.length - 1 && line === '')
     }),
@@ -440,7 +451,7 @@ function stringifyOpeningDirective(input: {
   const tokens = [':::', input.name, `#${input.id}`]
   const orderedKeys =
     input.name === 'note'
-      ? ['x', 'y', 'w', 'color']
+      ? ['x', 'y', 'w', 'h', 'color']
       : input.name === 'shape'
         ? ['x', 'y', 'w', 'h', 'renderer', 'palette', 'tone']
         : ['from', 'to', 'kind']

@@ -53,13 +53,17 @@ export function toFlowNode(node: CanvasNode): Node<CanvasFlowNodeData> {
       id: node.id,
       type: 'note',
       content: node.content,
-      color: node.color
+      color: node.color,
+      height: node.h,
+      width: node.w
     },
+    width: node.w ?? DEFAULT_NOTE_WIDTH,
+    height: node.h ?? DEFAULT_NOTE_HEIGHT,
     initialWidth: node.w ?? DEFAULT_NOTE_WIDTH,
-    initialHeight: DEFAULT_NOTE_HEIGHT,
+    initialHeight: node.h ?? DEFAULT_NOTE_HEIGHT,
     style: {
       width: node.w ?? DEFAULT_NOTE_WIDTH,
-      minHeight: DEFAULT_NOTE_HEIGHT
+      height: node.h ?? DEFAULT_NOTE_HEIGHT
     }
   }
 }

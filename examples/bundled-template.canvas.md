@@ -7,7 +7,7 @@ viewport:
   zoom: 0.92
 ---
 
-::: note #welcome x=80 y=72 w=340 color=yellow
+::: note #welcome x=-145 y=451 w=340 h=220 color=yellow
 
 # Boardmark Viewer
 
@@ -19,7 +19,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #overview x=468 y=52 w=320 color=blue
+::: note #overview x=430 y=41 w=320 h=220 color=blue
 
 ## What This Shows
 
@@ -30,7 +30,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #workflow x=910 y=96 w=320 color=green
+::: note #workflow x=1120 y=-81 w=320 h=220 color=green
 
 ## Reading Flow
 
@@ -42,7 +42,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 
 :::
 
-::: note #structure x=380 y=360 w=360 color=pink
+::: note #structure x=330 y=762 w=360 h=220 color=pink
 
 ## MVP Scope
 
@@ -58,7 +58,7 @@ const viewer = {
 
 :::
 
-::: note #details x=824 y=362 w=360 color=purple
+::: note #details x=810 y=724 w=360 h=220 color=purple
 
 ## Detail Cluster
 
@@ -79,7 +79,7 @@ const viewer = {
 
 :::
 
-::: note #prompting x=1228 y=318 w=320 color=default
+::: note #prompting x=1282 y=383 w=320 h=220 color=default
 
 ## Prompting Angle
 
@@ -108,4 +108,28 @@ reading path
 :::
 
 ::: edge #details-prompting from=details to=prompting kind=curve
+:::
+
+::: note #note-1 x=-78 y=177 w=320 h=220
+New note
+:::
+
+::: note #note-2 x=100 y=-100 w=320 h=220
+New note
+:::
+
+::: note #note-3 x=817 y=201 w=320 h=220
+New note
+:::
+
+::: note #note-4 x=-98 y=748 w=320 h=220
+New note
+:::
+
+::: note #note-5 x=-120 y=293 w=320 h=220
+New note
+:::
+
+::: note #note-6 x=433 y=439 w=320 h=220
+New note
 :::
