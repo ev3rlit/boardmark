@@ -33,6 +33,14 @@ export type CanvasSourceRange = {
   end: CanvasSourcePoint
 }
 
+export type CanvasDirectiveSourceMap = {
+  objectRange: CanvasSourceRange
+  openingLineRange: CanvasSourceRange
+  bodyRange: CanvasSourceRange
+  closingLineRange: CanvasSourceRange
+  attributeRanges?: Partial<Record<string, CanvasSourceRange>>
+}
+
 export type CanvasNode = {
   id: string
   type: 'note'
@@ -42,6 +50,7 @@ export type CanvasNode = {
   color?: CanvasNodeColor
   content: string
   position: CanvasSourceRange
+  sourceMap: CanvasDirectiveSourceMap
 }
 
 export type CanvasEdgeKind = 'curve' | 'straight'
@@ -53,6 +62,7 @@ export type CanvasEdge = {
   kind?: CanvasEdgeKind
   content?: string
   position: CanvasSourceRange
+  sourceMap: CanvasDirectiveSourceMap
 }
 
 export type CanvasAST = {

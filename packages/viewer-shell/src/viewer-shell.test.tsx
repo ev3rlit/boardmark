@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type {
   CanvasDocumentPicker,
@@ -48,7 +48,7 @@ const noteSourceMap = {
 } as const
 
 describe('ViewerShell', () => {
-  it('renders the shared shell and hides save when capabilities do not support it', async () => {
+  it('renders the shared shell', async () => {
     const store = createViewerStore({
       documentPicker: createPicker(),
       documentRepository: createRepository(),
@@ -70,14 +70,9 @@ describe('ViewerShell', () => {
     )
 
     await screen.findByText('Boardmark Viewer')
-
-    expect(screen.getByRole('button', { name: 'Open File' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'New File' })).toBeInTheDocument()
-    expect(screen.getByText(/Reset to the bundled sample board/)).toBeInTheDocument()
     expect(store.getState().edges[0]?.content).toBe('main thread')
     expect(screen.getByRole('application')).toBeInTheDocument()
-    expect(screen.getByText(/Drag a markdown canvas into the shell/)).toBeInTheDocument()
+    expect(screen.getByText('92%')).toBeInTheDocument()
   })
 
   it('shows conflict actions in the status banner', async () => {
@@ -112,6 +107,50 @@ describe('ViewerShell', () => {
     expect(screen.getByText(/The file changed on disk/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reload from disk' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Keep local draft' })).toBeInTheDocument()
+  })
+
+  it('reflects temporary spacebar pan mode in the toolbar and canvas cursor', async () => {
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    render(
+      <ViewerShell
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropImport: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    const application = screen.getByRole('application')
+    const selectButton = screen.getByRole('button', { name: 'Select' })
+    const panButton = screen.getByRole('button', { name: 'Pan' })
+
+    expect(selectButton).toHaveAttribute('aria-pressed', 'true')
+    expect(panButton).toHaveAttribute('aria-pressed', 'false')
+    expect(application).not.toHaveClass('boardmark-flow--pan')
+
+    fireEvent.keyDown(window, { code: 'Space', key: ' ' })
+
+    expect(selectButton).toHaveAttribute('aria-pressed', 'false')
+    expect(panButton).toHaveAttribute('aria-pressed', 'true')
+    expect(application).toHaveClass('boardmark-flow--pan')
+
+    fireEvent.keyUp(window, { code: 'Space', key: ' ' })
+
+    expect(selectButton).toHaveAttribute('aria-pressed', 'true')
+    expect(panButton).toHaveAttribute('aria-pressed', 'false')
+    expect(application).not.toHaveClass('boardmark-flow--pan')
   })
 })
 

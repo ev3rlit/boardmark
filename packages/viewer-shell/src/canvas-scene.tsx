@@ -13,9 +13,11 @@ import {
   useOnViewportChange,
   useReactFlow,
   type Connection,
+  type EdgeChange,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
+  type NodeChange,
   type Node,
   type NodeProps,
   type NodeTypes
@@ -29,7 +31,7 @@ import {
 } from '@boardmark/canvas-renderer'
 import type { CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
-import type { ViewerStore, ViewerStoreState } from './viewer-store'
+import { readActiveToolMode, type ViewerStore, type ViewerStoreState } from './viewer-store'
 
 type CanvasSceneProps = {
   store: ViewerStore
@@ -40,12 +42,11 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
-  const toolMode = useStore(store, (state) => state.toolMode)
+  const activeToolMode = useStore(store, readActiveToolMode)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
   const clearSelection = useStore(store, (state) => state.clearSelection)
-  const setPrimarySelectedNode = useStore(store, (state) => state.setPrimarySelectedNode)
   const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
   const replaceSelectedEdges = useStore(store, (state) => state.replaceSelectedEdges)
   const previewNodeMove = useStore(store, (state) => state.previewNodeMove)
@@ -55,6 +56,7 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
   const editingState = useStore(store, (state) => state.editingState)
+  const isPanMode = activeToolMode === 'pan'
 
   const flowNodes = useMemo(
     () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds),
@@ -94,17 +96,20 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
   return (
     <div className="h-full w-full">
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
-        className="boardmark-flow"
+        className={[
+          'boardmark-flow',
+          isPanMode ? 'boardmark-flow--pan' : ''
+        ].join(' ').trim()}
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        nodesDraggable={toolMode === 'select' && editingState.status === 'idle'}
-        nodesConnectable={toolMode === 'select' && editingState.status === 'idle'}
-        edgesReconnectable={toolMode === 'select' && editingState.status === 'idle'}
-        elementsSelectable={toolMode === 'select'}
-        panOnDrag={toolMode === 'pan'}
-        selectionOnDrag={supportsMultiSelect && toolMode === 'select'}
+        nodesDraggable={activeToolMode === 'select' && editingState.status === 'idle'}
+        nodesConnectable={activeToolMode === 'select' && editingState.status === 'idle'}
+        edgesReconnectable={activeToolMode === 'select' && editingState.status === 'idle'}
+        elementsSelectable={activeToolMode === 'select'}
+        panOnDrag={isPanMode}
+        selectionOnDrag={supportsMultiSelect && activeToolMode === 'select'}
         selectionMode={SelectionMode.Partial}
         panOnScroll={false}
         zoomOnScroll={false}
@@ -114,15 +119,20 @@ export function CanvasScene({ store, supportsMultiSelect = false }: CanvasSceneP
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => clearSelection()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
-        onNodeClick={(_event, node) => {
-          setPrimarySelectedNode(node.id)
+        onNodesChange={(changes) => {
+          applyNodeChangesToStore({
+            changes,
+            previewNodeMove,
+            replaceSelectedNodes,
+            selectedNodeIds
+          })
         }}
-        onEdgeClick={(_event, edge) => {
-          replaceSelectedEdges([edge.id])
-        }}
-        onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
-          replaceSelectedNodes(selectedNodes.map((node) => node.id))
-          replaceSelectedEdges(selectedEdges.map((edge) => edge.id))
+        onEdgesChange={(changes) => {
+          applyEdgeChangesToStore({
+            changes,
+            replaceSelectedEdges,
+            selectedEdgeIds
+          })
         }}
         onNodeDrag={(_event, node) => {
           previewNodeMove(node.id, node.position.x, node.position.y)
@@ -399,4 +409,71 @@ async function handleConnection(
   }
 
   await createEdgeFromConnection(connection.source, connection.target)
+}
+
+function applyNodeChangesToStore({
+  changes,
+  previewNodeMove,
+  replaceSelectedNodes,
+  selectedNodeIds
+}: {
+  changes: NodeChange<Node<CanvasFlowNodeData>>[]
+  previewNodeMove: (nodeId: string, x: number, y: number) => void
+  replaceSelectedNodes: (nodeIds: string[]) => void
+  selectedNodeIds: string[]
+}) {
+  const nextSelectedNodeIds = new Set(selectedNodeIds)
+  let selectionChanged = false
+
+  for (const change of changes) {
+    if (change.type === 'position' && change.dragging && change.position) {
+      previewNodeMove(change.id, change.position.x, change.position.y)
+      continue
+    }
+
+    if (change.type === 'select') {
+      selectionChanged = true
+
+      if (change.selected) {
+        nextSelectedNodeIds.add(change.id)
+      } else {
+        nextSelectedNodeIds.delete(change.id)
+      }
+    }
+  }
+
+  if (selectionChanged) {
+    replaceSelectedNodes([...nextSelectedNodeIds])
+  }
+}
+
+function applyEdgeChangesToStore({
+  changes,
+  replaceSelectedEdges,
+  selectedEdgeIds
+}: {
+  changes: EdgeChange<Edge<CanvasFlowEdgeData>>[]
+  replaceSelectedEdges: (edgeIds: string[]) => void
+  selectedEdgeIds: string[]
+}) {
+  const nextSelectedEdgeIds = new Set(selectedEdgeIds)
+  let selectionChanged = false
+
+  for (const change of changes) {
+    if (change.type !== 'select') {
+      continue
+    }
+
+    selectionChanged = true
+
+    if (change.selected) {
+      nextSelectedEdgeIds.add(change.id)
+    } else {
+      nextSelectedEdgeIds.delete(change.id)
+    }
+  }
+
+  if (selectionChanged) {
+    replaceSelectedEdges([...nextSelectedEdgeIds])
+  }
 }

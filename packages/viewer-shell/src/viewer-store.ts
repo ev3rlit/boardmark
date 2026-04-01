@@ -7,7 +7,6 @@ import {
   MIN_CANVAS_ZOOM,
   ZOOM_STEP,
   type CanvasEdge,
-  type CanvasEntryState,
   type CanvasLoadState,
   type CanvasNode,
   type CanvasParseIssue,
@@ -77,9 +76,9 @@ export type ViewerStoreState = {
   selectedNodeIds: string[]
   selectedEdgeIds: string[]
   toolMode: ToolMode
+  panShortcutActive: boolean
   loadState: CanvasLoadState
   saveState: CanvasSaveState
-  entryState: CanvasEntryState
   parseIssues: CanvasParseIssue[]
   draftSource: string | null
   persistedSnapshotSource: string | null
@@ -107,6 +106,7 @@ export type ViewerStoreState = {
   setDropError: (message: string) => void
   setViewport: (viewport: CanvasViewport) => void
   setToolMode: (mode: ToolMode) => void
+  setPanShortcutActive: (active: boolean) => void
   previewNodeMove: (nodeId: string, x: number, y: number) => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
   previewNodeResize: (nodeId: string, width: number) => void
@@ -125,6 +125,10 @@ export type ViewerStoreState = {
 }
 
 export type ViewerStore = ReturnType<typeof createViewerStore>
+
+export function readActiveToolMode(state: Pick<ViewerStoreState, 'toolMode' | 'panShortcutActive'>): ToolMode {
+  return state.panShortcutActive ? 'pan' : state.toolMode
+}
 
 export function createViewerStore({
   documentPicker,
@@ -151,9 +155,9 @@ export function createViewerStore({
     selectedNodeIds: [],
     selectedEdgeIds: [],
     toolMode: 'select',
+    panShortcutActive: false,
     loadState: { status: 'idle' },
     saveState: { status: 'idle' },
-    entryState: { showActions: true },
     parseIssues: [],
     draftSource: null,
     persistedSnapshotSource: null,
@@ -502,6 +506,17 @@ export function createViewerStore({
       set({
         toolMode: mode
       })
+    },
+
+    setPanShortcutActive(active) {
+      set((state) =>
+        state.panShortcutActive === active
+          ? state
+          : {
+              ...state,
+              panShortcutActive: active
+            }
+      )
     },
 
     previewNodeMove(nodeId, x, y) {

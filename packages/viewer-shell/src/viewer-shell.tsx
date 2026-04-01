@@ -3,7 +3,6 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
 import { CanvasScene } from './canvas-scene'
-import { EntryActions } from './entry-actions'
 import { FileMenu } from './file-menu'
 import { StatusPanels } from './status-panels'
 import { ToolMenu } from './tool-menu'
@@ -30,6 +29,7 @@ export function ViewerShell({ store, capabilities }: ViewerShellProps) {
   const openDroppedDocument = useStore(store, (state) => state.openDroppedDocument)
   const setDropActive = useStore(store, (state) => state.setDropActive)
   const setDropError = useStore(store, (state) => state.setDropError)
+  const setPanShortcutActive = useStore(store, (state) => state.setPanShortcutActive)
   const isDropActive = useStore(store, (state) => state.dropState.status === 'active')
   const editingState = useStore(store, (state) => state.editingState)
 
@@ -41,18 +41,21 @@ export function ViewerShell({ store, capabilities }: ViewerShellProps) {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        if (editingState.status !== 'idle' || isEditableTarget(event.target)) {
+          return
+        }
+
+        event.preventDefault()
+        setPanShortcutActive(true)
+        return
+      }
+
       if (editingState.status !== 'idle') {
         return
       }
 
-      const target = event.target
-
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
+      if (isEditableTarget(event.target)) {
         return
       }
 
@@ -64,9 +67,28 @@ export function ViewerShell({ store, capabilities }: ViewerShellProps) {
       void deleteSelection()
     }
 
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') {
+        return
+      }
+
+      setPanShortcutActive(false)
+    }
+
+    const handleWindowBlur = () => {
+      setPanShortcutActive(false)
+    }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelection, editingState.status])
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleWindowBlur)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+  }, [deleteSelection, editingState.status, setPanShortcutActive])
 
   const onDropAccepted = useMemo(
     () => async (files: File[]) => {
@@ -138,17 +160,9 @@ export function ViewerShell({ store, capabilities }: ViewerShellProps) {
               <div className="app-no-drag pointer-events-auto">
                 <StatusPanels
                   store={store}
-                  capabilities={capabilities}
                 />
               </div>
             </div>
-          </div>
-
-          <div className="pointer-events-auto absolute left-5 top-24 z-20">
-            <EntryActions
-              store={store}
-              capabilities={capabilities}
-            />
           </div>
 
           <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2">
@@ -170,4 +184,13 @@ async function readDroppedFileText(file: File) {
   }
 
   return new Response(file).text()
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
 }

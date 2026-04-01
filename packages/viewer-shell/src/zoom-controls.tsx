@@ -1,7 +1,6 @@
+import { Minus, Plus } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import { useStore } from 'zustand'
-import { Button } from './button'
-import { FloatingPanel } from './floating-panel'
 import type { ViewerStore } from './viewer-store'
 
 type ZoomControlsProps = {
@@ -9,29 +8,44 @@ type ZoomControlsProps = {
 }
 
 export function ZoomControls({ store }: ZoomControlsProps) {
-  const { setViewport } = useStore(store)
+  const { setViewport, viewport } = useStore(store)
   const reactFlow = useReactFlow()
 
   return (
-    <FloatingPanel className="flex flex-col gap-2">
-      <Button
-        aria-label="Zoom in"
-        onClick={async () => {
-          await reactFlow.zoomIn({ duration: 160 })
-          setViewport(reactFlow.getViewport())
-        }}
-      >
-        +
-      </Button>
-      <Button
+    <div className="viewer-control-group">
+      <button
         aria-label="Zoom out"
+        className="viewer-control-button"
         onClick={async () => {
           await reactFlow.zoomOut({ duration: 160 })
           setViewport(reactFlow.getViewport())
         }}
+        type="button"
       >
-        -
-      </Button>
-    </FloatingPanel>
+        <Minus
+          aria-hidden="true"
+          className="viewer-control-icon viewer-control-icon--zoom"
+        />
+        <span className="sr-only">Zoom out</span>
+      </button>
+      <div className="viewer-control-readout">
+        {Math.round(viewport.zoom * 100)}%
+      </div>
+      <button
+        aria-label="Zoom in"
+        className="viewer-control-button"
+        onClick={async () => {
+          await reactFlow.zoomIn({ duration: 160 })
+          setViewport(reactFlow.getViewport())
+        }}
+        type="button"
+      >
+        <Plus
+          aria-hidden="true"
+          className="viewer-control-icon viewer-control-icon--zoom"
+        />
+        <span className="sr-only">Zoom in</span>
+      </button>
+    </div>
   )
 }

@@ -1,40 +1,44 @@
 import { useStore } from 'zustand'
 import type { CanvasLoadState, CanvasSaveState } from '@boardmark/canvas-domain'
 import { Button } from './button'
-import { FloatingPanel } from './floating-panel'
-import type { ViewerDocumentSession } from './document-session'
-import type { ViewerDropState } from './viewer-store'
-import type { ViewerShellCapabilities } from './viewer-shell'
+import type { ViewerDropState, ViewerInvalidState } from './viewer-store'
 import type { ViewerStore } from './viewer-store'
 
 type StatusPanelsProps = {
   store: ViewerStore
-  capabilities: ViewerShellCapabilities
 }
 
-export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
+export function StatusPanels({ store }: StatusPanelsProps) {
   const {
     conflictState,
-    document,
-    documentSession,
     dropState,
     invalidState,
-    isDirty,
-    lastSavedAt,
     loadState,
     operationError,
     parseIssues,
     reloadFromDisk,
     keepLocalDraft,
-    saveState,
-    viewport
+    saveState
   } =
     useStore(store)
+
+  const messages = readStatusMessages({
+    dropState,
+    invalidState,
+    loadState,
+    operationError,
+    saveState
+  })
 
   return (
     <>
       {conflictState.status === 'conflict' ? (
-        <FloatingPanel className="max-w-sm p-4">
+        <div
+          className={[
+            'max-w-sm rounded-[1.45rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-4',
+            'shadow-[0_18px_34px_rgba(43,52,55,0.08)] outline outline-1 outline-[var(--color-outline-ghost)] backdrop-blur-xl'
+          ].join(' ')}
+        >
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-primary)]">
             External Change
           </p>
@@ -45,11 +49,16 @@ export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
             <Button onClick={() => void reloadFromDisk()}>Reload from disk</Button>
             <Button onClick={() => keepLocalDraft()}>Keep local draft</Button>
           </div>
-        </FloatingPanel>
+        </div>
       ) : null}
 
       {parseIssues.length > 0 ? (
-        <FloatingPanel className="max-w-sm p-4">
+        <div
+          className={[
+            'max-w-sm rounded-[1.45rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-4',
+            'shadow-[0_18px_34px_rgba(43,52,55,0.08)] outline outline-1 outline-[var(--color-outline-ghost)] backdrop-blur-xl'
+          ].join(' ')}
+        >
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-primary)]">
             Parse Issues
           </p>
@@ -58,70 +67,65 @@ export function StatusPanels({ store, capabilities }: StatusPanelsProps) {
               <li key={`${issue.kind}-${issue.line}-${issue.message}`}>{issue.message}</li>
             ))}
           </ul>
-        </FloatingPanel>
+        </div>
       ) : null}
 
-      <FloatingPanel className="p-4 text-sm text-[var(--color-on-surface-variant)]">
-        <p>{readStatusMessage(loadState)}</p>
-        {capabilities.canDropImport ? <p className="mt-1">{readDropMessage(dropState)}</p> : null}
-        <p className="mt-1">{readDocumentMessage(document?.name, documentSession, isDirty)}</p>
-        <p className="mt-1">{readSaveMessage(saveState, lastSavedAt)}</p>
-        {invalidState.status === 'invalid' ? <p className="mt-1">{invalidState.message}</p> : null}
-        {operationError ? <p className="mt-1">{operationError}</p> : null}
-        <p className="mt-1">Zoom {Math.round(viewport.zoom * 100)}%</p>
-      </FloatingPanel>
+      {messages.length > 0 ? (
+        <div
+          className={[
+            'max-w-sm rounded-[1.45rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-4',
+            'shadow-[0_18px_34px_rgba(43,52,55,0.08)] outline outline-1 outline-[var(--color-outline-ghost)] backdrop-blur-xl'
+          ].join(' ')}
+        >
+          <ul className="space-y-2 text-sm text-[var(--color-on-surface)]">
+            {messages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </>
   )
 }
 
-function readStatusMessage(loadState: CanvasLoadState) {
-  switch (loadState.status) {
-    case 'loading':
-      return 'Waiting for file selection...'
-    case 'error':
-      return loadState.message
-    default:
-      return 'Canvas ready'
-  }
-}
+function readStatusMessages({
+  dropState,
+  invalidState,
+  loadState,
+  operationError,
+  saveState
+}: {
+  dropState: ViewerDropState
+  invalidState: ViewerInvalidState
+  loadState: CanvasLoadState
+  operationError: string | null
+  saveState: CanvasSaveState
+}) {
+  const messages: string[] = []
 
-function readDropMessage(dropState: ViewerDropState) {
-  switch (dropState.status) {
-    case 'active':
-      return 'Drop a .canvas.md or .md file to open it.'
-    case 'opened':
-      return `Dropped ${dropState.name}`
-    case 'error':
-      return dropState.message
-    default:
-      return 'Drag a markdown canvas into the shell to replace it.'
-  }
-}
-
-function readDocumentMessage(
-  documentName: string | undefined,
-  documentSession: ViewerDocumentSession | null,
-  isDirty: boolean
-) {
-  if (!documentName || !documentSession) {
-    return 'No document loaded'
+  if (loadState.status === 'loading') {
+    messages.push('Waiting for file selection')
   }
 
-  const persistenceLabel = documentSession.isPersisted ? 'Persisted document' : 'Unsaved draft'
-  const dirtyLabel = isDirty ? 'unsaved changes' : 'all changes saved'
-
-  return `${documentName} • ${persistenceLabel} • ${dirtyLabel}`
-}
-
-function readSaveMessage(saveState: CanvasSaveState, lastSavedAt: number | null) {
-  switch (saveState.status) {
-    case 'saving':
-      return 'Saving changes...'
-    case 'saved':
-      return lastSavedAt ? `Saved at ${new Date(lastSavedAt).toLocaleTimeString()}` : 'Saved'
-    case 'error':
-      return saveState.message
-    default:
-      return 'Save service ready'
+  if (loadState.status === 'error') {
+    messages.push(loadState.message)
   }
+
+  if (dropState.status === 'error') {
+    messages.push(dropState.message)
+  }
+
+  if (saveState.status === 'error') {
+    messages.push(saveState.message)
+  }
+
+  if (invalidState.status === 'invalid') {
+    messages.push(invalidState.message)
+  }
+
+  if (operationError) {
+    messages.push(operationError)
+  }
+
+  return messages
 }

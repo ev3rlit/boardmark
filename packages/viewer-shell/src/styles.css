@@ -3,6 +3,9 @@
 @import "highlight.js/styles/github.css";
 @import "tailwindcss";
 
+@source "./";
+@source "../../ui/src";
+
 html,
 body,
 #root {
@@ -29,15 +32,137 @@ button {
   -webkit-app-region: no-drag;
 }
 
+.viewer-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 1.35rem;
+  background: color-mix(in oklab, var(--color-surface-lowest) 84%, transparent);
+  padding: 0.25rem;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 20px 40px rgba(43, 52, 55, 0.08);
+  outline: 1px solid var(--color-outline-ghost);
+}
+
+.viewer-control-group--tool-menu {
+  gap: 0.375rem;
+  border-radius: 1.55rem;
+  padding: 0.375rem;
+}
+
+.viewer-control-button {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.95rem;
+  background: transparent;
+  padding: 0;
+  color: var(--color-on-surface-variant);
+  transition:
+    transform 150ms,
+    box-shadow 150ms,
+    background-color 150ms,
+    color 150ms;
+}
+
+.viewer-control-button--tool-menu {
+  height: 2.9rem;
+  width: 2.9rem;
+  border-radius: 1.05rem;
+}
+
+.viewer-control-button:hover {
+  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--color-on-surface) 6%, transparent);
+  color: var(--color-on-surface);
+}
+
+.viewer-control-button:active {
+  transform: translateY(1px);
+  background: color-mix(in oklab, var(--color-on-surface) 10%, transparent);
+}
+
+.viewer-control-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+
+.viewer-control-button:disabled {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+.viewer-control-button--active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 10px 22px rgba(96, 66, 214, 0.22);
+}
+
+.viewer-control-button--active:hover {
+  background: var(--color-primary-dim);
+  color: white;
+  box-shadow: 0 14px 28px rgba(96, 66, 214, 0.28);
+}
+
+.viewer-control-button--active:active {
+  background: var(--color-primary-dim);
+}
+
+.viewer-control-button--spaced {
+  margin-left: 0.25rem;
+}
+
+.viewer-control-icon {
+  height: 1.4rem;
+  width: 1.4rem;
+  stroke-width: 2.45;
+}
+
+.viewer-control-icon--tool-menu {
+  height: 1.55rem;
+  width: 1.55rem;
+  stroke-width: 2.1;
+}
+
+.viewer-control-icon--zoom {
+  height: 1.52rem;
+  width: 1.52rem;
+  stroke-width: 2.7;
+}
+
+.viewer-control-readout {
+  display: inline-flex;
+  min-width: 3.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.95rem;
+  padding: 0 0.75rem;
+  color: var(--color-on-surface);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .boardmark-flow {
   background:
     radial-gradient(circle at top left, rgba(96, 66, 214, 0.08), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent);
 }
 
+.boardmark-flow.boardmark-flow--pan {
+  cursor: grab;
+}
+
 .boardmark-flow .react-flow__renderer,
 .boardmark-flow .react-flow__pane,
-.boardmark-flow .react-flow__viewport {
+.boardmark-flow .react-flow__viewport,
+.boardmark-flow .react-flow__node {
   cursor: inherit;
 }
 
