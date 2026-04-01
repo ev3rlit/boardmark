@@ -6,13 +6,15 @@ const browserBridge = createBrowserDocumentBridge()
 
 const defaultViewerStore = createViewerStore({
   documentPicker: browserBridge.picker,
+  documentPersistenceBridge: browserBridge.persistence,
   documentRepository: browserBridge.repository,
   templateSource: defaultTemplateSource
 })
 
 const webCapabilities = {
   canOpen: true,
-  canSave: false,
+  canSave: true,
+  canPersist: true,
   newDocumentMode: 'reset-template'
 } as const
 

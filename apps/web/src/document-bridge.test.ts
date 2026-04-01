@@ -1,11 +1,4 @@
-import { errAsync, ok, type Result, type ResultAsync } from 'neverthrow'
-import { fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  CanvasDocumentLocator,
-  CanvasDocumentRepository,
-  CanvasDocumentRepositoryError
-} from '@boardmark/canvas-repository'
 import { createBrowserDocumentBridge } from './document-bridge'
 
 const uploadedSource = `---
@@ -19,147 +12,116 @@ Uploaded Board
 
 describe('browser document bridge', () => {
   beforeEach(() => {
-    document.body.innerHTML = ''
+    delete window.showOpenFilePicker
+    delete window.showSaveFilePicker
   })
 
-  it('stores browser-selected files behind memory locators and replays them through readSource', async () => {
-    const readSource = vi.fn((input) =>
-      ok({
-        locator: input.locator,
-        name: input.locator.name,
-        source: input.source,
-        ast: {
-          frontmatter: {
-            type: 'canvas' as const,
-            version: 1
-          },
-          nodes: [],
-          edges: []
-        },
-        issues: [],
-        isTemplate: input.isTemplate
-      })
-    )
+  it('opens persisted files through the File System Access API', async () => {
+    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    window.showOpenFilePicker = vi.fn(async () => [openHandle])
+
     const bridge = createBrowserDocumentBridge({
-      rootDocument: document,
-      rootWindow: window,
-      readFileText: async () => uploadedSource,
-      documentRepository: createDocumentRepository(readSource)
+      readFileText: async () => uploadedSource
     })
+    const result = await bridge.persistence.openDocument()
 
-    const locatorPromise = bridge.picker.pickOpenLocator()
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement
-    const file = new File(['ignored'], 'opened.canvas.md', {
-      type: 'text/markdown'
-    })
+    expect(window.showOpenFilePicker).toHaveBeenCalled()
+    expect(result.ok).toBe(true)
 
-    Object.defineProperty(input, 'files', {
-      configurable: true,
-      value: [file]
-    })
-
-    fireEvent.change(input)
-
-    const locatorResult = await locatorPromise
-    expect(locatorResult.ok).toBe(true)
-
-    if (!locatorResult.ok) {
+    if (!result.ok) {
       return
     }
 
-    expect(locatorResult.value).toEqual({
-      kind: 'memory',
-      key: 'browser-open-0',
-      name: 'opened.canvas.md'
+    expect(result.value.fileHandle?.name).toBe('opened.canvas.md')
+    expect(result.value.source).toBe(uploadedSource)
+    expect(result.value.locator).toEqual({
+      kind: 'file',
+      path: 'browser-file-0/opened.canvas.md'
+    })
+  })
+
+  it('creates a new persisted target through showSaveFilePicker and repository.save', async () => {
+    const saveHandle = createFileHandle('saved.canvas.md', '')
+    window.showSaveFilePicker = vi.fn(async () => saveHandle)
+
+    const bridge = createBrowserDocumentBridge({
+      readFileText: async () => uploadedSource
+    })
+    const saveAsResult = await bridge.persistence.saveDocumentAs({
+      defaultName: 'saved.canvas.md',
+      locator: {
+        kind: 'memory',
+        key: 'draft',
+        name: 'saved.canvas.md'
+      },
+      source: uploadedSource
     })
 
-    const readResult = await bridge.repository.read(locatorResult.value)
-    expect(readResult.ok).toBe(true)
-    expect(readSource).toHaveBeenCalledWith({
-      locator: locatorResult.value,
+    expect(window.showSaveFilePicker).toHaveBeenCalled()
+    expect(saveAsResult.ok).toBe(true)
+
+    if (!saveAsResult.ok) {
+      return
+    }
+
+    expect(saveHandle.writeMock).toHaveBeenCalledWith(uploadedSource)
+
+    const repositorySave = await bridge.repository.save({
+      locator: saveAsResult.value.locator,
       source: uploadedSource,
       isTemplate: false
     })
+
+    expect(repositorySave.ok).toBe(true)
+    expect(saveHandle.writeMock).toHaveBeenCalledTimes(2)
   })
 
-  it('returns explicit unsupported save failures', async () => {
+  it('overwrites an existing file handle without opening a new picker', async () => {
+    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    window.showOpenFilePicker = vi.fn(async () => [openHandle])
+
     const bridge = createBrowserDocumentBridge({
-      rootDocument: document,
-      rootWindow: window,
-      documentRepository: createDocumentRepository(vi.fn(() => ok(readRecord())))
+      readFileText: async () => uploadedSource
+    })
+    const openResult = await bridge.persistence.openDocument()
+
+    if (!openResult.ok) {
+      throw new Error('Expected persisted open result.')
+    }
+
+    const nextSource = `${uploadedSource}\n\nUpdated`
+    const saveResult = await bridge.persistence.saveDocument({
+      defaultName: 'opened.canvas.md',
+      locator: openResult.value.locator,
+      fileHandle: openResult.value.fileHandle,
+      source: nextSource
     })
 
-    await expect(bridge.picker.pickSaveLocator()).resolves.toEqual({
-      ok: false,
-      error: {
-        code: 'save-failed',
-        message: 'Save is not supported in the browser shell.'
-      }
-    })
-
-    await expect(
-      bridge.repository.save({
-        locator: {
-          kind: 'memory',
-          key: 'browser-open-0',
-          name: 'opened.canvas.md'
-        },
-        source: uploadedSource,
-        isTemplate: false
-      })
-    ).resolves.toEqual({
-      ok: false,
-      error: {
-        kind: 'unsupported-source',
-        message:
-          'Canvas repository does not support persistence for "opened.canvas.md" in the browser shell.'
-      }
-    })
+    expect(saveResult.ok).toBe(true)
+    expect(openHandle.writeMock).toHaveBeenCalledWith(nextSource)
+    expect(window.showOpenFilePicker).toHaveBeenCalledTimes(1)
   })
 })
 
-function createDocumentRepository(
-  readSource: (
-    input: {
-      locator: CanvasDocumentLocator
-      source: string
-      isTemplate: boolean
-    }
-  ) => Result<ReturnType<typeof readRecord>, CanvasDocumentRepositoryError>
-): CanvasDocumentRepository {
-  return {
-    read: () =>
-      errAsync({
-        kind: 'unsupported-source',
-        message: 'Not used in browser bridge tests.'
-      }),
-    readSource,
-    save: () =>
-      errAsync({
-        kind: 'unsupported-source',
-        message: 'Not used in browser bridge tests.'
-      })
-  }
-}
+function createFileHandle(name: string, source: string) {
+  const writeMock = vi.fn(async (_nextSource: BlobPart) => {})
 
-function readRecord() {
-  return {
-    locator: {
-      kind: 'memory' as const,
-      key: 'browser-open-0',
-      name: 'opened.canvas.md'
+  const handle = {
+    kind: 'file',
+    name,
+    writeMock,
+    async createWritable() {
+      return {
+        close: vi.fn(async () => {}),
+        write: writeMock
+      } as unknown as FileSystemWritableFileStream
     },
-    name: 'opened.canvas.md',
-    source: uploadedSource,
-    ast: {
-      frontmatter: {
-        type: 'canvas' as const,
-        version: 1
-      },
-      nodes: [],
-      edges: []
-    },
-    issues: [],
-    isTemplate: false
-  }
+    async getFile() {
+      return new File([source], name, {
+        type: 'text/markdown'
+      })
+    }
+  } as unknown as FileSystemFileHandle & { writeMock: typeof writeMock }
+
+  return handle
 }

@@ -10,7 +10,7 @@ type FileMenuProps = {
 }
 
 export function FileMenu({ store, capabilities }: FileMenuProps) {
-  const { openDocument, saveCurrentDocument, saveState } = useStore(store)
+  const { document, isDirty, openDocument, saveCurrentDocument, saveState } = useStore(store)
 
   return (
     <FloatingPanel className="flex items-center gap-2">
@@ -19,6 +19,7 @@ export function FileMenu({ store, capabilities }: FileMenuProps) {
       ) : null}
       {capabilities.canSave ? (
         <Button
+          disabled={!document || !isDirty || saveState.status === 'saving'}
           emphasis="primary"
           onClick={() => void saveCurrentDocument()}
         >

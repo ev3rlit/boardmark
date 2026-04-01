@@ -56,6 +56,7 @@ export const defaultViewerStore = createViewerStore({
 const desktopCapabilities = {
   canOpen: true,
   canSave: true,
+  canPersist: true,
   newDocumentMode: 'persist-template'
 } as const
 

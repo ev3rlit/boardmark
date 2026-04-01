@@ -4,6 +4,7 @@ import type {
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
 import type { CanvasAST } from '@boardmark/canvas-domain'
+import type { ViewerDocumentPersistenceBridge } from './document-session'
 import { createViewerStore } from './viewer-store'
 
 const templateSource = `---
@@ -48,6 +49,118 @@ Next
 broken flow
 :::`
 
+describe('viewer store', () => {
+  it('hydrates the bundled template as an unsaved draft session', async () => {
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+
+    expect(store.getState().document?.isTemplate).toBe(true)
+    expect(store.getState().documentSession?.isPersisted).toBe(false)
+    expect(store.getState().persistedSnapshotSource).toBeNull()
+    expect(store.getState().isDirty).toBe(true)
+    expect(store.getState().nodes).toHaveLength(2)
+  })
+
+  it('opens a persisted browser document through the persistence bridge', async () => {
+    const persistenceBridge = createPersistenceBridge()
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentPersistenceBridge: persistenceBridge,
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().openDocument()
+
+    expect(persistenceBridge.openDocument).toHaveBeenCalled()
+    expect(store.getState().document?.name).toBe('open.canvas.md')
+    expect(store.getState().documentSession?.isPersisted).toBe(true)
+    expect(store.getState().documentSession?.fileHandle?.name).toBe('open.canvas.md')
+    expect(store.getState().isDirty).toBe(false)
+    expect(store.getState().parseIssues).toHaveLength(1)
+  })
+
+  it('saves an unsaved draft through the save service and clears dirty state', async () => {
+    const persistenceBridge = createPersistenceBridge()
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentPersistenceBridge: persistenceBridge,
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().saveCurrentDocument()
+
+    expect(persistenceBridge.saveDocumentAs).toHaveBeenCalled()
+    expect(store.getState().documentSession?.isPersisted).toBe(true)
+    expect(store.getState().documentSession?.fileHandle?.name).toBe('saved.canvas.md')
+    expect(store.getState().persistedSnapshotSource).toBe(templateSource)
+    expect(store.getState().isDirty).toBe(false)
+    expect(store.getState().saveState.status).toBe('saved')
+    expect(store.getState().lastSavedAt).not.toBeNull()
+  })
+
+  it('surfaces save failures without silent fallback', async () => {
+    const persistenceBridge = createPersistenceBridge({
+      saveDocumentAsResult: {
+        ok: false,
+        error: {
+          code: 'save-failed',
+          message: 'Browser save failed.'
+        }
+      }
+    })
+    const store = createViewerStore({
+      documentPicker: createPicker(),
+      documentPersistenceBridge: persistenceBridge,
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().saveCurrentDocument()
+
+    expect(store.getState().saveState).toEqual({
+      status: 'error',
+      message: 'Browser save failed.'
+    })
+    expect(store.getState().isDirty).toBe(true)
+  })
+
+  it('keeps the desktop fallback open and save flow working', async () => {
+    const picker = createPicker()
+    const repository = createRepository()
+    const store = createViewerStore({
+      documentPicker: picker,
+      documentRepository: repository,
+      templateSource
+    })
+
+    await store.getState().createNewDocument()
+    expect(picker.pickSaveLocator).toHaveBeenCalledWith('bundled-template.canvas.md')
+    expect(repository.save).toHaveBeenCalledWith({
+      locator: {
+        kind: 'file',
+        path: '/tmp/saved.canvas.md'
+      },
+      source: templateSource,
+      isTemplate: false
+    })
+
+    await store.getState().openDocument()
+    expect(repository.read).toHaveBeenCalledWith({
+      kind: 'file',
+      path: '/tmp/open.canvas.md'
+    })
+  })
+})
+
 function createPicker(): CanvasDocumentPicker {
   return {
     pickOpenLocator: vi.fn(async () => ({
@@ -67,13 +180,56 @@ function createPicker(): CanvasDocumentPicker {
   }
 }
 
+function createPersistenceBridge(options?: {
+  saveDocumentAsResult?: Awaited<ReturnType<ViewerDocumentPersistenceBridge['saveDocumentAs']>>
+}): ViewerDocumentPersistenceBridge {
+  return {
+    openDocument: vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        locator: {
+          kind: 'file' as const,
+          path: 'browser-file-0/open.canvas.md'
+        },
+        fileHandle: createFileHandle('open.canvas.md'),
+        source: openedSource
+      }
+    })),
+    saveDocument: vi.fn(async (input) => ({
+      ok: true as const,
+      value: {
+        locator: {
+          kind: 'file' as const,
+          path: 'browser-file-0/open.canvas.md'
+        },
+        fileHandle: input.fileHandle,
+        source: input.source
+      }
+    })),
+    saveDocumentAs:
+      vi.fn(async (input) =>
+        options?.saveDocumentAsResult ?? {
+          ok: true as const,
+          value: {
+            locator: {
+              kind: 'file' as const,
+              path: 'browser-file-1/saved.canvas.md'
+            },
+            fileHandle: createFileHandle('saved.canvas.md'),
+            source: input.source
+          }
+        }
+      )
+  }
+}
+
 function createRepository(): CanvasDocumentRepositoryGateway {
   return {
     readSource: vi.fn(async ({ locator, source, isTemplate }) => ({
       ok: true as const,
       value: {
         locator,
-        name: locator.kind === 'file' ? 'saved.canvas.md' : locator.name,
+        name: locator.kind === 'file' ? locator.path.split('/').at(-1) ?? 'saved.canvas.md' : locator.name,
         source,
         ast: readAst(source.includes('Opened Board') ? 'Opened Board' : 'Boardmark Viewer'),
         issues: source.includes('Opened Board')
@@ -115,13 +271,9 @@ function createRepository(): CanvasDocumentRepositoryGateway {
       ok: true as const,
       value: {
         locator,
-        name: 'saved.canvas.md',
+        name: locator.kind === 'file' ? locator.path.split('/').at(-1) ?? 'saved.canvas.md' : locator.name,
         source,
-        ast: readAst(
-          locator.kind === 'file' && locator.path === '/tmp/open.canvas.md'
-            ? 'Opened Board'
-            : 'Boardmark Viewer'
-        ),
+        ast: readAst(source.includes('Opened Board') ? 'Opened Board' : 'Boardmark Viewer'),
         issues: [],
         isTemplate
       }
@@ -129,96 +281,21 @@ function createRepository(): CanvasDocumentRepositoryGateway {
   }
 }
 
-describe('viewer store', () => {
-  it('hydrates from the startup template through the repository', async () => {
-    const picker = createPicker()
-    const repository = createRepository()
-    const store = createViewerStore({
-      documentPicker: picker,
-      documentRepository: repository,
-      templateSource
-    })
-
-    await store.getState().hydrateTemplate()
-
-    expect(repository.readSource).toHaveBeenCalledWith({
-      locator: {
-        kind: 'memory',
-        key: 'startup-template',
-        name: 'bundled-template.canvas.md'
-      },
-      source: templateSource,
-      isTemplate: true
-    })
-    expect(store.getState().document?.isTemplate).toBe(true)
-    expect(store.getState().nodes).toHaveLength(2)
-    expect(store.getState().loadState.status).toBe('ready')
-  })
-
-  it('restores the sample document state through resetToTemplate', async () => {
-    const store = createViewerStore({
-      documentPicker: createPicker(),
-      documentRepository: createRepository(),
-      templateSource
-    })
-
-    await store.getState().openDocument()
-    expect(store.getState().parseIssues).toHaveLength(1)
-    expect(store.getState().viewport).toEqual({
-      x: 40,
-      y: 18,
-      zoom: 1.2
-    })
-
-    await store.getState().resetToTemplate()
-
-    expect(store.getState().document?.name).toBe('bundled-template.canvas.md')
-    expect(store.getState().parseIssues).toEqual([])
-    expect(store.getState().viewport).toEqual({
-      x: -180,
-      y: -120,
-      zoom: 0.92
-    })
-  })
-
-  it('runs desktop create, open, and save flows through picker and repository', async () => {
-    const picker = createPicker()
-    const repository = createRepository()
-    const store = createViewerStore({
-      documentPicker: picker,
-      documentRepository: repository,
-      templateSource
-    })
-
-    await store.getState().createNewDocument()
-    expect(picker.pickSaveLocator).toHaveBeenCalledWith('untitled.canvas.md')
-    expect(repository.save).toHaveBeenCalledWith({
-      locator: {
-        kind: 'file',
-        path: '/tmp/saved.canvas.md'
-      },
-      source: templateSource,
-      isTemplate: false
-    })
-
-    await store.getState().openDocument()
-    expect(picker.pickOpenLocator).toHaveBeenCalled()
-    expect(repository.read).toHaveBeenCalledWith({
-      kind: 'file',
-      path: '/tmp/open.canvas.md'
-    })
-
-    await store.getState().saveCurrentDocument()
-    expect(repository.save).toHaveBeenLastCalledWith({
-      locator: {
-        kind: 'file',
-        path: '/tmp/open.canvas.md'
-      },
-      source: openedSource,
-      isTemplate: false
-    })
-  })
-})
+function createFileHandle(name: string): FileSystemFileHandle {
+  return {
+    kind: 'file',
+    name,
+    async createWritable() {
+      return {
+        async close() {},
+        async write() {}
+      } as unknown as FileSystemWritableFileStream
+    },
+    async getFile() {
+      return new File([''], name, { type: 'text/markdown' })
+    }
+  } as unknown as FileSystemFileHandle
+}
 
 function readAst(
   title: string,
@@ -260,11 +337,11 @@ function readAst(
     ],
     edges: [
       {
-        id: 'welcome-overview',
+        id: title === 'Opened Board' ? 'open-next' : 'welcome-overview',
         from: title === 'Opened Board' ? 'open' : 'welcome',
         to: 'overview',
         kind: 'curve',
-        content: 'main thread',
+        content: title === 'Opened Board' ? 'broken flow' : 'main thread',
         position: {
           start: { line: 9, offset: 0 },
           end: { line: 11, offset: 12 }

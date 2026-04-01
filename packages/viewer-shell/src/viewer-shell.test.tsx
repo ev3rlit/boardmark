@@ -42,6 +42,7 @@ describe('ViewerShell', () => {
         capabilities={{
           canOpen: true,
           canSave: false,
+          canPersist: false,
           newDocumentMode: 'reset-template'
         }}
       />

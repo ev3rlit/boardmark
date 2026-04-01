@@ -1,6 +1,7 @@
 import { useStore } from 'zustand'
-import type { CanvasLoadState } from '@boardmark/canvas-domain'
+import type { CanvasLoadState, CanvasSaveState } from '@boardmark/canvas-domain'
 import { FloatingPanel } from './floating-panel'
+import type { ViewerDocumentSession } from './document-session'
 import type { ViewerStore } from './viewer-store'
 
 type StatusPanelsProps = {
@@ -8,7 +9,8 @@ type StatusPanelsProps = {
 }
 
 export function StatusPanels({ store }: StatusPanelsProps) {
-  const { parseIssues, loadState, viewport } = useStore(store)
+  const { document, documentSession, isDirty, lastSavedAt, loadState, parseIssues, saveState, viewport } =
+    useStore(store)
 
   return (
     <>
@@ -27,6 +29,8 @@ export function StatusPanels({ store }: StatusPanelsProps) {
 
       <FloatingPanel className="p-4 text-sm text-[var(--color-on-surface-variant)]">
         <p>{readStatusMessage(loadState)}</p>
+        <p className="mt-1">{readDocumentMessage(document?.name, documentSession, isDirty)}</p>
+        <p className="mt-1">{readSaveMessage(saveState, lastSavedAt)}</p>
         <p className="mt-1">Zoom {Math.round(viewport.zoom * 100)}%</p>
       </FloatingPanel>
     </>
@@ -41,5 +45,33 @@ function readStatusMessage(loadState: CanvasLoadState) {
       return loadState.message
     default:
       return 'Canvas ready'
+  }
+}
+
+function readDocumentMessage(
+  documentName: string | undefined,
+  documentSession: ViewerDocumentSession | null,
+  isDirty: boolean
+) {
+  if (!documentName || !documentSession) {
+    return 'No document loaded'
+  }
+
+  const persistenceLabel = documentSession.isPersisted ? 'Persisted document' : 'Unsaved draft'
+  const dirtyLabel = isDirty ? 'unsaved changes' : 'all changes saved'
+
+  return `${documentName} • ${persistenceLabel} • ${dirtyLabel}`
+}
+
+function readSaveMessage(saveState: CanvasSaveState, lastSavedAt: number | null) {
+  switch (saveState.status) {
+    case 'saving':
+      return 'Saving changes...'
+    case 'saved':
+      return lastSavedAt ? `Saved at ${new Date(lastSavedAt).toLocaleTimeString()}` : 'Saved'
+    case 'error':
+      return saveState.message
+    default:
+      return 'Save service ready'
   }
 }

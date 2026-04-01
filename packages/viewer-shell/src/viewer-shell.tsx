@@ -12,6 +12,7 @@ import type { ViewerStore } from './viewer-store'
 export type ViewerShellCapabilities = {
   canOpen: boolean
   canSave: boolean
+  canPersist: boolean
   newDocumentMode: 'persist-template' | 'reset-template'
 }
 
