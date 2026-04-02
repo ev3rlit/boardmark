@@ -399,6 +399,65 @@ button {
   color: inherit;
 }
 
+.markdown-content :where(.mermaid-diagram) {
+  margin: 0 0 0.85rem;
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 249, 250, 0.94)),
+    color-mix(in oklab, var(--color-surface-lowest) 90%, white);
+  padding: 0.95rem 1rem;
+}
+
+.markdown-content :where(.mermaid-diagram__viewport) {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-content :where(.mermaid-diagram__viewport svg) {
+  display: block;
+  height: auto;
+  max-width: none;
+}
+
+.markdown-content :where(.mermaid-diagram__status) {
+  color: var(--color-on-surface-variant);
+  font-size: 0.88rem;
+}
+
+.markdown-content :where(.mermaid-diagram--error) {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 247, 0.95), rgba(255, 241, 238, 0.98)),
+    color-mix(in oklab, #f4b4aa 12%, var(--color-surface-lowest));
+}
+
+.markdown-content :where(.mermaid-diagram__title) {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+
+.markdown-content :where(.mermaid-diagram__message) {
+  margin: 0 0 0.7rem;
+  color: var(--color-on-surface-variant);
+  font-size: 0.88rem;
+}
+
+.markdown-content :where(.mermaid-diagram__source) {
+  margin: 0;
+  overflow-x: auto;
+  border-radius: 0.9rem;
+  background: rgba(43, 52, 55, 0.9);
+  color: #f2f4f5;
+  padding: 0.8rem 0.9rem;
+}
+
+.markdown-content :where(.mermaid-diagram__source code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  white-space: pre-wrap;
+}
+
 .markdown-table-wrap {
   margin: 0 0 0.75rem;
   overflow-x: auto;
@@ -472,6 +531,7 @@ button {
 .note-markdown :where(p:last-child),
 .note-markdown :where(pre:last-child),
 .note-markdown :where(blockquote:last-child),
+.note-markdown :where(.mermaid-diagram:last-child),
 .note-markdown :where(.markdown-table-wrap:last-child) {
   margin-bottom: 0;
 }

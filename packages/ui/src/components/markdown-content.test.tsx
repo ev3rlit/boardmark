@@ -1,5 +1,17 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('./mermaid-diagram', () => ({
+  MermaidDiagram: ({ source }: { source: string }) => (
+    <div
+      data-testid="mermaid-diagram"
+      data-source={source}
+    >
+      {source}
+    </div>
+  )
+}))
+
 import { MarkdownContent } from './markdown-content'
 
 describe('MarkdownContent', () => {
@@ -51,5 +63,30 @@ describe('MarkdownContent', () => {
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).not.toBeChecked()
     expect(container.querySelector('[data-footnotes]')).not.toBeNull()
+  })
+
+  it('renders mermaid fenced blocks through the diagram component and preserves other code blocks', () => {
+    const { container } = render(
+      <MarkdownContent
+        content={`\`\`\`mermaid
+flowchart TD
+    A[Start] --> B[Ship]
+\`\`\`
+
+\`\`\`ts
+const shipped = true
+\`\`\`
+
+인라인 \`code\``}
+      />
+    )
+
+    expect(screen.getByTestId('mermaid-diagram')).toHaveAttribute(
+      'data-source',
+      'flowchart TD\n    A[Start] --> B[Ship]'
+    )
+    expect(container.querySelector('pre [data-testid="mermaid-diagram"]')).toBeNull()
+    expect(container.querySelector('pre code.hljs.language-ts')).not.toBeNull()
+    expect(screen.getByText('code')).toContainHTML('<code>code</code>')
   })
 })
