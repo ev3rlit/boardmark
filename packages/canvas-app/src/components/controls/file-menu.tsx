@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { CircleEllipsis, FilePlus2, FolderOpen, Save, type LucideIcon } from 'lucide-react'
 import { useStore } from 'zustand'
 import type { CanvasAppCapabilities } from '@canvas-app/app/canvas-app'
+import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { Button } from '@canvas-app/components/primitives/button'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
@@ -40,7 +41,7 @@ export function FileMenu({ store, capabilities }: FileMenuProps) {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
+      if (!matchesEscapeKey(event)) {
         return
       }
 
@@ -63,7 +64,7 @@ export function FileMenu({ store, capabilities }: FileMenuProps) {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isResolvingPendingAction) {
+      if (matchesEscapeKey(event) && !isResolvingPendingAction) {
         setPendingAction(null)
       }
     }

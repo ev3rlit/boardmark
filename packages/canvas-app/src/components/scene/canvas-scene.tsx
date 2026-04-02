@@ -33,6 +33,7 @@ import {
 } from '@boardmark/canvas-renderer'
 import type { BuiltInComponentKey, CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
+import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { readActiveToolMode, type CanvasStore, type CanvasStoreState } from '@canvas-app/store/canvas-store'
 
 type CanvasSceneProps = {
@@ -633,7 +634,7 @@ function handleInlineEditorKeyDown(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
   commitInlineEditing: () => Promise<void>
 ) {
-  if (event.key !== 'Escape') {
+  if (!matchesEscapeKey(event.nativeEvent)) {
     return
   }
 

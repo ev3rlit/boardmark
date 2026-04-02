@@ -16,6 +16,7 @@ import {
 import { getBuiltInRendererContract } from '@boardmark/canvas-renderer'
 import { useStore } from 'zustand'
 import type { BuiltInComponentKey } from '@boardmark/canvas-domain'
+import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ToolMenuProps = {
@@ -58,7 +59,7 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (matchesEscapeKey(event)) {
         setIsShapeMenuOpen(false)
         setIsImageMenuOpen(false)
       }

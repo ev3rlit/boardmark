@@ -1,5 +1,6 @@
 import { Redo2, Undo2 } from 'lucide-react'
 import { useStore } from 'zustand'
+import { readCanvasAppShortcutLabel } from '@canvas-app/app/canvas-app-keymap'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 type HistoryControlsProps = {
@@ -14,6 +15,8 @@ export function HistoryControls({ store }: HistoryControlsProps) {
   const isEditing = editingState.status !== 'idle'
   const canUndo = !isEditing && history.past.length > 0
   const canRedo = !isEditing && history.future.length > 0
+  const undoShortcut = readCanvasAppShortcutLabel('undo')
+  const redoShortcut = readCanvasAppShortcutLabel('redo')
 
   return (
     <div
@@ -26,7 +29,7 @@ export function HistoryControls({ store }: HistoryControlsProps) {
         className="viewer-control-button"
         disabled={!canUndo}
         onClick={() => void undo()}
-        title="Undo (Cmd/Ctrl+Z)"
+        title={undoShortcut ? `Undo (${undoShortcut})` : 'Undo'}
         type="button"
       >
         <Undo2
@@ -40,7 +43,7 @@ export function HistoryControls({ store }: HistoryControlsProps) {
         className="viewer-control-button"
         disabled={!canRedo}
         onClick={() => void redo()}
-        title="Redo (Shift+Cmd/Ctrl+Z)"
+        title={redoShortcut ? `Redo (${redoShortcut})` : 'Redo'}
         type="button"
       >
         <Redo2

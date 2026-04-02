@@ -3,6 +3,11 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
 import {
+  canExecuteCanvasAppCommand,
+  executeCanvasAppCommand
+} from '@canvas-app/app/canvas-app-commands'
+import { readCanvasAppKeyBinding } from '@canvas-app/app/canvas-app-keymap'
+import {
   selectCanvasDocument,
   selectCanvasEditingState,
   selectCanvasIsDropActive
@@ -65,6 +70,18 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
   const [objectContextMenu, setObjectContextMenu] = useState<ObjectContextMenuState | null>(null)
+  const commandContext = useMemo(
+    () => ({
+      deleteSelection,
+      editingState,
+      objectContextMenuOpen: objectContextMenu !== null,
+      redo,
+      setObjectContextMenu,
+      setPanShortcutActive,
+      undo
+    }),
+    [deleteSelection, editingState, objectContextMenu, redo, setPanShortcutActive, undo]
+  )
 
   useEffect(() => {
     if (!currentDocument) {
@@ -82,59 +99,41 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   }, [])
 
   useEffect(() => {
+    const dispatchKeyboardCommand = (
+      eventType: 'keydown' | 'keyup',
+      event: KeyboardEvent
+    ) => {
+      const binding = readCanvasAppKeyBinding(eventType, event)
+
+      if (!binding) {
+        return
+      }
+
+      if (!binding.allowEditableTarget && isEditableTarget(event.target)) {
+        return
+      }
+
+      if (!canExecuteCanvasAppCommand(binding.commandId, commandContext)) {
+        return
+      }
+
+      if (binding.preventDefault) {
+        event.preventDefault()
+      }
+
+      executeCanvasAppCommand(binding.commandId, commandContext)
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        if (editingState.status !== 'idle' || isEditableTarget(event.target)) {
-          return
-        }
-
-        event.preventDefault()
-        setPanShortcutActive(true)
-        return
-      }
-
-      if (isUndoRedoShortcut(event)) {
-        if (editingState.status !== 'idle' || isEditableTarget(event.target)) {
-          return
-        }
-
-        event.preventDefault()
-
-        if (isRedoShortcut(event)) {
-          void redo()
-          return
-        }
-
-        void undo()
-        return
-      }
-
-      if (editingState.status !== 'idle') {
-        return
-      }
-
-      if (isEditableTarget(event.target)) {
-        return
-      }
-
-      if (event.key !== 'Delete' && event.key !== 'Backspace') {
-        return
-      }
-
-      event.preventDefault()
-      void deleteSelection()
+      dispatchKeyboardCommand('keydown', event)
     }
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code !== 'Space') {
-        return
-      }
-
-      setPanShortcutActive(false)
+      dispatchKeyboardCommand('keyup', event)
     }
 
     const handleWindowBlur = () => {
-      setPanShortcutActive(false)
+      executeCanvasAppCommand('deactivate-pan-shortcut', commandContext)
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -146,7 +145,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', handleWindowBlur)
     }
-  }, [deleteSelection, editingState.status, redo, setPanShortcutActive, undo])
+  }, [commandContext])
 
   useEffect(() => {
     const handlePaste = async (event: ClipboardEvent) => {
@@ -198,18 +197,10 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       setObjectContextMenu(null)
     }
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setObjectContextMenu(null)
-      }
-    }
-
     window.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [objectContextMenu])
 
@@ -488,20 +479,6 @@ function isEditableTarget(target: EventTarget | null) {
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   )
-}
-
-function isRedoShortcut(event: KeyboardEvent) {
-  const key = event.key.toLowerCase()
-  return (key === 'z' && event.shiftKey) || key === 'y'
-}
-
-function isUndoRedoShortcut(event: KeyboardEvent) {
-  if (!(event.metaKey || event.ctrlKey) || event.altKey) {
-    return false
-  }
-
-  const key = event.key.toLowerCase()
-  return key === 'z' || key === 'y'
 }
 
 function readSelectionLabel(selectedNodeCount: number, selectedEdgeCount: number) {
