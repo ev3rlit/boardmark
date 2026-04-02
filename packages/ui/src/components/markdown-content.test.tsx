@@ -65,7 +65,7 @@ describe('MarkdownContent', () => {
     expect(container.querySelector('[data-footnotes]')).not.toBeNull()
   })
 
-  it('renders mermaid fenced blocks through the diagram component and preserves other code blocks', () => {
+  it('renders mermaid fenced blocks through the diagram component and preserves other code blocks', async () => {
     const { container } = render(
       <MarkdownContent
         content={`\`\`\`mermaid
@@ -81,7 +81,8 @@ const shipped = true
       />
     )
 
-    expect(screen.getByTestId('mermaid-diagram')).toHaveAttribute(
+    const diagram = await screen.findByTestId('mermaid-diagram')
+    expect(diagram).toHaveAttribute(
       'data-source',
       'flowchart TD\n    A[Start] --> B[Ship]'
     )

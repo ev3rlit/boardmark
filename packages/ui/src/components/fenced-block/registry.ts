@@ -10,6 +10,9 @@ const registry: Record<string, ReturnType<typeof lazy<FencedBlockRenderer>>> = {
   mermaid: lazy(() =>
     import('../mermaid-diagram').then((m) => ({ default: m.MermaidDiagram }))
   ),
+  sandpack: lazy(() =>
+    import('../sandpack-block').then((m) => ({ default: m.SandpackBlock }))
+  ),
 }
 
 export function getFencedBlockRenderer(
