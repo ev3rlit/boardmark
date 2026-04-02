@@ -7,6 +7,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "electron ."
+    "start": "vite build && electron ."
   }
 }
