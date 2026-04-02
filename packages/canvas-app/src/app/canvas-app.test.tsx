@@ -4,7 +4,12 @@ import type {
   CanvasDocumentPicker,
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
+import { createCanvasMarkdownDocumentRepository } from '@boardmark/canvas-repository'
 import { CanvasApp } from '@canvas-app/app/canvas-app'
+import {
+  EMPTY_CANVAS_DOCUMENT_NAME,
+  EMPTY_CANVAS_SOURCE
+} from '@canvas-app/document/empty-canvas'
 import { createCanvasStore } from '@canvas-app/store/canvas-store'
 
 const templateSource = `---
@@ -55,8 +60,8 @@ describe('CanvasApp', () => {
   it('renders the shared shell', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
-      documentRepository: createRepository(),
-      templateSource
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: EMPTY_CANVAS_SOURCE
     })
 
     render(
@@ -73,10 +78,11 @@ describe('CanvasApp', () => {
       />
     )
 
-    await screen.findByText('Boardmark Viewer')
-    expect(store.getState().edges[0]?.body).toBe('main thread\n')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
+    expect(store.getState().nodes).toHaveLength(0)
+    expect(store.getState().edges).toHaveLength(0)
     expect(screen.getByRole('application')).toBeInTheDocument()
-    expect(screen.getByText('92%')).toBeInTheDocument()
+    expect(screen.getByText('100%')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image' })).toBeDisabled()
@@ -405,5 +411,35 @@ function createRepository(): CanvasDocumentRepositoryGateway {
         message: 'Not used in this test.'
       }
     })
+  }
+}
+
+function toGateway(repository: ReturnType<typeof createCanvasMarkdownDocumentRepository>): CanvasDocumentRepositoryGateway {
+  return {
+    read: async (locator) =>
+      repository.read(locator).match(
+        (value) => ({ ok: true as const, value }),
+        (error) => ({ ok: false as const, error })
+      ),
+    readSource: async (input) => {
+      const result = repository.readSource(input)
+
+      if (result.isErr()) {
+        return {
+          ok: false as const,
+          error: result.error
+        }
+      }
+
+      return {
+        ok: true as const,
+        value: result.value
+      }
+    },
+    save: async (input) =>
+      repository.save(input).match(
+        (value) => ({ ok: true as const, value }),
+        (error) => ({ ok: false as const, error })
+      )
   }
 }

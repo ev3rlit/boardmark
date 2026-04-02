@@ -1,5 +1,4 @@
-import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
-import { CanvasApp, createCanvasStore, type CanvasStore } from '@boardmark/canvas-app'
+import { CanvasApp, EMPTY_CANVAS_SOURCE, createCanvasStore, type CanvasStore } from '@boardmark/canvas-app'
 import { createBrowserDocumentBridge } from './document-bridge'
 
 const browserBridge = createBrowserDocumentBridge()
@@ -8,7 +7,7 @@ const defaultCanvasStore = createCanvasStore({
   documentPicker: browserBridge.picker,
   documentPersistenceBridge: browserBridge.persistence,
   documentRepository: browserBridge.repository,
-  templateSource: defaultTemplateSource
+  templateSource: EMPTY_CANVAS_SOURCE
 })
 
 const webCapabilities = {

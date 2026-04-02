@@ -1,7 +1,7 @@
 import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
-import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
 import {
   CanvasApp,
+  EMPTY_CANVAS_SOURCE,
   createCanvasStore,
   type CanvasDocumentPersistenceBridge,
   type CanvasStore
@@ -83,7 +83,7 @@ export const defaultCanvasStore = createCanvasStore({
   documentPicker: fallbackBridge.picker,
   documentPersistenceBridge: fallbackBridge.persistence,
   documentRepository: fallbackBridge.repository,
-  templateSource: defaultTemplateSource
+  templateSource: EMPTY_CANVAS_SOURCE
 })
 
 const desktopCapabilities = {

@@ -5,6 +5,10 @@ import type {
 } from '@boardmark/canvas-repository'
 import { createCanvasMarkdownDocumentRepository } from '@boardmark/canvas-repository'
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
+import {
+  EMPTY_CANVAS_DOCUMENT_NAME,
+  EMPTY_CANVAS_SOURCE
+} from '@canvas-app/document/empty-canvas'
 import { createCanvasStore } from '@canvas-app/store/canvas-store'
 
 const templateSource = `---
@@ -50,20 +54,22 @@ broken flow
 :::`
 
 describe('viewer store', () => {
-  it('hydrates the bundled template as an unsaved draft session', async () => {
+  it('hydrates the empty startup canvas as an unsaved draft session', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
-      documentRepository: createRepository(),
-      templateSource
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: EMPTY_CANVAS_SOURCE
     })
 
     await store.getState().hydrateTemplate()
 
     expect(store.getState().document?.isTemplate).toBe(true)
+    expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME)
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().persistedSnapshotSource).toBeNull()
     expect(store.getState().isDirty).toBe(true)
-    expect(store.getState().nodes).toHaveLength(2)
+    expect(store.getState().nodes).toHaveLength(0)
+    expect(store.getState().edges).toHaveLength(0)
   })
 
   it('opens a persisted browser document through the persistence bridge', async () => {
@@ -143,7 +149,7 @@ describe('viewer store', () => {
     })
 
     await store.getState().createNewDocument()
-    expect(picker.pickSaveLocator).toHaveBeenCalledWith('bundled-template.canvas.md')
+    expect(picker.pickSaveLocator).toHaveBeenCalledWith(EMPTY_CANVAS_DOCUMENT_NAME)
     expect(repository.save).toHaveBeenCalledWith({
       locator: {
         kind: 'file',
@@ -555,6 +561,36 @@ function createRepository(options?: { failOnSource?: string }): CanvasDocumentRe
         }
       })()
     }))
+  }
+}
+
+function toGateway(repository: ReturnType<typeof createCanvasMarkdownDocumentRepository>): CanvasDocumentRepositoryGateway {
+  return {
+    read: async (locator) =>
+      repository.read(locator).match(
+        (value) => ({ ok: true as const, value }),
+        (error) => ({ ok: false as const, error })
+      ),
+    readSource: async (input) => {
+      const result = repository.readSource(input)
+
+      if (result.isErr()) {
+        return {
+          ok: false as const,
+          error: result.error
+        }
+      }
+
+      return {
+        ok: true as const,
+        value: result.value
+      }
+    },
+    save: async (input) =>
+      repository.save(input).match(
+        (value) => ({ ok: true as const, value }),
+        (error) => ({ ok: false as const, error })
+      )
   }
 }
 

@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import defaultTemplateSource from '@fixtures/default-template.canvas.md?raw'
-import { createCanvasStore } from '@boardmark/canvas-app'
+import {
+  EMPTY_CANVAS_DOCUMENT_NAME,
+  EMPTY_CANVAS_SOURCE,
+  createCanvasStore
+} from '@boardmark/canvas-app'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import { createBrowserDocumentBridge } from './document-bridge'
@@ -27,19 +30,20 @@ describe('Web App', () => {
     delete window.showSaveFilePicker
   })
 
-  it('renders the bundled sample board on startup and shows save state', async () => {
+  it('renders an empty startup canvas and shows save state', async () => {
     const user = userEvent.setup()
-    const store = createWebStore(async () => defaultTemplateSource)
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
     render(<App store={store} />)
 
-    await screen.findByText('Boardmark Viewer')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
 
     expect(screen.getByRole('menuitem', { name: 'New file' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Open file' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Save' })).toBeInTheDocument()
-    expect(store.getState().edges[0]?.body).toBe('main thread\n')
+    expect(store.getState().nodes).toHaveLength(0)
+    expect(store.getState().edges).toHaveLength(0)
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
   })
@@ -51,7 +55,7 @@ describe('Web App', () => {
 
     render(<App store={store} />)
 
-    await screen.findByText('Boardmark Viewer')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
 
@@ -67,7 +71,7 @@ describe('Web App', () => {
 
     render(<App store={store} />)
 
-    await screen.findByText('Boardmark Viewer')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
 
@@ -79,11 +83,11 @@ describe('Web App', () => {
   it('saves the startup draft through showSaveFilePicker', async () => {
     const user = userEvent.setup()
     window.showSaveFilePicker = async () => createFileHandle('saved.canvas.md', '')
-    const store = createWebStore(async () => defaultTemplateSource)
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
     render(<App store={store} />)
 
-    await screen.findByText('Boardmark Viewer')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Save' }))
 
@@ -92,11 +96,11 @@ describe('Web App', () => {
   })
 
   it('shows drop active UI and replaces the current draft on drop', async () => {
-    const store = createWebStore(async () => defaultTemplateSource)
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
     render(<App store={store} />)
 
-    await screen.findByText('Boardmark Viewer')
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
 
     const shell = document.querySelector('main')
     expect(shell).not.toBeNull()
@@ -155,7 +159,7 @@ function createWebStore(readFileText: (file: File) => Promise<string>) {
     documentPicker: bridge.picker,
     documentPersistenceBridge: bridge.persistence,
     documentRepository: bridge.repository,
-    templateSource: defaultTemplateSource
+    templateSource: EMPTY_CANVAS_SOURCE
   })
 }
 

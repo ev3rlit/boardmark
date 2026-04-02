@@ -15,7 +15,6 @@ export default defineConfig({
         currentDirectory,
         '../../packages/canvas-app/src/index.ts'
       ),
-      '@fixtures': resolve(currentDirectory, '../../fixtures'),
       '@boardmark/canvas-app/': `${resolve(currentDirectory, '../../packages/canvas-app/src')}/`,
       '@boardmark/canvas-app': resolve(
         currentDirectory,

@@ -16,7 +16,6 @@ export default defineConfig({
         currentDirectory,
         '../../packages/canvas-app/src/index.ts'
       ),
-      '@fixtures': resolve(currentDirectory, '../../fixtures'),
       '@boardmark/canvas-repository': resolve(
         currentDirectory,
         '../../packages/canvas-repository/src/index.ts'

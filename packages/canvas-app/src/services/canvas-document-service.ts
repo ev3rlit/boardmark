@@ -8,6 +8,7 @@ import {
   type CanvasDocumentSaveMode,
   type CanvasDocumentSaveService
 } from '@canvas-app/services/save-service'
+import { EMPTY_CANVAS_DOCUMENT_NAME } from '@canvas-app/document/empty-canvas'
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
 import { createCanvasDocumentState, type CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 
@@ -80,7 +81,7 @@ export function createCanvasDocumentService({
         locator: {
           kind: 'memory',
           key: 'startup-template',
-          name: 'bundled-template.canvas.md'
+          name: EMPTY_CANVAS_DOCUMENT_NAME
         },
         source: templateSource,
         isTemplate: true

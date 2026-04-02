@@ -1,5 +1,9 @@
 export { CanvasApp, type CanvasAppCapabilities } from '@canvas-app/app/canvas-app'
 export {
+  EMPTY_CANVAS_DOCUMENT_NAME,
+  EMPTY_CANVAS_SOURCE
+} from '@canvas-app/document/empty-canvas'
+export {
   createCanvasDocumentState,
   readCanvasDocumentDirtyState,
   type CanvasDocumentState
