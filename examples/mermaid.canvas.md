@@ -8,7 +8,7 @@ viewport:
   zoom: 0.72
 ---
 
-::: note { id: flowchart, at: { x: -640, y: -380, w: 420, h: 320 } }
+::: note { id: flowchart, at: { x: -1104, y: -740, w: 618, h: 671 } }
 
 ```mermaid
 flowchart TD
@@ -21,7 +21,7 @@ flowchart TD
 
 :::
 
-::: note { id: sequence, at: { x: -110, y: -420, w: 470, h: 360 } }
+::: note { id: sequence, at: { x: -411, y: -691, w: 813, h: 633 } }
 
 ```mermaid
 sequenceDiagram
@@ -36,7 +36,7 @@ sequenceDiagram
 
 :::
 
-::: note { id: state, at: { x: 470, y: -390, w: 420, h: 320 } }
+::: note { id: state, at: { x: 513, y: -702, w: 359, h: 497 } }
 
 ```mermaid
 stateDiagram-v2
@@ -50,7 +50,7 @@ stateDiagram-v2
 
 :::
 
-::: note { id: er, at: { x: -390, y: 90, w: 520, h: 360 } }
+::: note { id: er, at: { x: -561, y: 211, w: 585, h: 734 } }
 
 ```mermaid
 erDiagram
@@ -70,7 +70,7 @@ erDiagram
 
 :::
 
-::: note { id: journey, at: { x: 260, y: 80, w: 520, h: 360 } }
+::: note { id: journey, at: { x: 260, y: 80, w: 1525, h: 675 } }
 
 ```mermaid
 journey

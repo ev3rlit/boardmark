@@ -8,7 +8,7 @@ viewport:
   zoom: 0.74
 ---
 
-::: note { id: intro, at: { x: -440, y: -150, w: 360, h: 260 }}
+::: note { id: intro, at: { x: -458, y: -100, w: 360, h: 260 } }
 
 # Markdown Syntax Demo
 
@@ -33,10 +33,9 @@ viewport:
 ---
 
 마지막 줄은 thematic break 아래에 이어지는 일반 문단입니다.
-
 :::
 
-::: note { id: headings, at: { x: 670, y: -475, w: 470, h: 420 } }
+::: note { id: headings, at: { x: 642, y: -849, w: 470, h: 420 } }
 
 ## 헤더 레벨
 
@@ -56,7 +55,7 @@ viewport:
 
 :::
 
-::: note { id: inline, at: { x: 689, y: 235, w: 430, h: 330 } }
+::: note { id: inline, at: { x: 1199, y: -500, w: 430, h: 330 } }
 
 ## 인라인 문법과 링크
 
@@ -71,7 +70,7 @@ viewport:
 
 :::
 
-::: note { id: lists, at: { x: -320, y: 220, w: 420, h: 350 } }
+::: note { id: lists, at: { x: -8, y: 93, w: 420, h: 350 } }
 
 ## 목록
 
@@ -88,7 +87,7 @@ viewport:
 
 :::
 
-::: note { id: code, at: { x: 191, y: 513, w: 430, h: 370 } }
+::: note { id: code, at: { x: 571, y: 96, w: 432, h: 702 } }
 
 ## 코드 블록
 
@@ -107,10 +106,9 @@ const syntaxSupport: Record<SupportLevel, string[]> = {
   "highlight": "rehype-highlight"
 }
 ```
-
 :::
 
-::: note { id: gfm, at: { x: 1191, y: 241, w: 540, h: 500 } }
+::: note { id: gfm, at: { x: 1183, y: -107, w: 604, h: 718 } }
 
 ## GFM 확장과 검토 결과
 
