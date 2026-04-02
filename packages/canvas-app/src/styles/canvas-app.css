@@ -1,6 +1,5 @@
 @import "../../../ui/src/styles/tokens.css";
 @import "@xyflow/react/dist/style.css";
-@import "highlight.js/styles/github.css";
 @import "tailwindcss";
 
 @source "../app";
@@ -394,7 +393,17 @@ button {
   padding: 0;
 }
 
-.markdown-content :where(pre code.hljs) {
+.markdown-content :where(.markdown-code-block__code) {
+  display: block;
+  min-width: max-content;
+}
+
+.markdown-content :where(.markdown-code-block__line) {
+  display: block;
+  min-height: 1.35em;
+}
+
+.markdown-content :where(.markdown-code-block__loading) {
   display: block;
   color: inherit;
 }

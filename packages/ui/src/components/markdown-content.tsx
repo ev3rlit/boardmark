@@ -2,8 +2,12 @@ import { Suspense, useEffect, useState, type ComponentProps } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
 import type { BuiltInImageResolution, BuiltInImageResolver } from '@boardmark/canvas-domain'
+import {
+  highlightCodeBlock,
+  resolveCodeTheme
+} from '../code-highlight'
+import type { HighlightedCodeBlock } from '../code-highlight/adapter'
 import { extractFencedBlock } from './fenced-block/extract'
 import { getFencedBlockRenderer } from './fenced-block/registry'
 
@@ -29,7 +33,9 @@ const defaultMarkdownComponents: Components = {
     const block = extractFencedBlock(node)
 
     if (block) {
-      const Renderer = getFencedBlockRenderer(block.language)
+      const Renderer = block.language
+        ? getFencedBlockRenderer(block.language)
+        : undefined
 
       if (Renderer) {
         return (
@@ -38,6 +44,14 @@ const defaultMarkdownComponents: Components = {
           </Suspense>
         )
       }
+
+      return (
+        <CodeBlockRenderer
+          code={block.source}
+          language={block.language}
+          {...props}
+        />
+      )
     }
 
     return <pre {...props}>{children}</pre>
@@ -65,7 +79,6 @@ export function MarkdownContent({
     <div className={className}>
       <ReactMarkdown
         components={markdownComponents}
-        rehypePlugins={[rehypeHighlight]}
         remarkPlugins={[remarkGfm]}
       >
         {content}
@@ -200,4 +213,111 @@ export function useResolvedImageSource(
 
 function isDirectlyRenderableImageSource(src: string) {
   return /^(https?:|data:|blob:|file:)/.test(src)
+}
+
+type CodeBlockRendererProps = ComponentProps<'pre'> & {
+  code: string
+  language?: string
+}
+
+function CodeBlockRenderer({
+  className,
+  code,
+  language,
+  ...props
+}: CodeBlockRendererProps) {
+  const [result, setResult] = useState<HighlightedCodeBlock | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    setResult(null)
+
+    void highlightCodeBlock({
+      code,
+      language
+    })
+      .then((nextResult) => {
+        if (!cancelled) {
+          setResult(nextResult)
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        console.error('MarkdownContent failed to highlight a fenced code block.', error)
+        setResult(createPlainResult(code))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [code, language])
+
+  return (
+    <pre
+      {...props}
+      className={joinClassName(className, 'markdown-code-block')}
+    >
+      <code className={joinClassName(language ? `language-${language}` : undefined, 'markdown-code-block__code')}>
+        {result
+          ? renderCodeBlockLines(result)
+          : (
+              <span className="markdown-code-block__loading">
+                Loading code
+              </span>
+            )}
+      </code>
+    </pre>
+  )
+}
+
+function renderCodeBlockLines(result: HighlightedCodeBlock) {
+  if (result.kind === 'plain') {
+    return result.lines.map((line, index) => (
+      <span
+        key={index}
+        className="markdown-code-block__line"
+      >
+        {line.length > 0 ? line : ' '}
+      </span>
+    ))
+  }
+
+  return result.lines.map((line, lineIndex) => (
+    <span
+      key={lineIndex}
+      className="markdown-code-block__line"
+    >
+      {line.tokens.length > 0
+        ? line.tokens.map((token, tokenIndex) => (
+            <span
+              key={tokenIndex}
+              style={{
+                color: token.color,
+                fontStyle: token.fontStyle,
+                fontWeight: token.fontWeight,
+                textDecoration: token.textDecoration
+              }}
+            >
+              {token.content}
+            </span>
+          ))
+        : ' '}
+    </span>
+  ))
+}
+
+function createPlainResult(code: string): HighlightedCodeBlock {
+  return {
+    kind: 'plain',
+    lines: code.length > 0 ? code.split(/\r\n|\r|\n/) : [''],
+    theme: resolveCodeTheme()
+  }
+}
+
+function joinClassName(...classNames: Array<string | undefined>) {
+  return classNames.filter(Boolean).join(' ')
 }

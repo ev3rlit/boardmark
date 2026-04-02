@@ -9,7 +9,7 @@ type HastNode = {
 }
 
 type FencedBlock = {
-  language: string
+  language?: string
   source: string
 }
 
@@ -26,13 +26,11 @@ export function extractFencedBlock(node: unknown): FencedBlock | null {
 
   const language = readCodeLanguage(readClassName(codeNode.properties?.className))
 
-  if (!language) {
-    return null
-  }
-
   const source = trimTrailingNewline(readNodeText(codeNode.children ?? []))
 
-  return { language, source }
+  return language
+    ? { language, source }
+    : { source }
 }
 
 function readCodeLanguage(className?: string): string | null {

@@ -1,5 +1,9 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { highlightCodeBlockMock } = vi.hoisted(() => ({
+  highlightCodeBlockMock: vi.fn()
+}))
 
 vi.mock('./mermaid-diagram', () => ({
   MermaidDiagram: ({ source }: { source: string }) => (
@@ -12,9 +16,37 @@ vi.mock('./mermaid-diagram', () => ({
   )
 }))
 
+vi.mock('../code-highlight', () => ({
+  highlightCodeBlock: highlightCodeBlockMock,
+  resolveCodeLanguage: vi.fn(),
+  resolveCodeTheme: vi.fn(() => 'vscode-dark-modern')
+}))
+
 import { MarkdownContent } from './markdown-content'
 
+type Deferred<T> = {
+  promise: Promise<T>
+  resolve: (value: T) => void
+}
+
 describe('MarkdownContent', () => {
+  beforeEach(() => {
+    highlightCodeBlockMock.mockReset()
+    highlightCodeBlockMock.mockResolvedValue({
+      kind: 'highlighted',
+      language: 'typescript',
+      lines: [
+        {
+          tokens: [
+            { content: 'const', color: '#c586c0' },
+            { content: ' shipped = true', color: '#d4d4d4' }
+          ]
+        }
+      ],
+      theme: 'vscode-dark-modern'
+    })
+  })
+
   it('renders CommonMark and GFM syntax together', () => {
     const { container } = render(
       <MarkdownContent
@@ -87,8 +119,76 @@ const shipped = true
       'flowchart TD\n    A[Start] --> B[Ship]'
     )
     expect(container.querySelector('pre [data-testid="mermaid-diagram"]')).toBeNull()
-    expect(container.querySelector('pre code.hljs.language-ts')).not.toBeNull()
+    expect(await screen.findByText('const')).toBeInTheDocument()
+    expect(container.querySelector('pre code.language-ts.markdown-code-block__code')).not.toBeNull()
     expect(screen.getByText('code')).toContainHTML('<code>code</code>')
+    expect(highlightCodeBlockMock).toHaveBeenCalledTimes(1)
+    expect(highlightCodeBlockMock).toHaveBeenCalledWith({
+      code: 'const shipped = true',
+      language: 'ts'
+    })
+  })
+
+  it('shows block-local loading state without delaying surrounding markdown', async () => {
+    const deferredHighlight = createDeferred<{
+      kind: 'highlighted'
+      language: 'typescript'
+      lines: Array<{ tokens: Array<{ content: string; color?: string }> }>
+      theme: 'vscode-dark-modern'
+    }>()
+
+    highlightCodeBlockMock.mockReturnValue(deferredHighlight.promise)
+
+    render(
+      <MarkdownContent
+        content={`# Ready
+
+\`\`\`ts
+const delayed = true
+\`\`\``}
+      />
+    )
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Ready' })).toBeInTheDocument()
+    expect(screen.getByText('Loading code')).toBeInTheDocument()
+
+    deferredHighlight.resolve({
+      kind: 'highlighted',
+      language: 'typescript',
+      lines: [
+        {
+          tokens: [
+            { content: 'const', color: '#c586c0' },
+            { content: ' delayed = true', color: '#d4d4d4' }
+          ]
+        }
+      ],
+      theme: 'vscode-dark-modern'
+    })
+
+    expect(await screen.findByText('const')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Loading code')).toBeNull()
+    })
+  })
+
+  it('renders plain fallback blocks from the shared adapter result', async () => {
+    highlightCodeBlockMock.mockResolvedValue({
+      kind: 'plain',
+      lines: ['plain fallback'],
+      theme: 'vscode-dark-modern'
+    })
+
+    const { container } = render(
+      <MarkdownContent
+        content={`\`\`\`
+plain fallback
+\`\`\``}
+      />
+    )
+
+    expect(await screen.findByText('plain fallback')).toBeInTheDocument()
+    expect(container.querySelector('.markdown-code-block__line')).not.toBeNull()
   })
 
   it('renders local markdown images through the async image resolver', async () => {
@@ -108,3 +208,20 @@ const shipped = true
     )
   })
 })
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve: ((value: T) => void) | null = null
+
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  if (!resolve) {
+    throw new Error('Expected deferred promise resolver to be assigned.')
+  }
+
+  return {
+    promise,
+    resolve
+  }
+}

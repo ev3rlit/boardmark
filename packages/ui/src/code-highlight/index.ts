@@ -1,0 +1,5 @@
+export { highlightCodeBlock } from './adapter'
+export type { CodeLanguageId } from './language-registry'
+export { resolveCodeLanguage } from './language-registry'
+export type { CodeThemeId } from './theme-registry'
+export { resolveCodeTheme } from './theme-registry'
