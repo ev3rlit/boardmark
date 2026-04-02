@@ -310,7 +310,6 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
   const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = editingState.status === 'note' && editingState.objectId === id
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -373,16 +372,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
               onChange={(event) => updateEditingMarkdown(event.target.value)}
               onBlur={() => void commitInlineEditing()}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  cancelInlineEditing()
-                  return
-                }
-
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void commitInlineEditing()
-                }
+                handleInlineEditorKeyDown(event, commitInlineEditing)
               }}
             />
           </div>
@@ -412,7 +402,6 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
   const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = editingState.status === 'shape' && editingState.objectId === id
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -469,19 +458,10 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
             aria-label={`Edit ${id}`}
             className="min-h-18 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
             value={editingState.markdown}
-            onBlur={() => void commitInlineEditing()}
             onChange={(event) => updateEditingMarkdown(event.target.value)}
+            onBlur={() => void commitInlineEditing()}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                cancelInlineEditing()
-                return
-              }
-
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void commitInlineEditing()
-              }
+              handleInlineEditorKeyDown(event, commitInlineEditing)
             }}
           />
         </div>
@@ -529,7 +509,6 @@ function CanvasMarkdownEdge({
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = editingState.status === 'edge' && editingState.edgeId === id
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -581,16 +560,7 @@ function CanvasMarkdownEdge({
                 onChange={(event) => updateEditingMarkdown(event.target.value)}
                 onBlur={() => void commitInlineEditing()}
                 onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    cancelInlineEditing()
-                    return
-                  }
-
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    void commitInlineEditing()
-                  }
+                  handleInlineEditorKeyDown(event, commitInlineEditing)
                 }}
               />
             ) : edgeData.body ? (
@@ -625,6 +595,18 @@ function readBuiltInRenderer(component: string) {
   }
 
   return BUILT_IN_RENDERER_COMPONENTS[component as BuiltInComponentKey]
+}
+
+function handleInlineEditorKeyDown(
+  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  commitInlineEditing: () => Promise<void>
+) {
+  if (event.key !== 'Escape') {
+    return
+  }
+
+  event.preventDefault()
+  void commitInlineEditing()
 }
 
 function FallbackComponentNode({

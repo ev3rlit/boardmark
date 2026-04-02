@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   CanvasDocumentPicker,
@@ -254,6 +254,53 @@ describe('CanvasApp', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Frame' }))
 
     expect(createFrameSpy).toHaveBeenCalled()
+  })
+
+  it('keeps markdown object editing active on Enter, then commits on blur', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const commitInlineEditingSpy = vi.spyOn(store.getState(), 'commitInlineEditing')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropImport: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    fireEvent.doubleClick(noteText)
+
+    const editor = (await screen.findByRole('textbox', { name: 'Edit welcome' })) as HTMLTextAreaElement
+
+    fireEvent.change(editor, { target: { value: 'Line 1' } })
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    fireEvent.change(editor, { target: { value: 'Line 1\nLine 2' } })
+
+    expect(editor).toHaveValue('Line 1\nLine 2')
+    expect(store.getState().editingState.status).toBe('note')
+    expect(commitInlineEditingSpy).not.toHaveBeenCalled()
+    expect(store.getState().draftSource).not.toContain('Line 1\nLine 2')
+
+    fireEvent.blur(editor)
+
+    await waitFor(() => {
+      expect(commitInlineEditingSpy).toHaveBeenCalledTimes(1)
+      expect(store.getState().editingState.status).toBe('idle')
+    })
+    expect(store.getState().draftSource).toContain('Line 1\nLine 2')
+    expect(screen.queryByRole('textbox', { name: 'Edit welcome' })).not.toBeInTheDocument()
   })
 })
 
