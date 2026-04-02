@@ -1,4 +1,5 @@
 export * from './registry'
+export { ImageRenderer } from './image/image-renderer'
 export { StickyNoteRenderer } from './note/sticky-note-renderer'
 export { NotebookNoteRenderer } from './note/notebook-note-renderer'
 export { RectShapeRenderer } from './shape/rect-shape-renderer'

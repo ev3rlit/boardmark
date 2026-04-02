@@ -11,7 +11,11 @@ import {
   type CanvasFileDocumentLocator,
   type CanvasMemoryDocumentLocator
 } from '@boardmark/canvas-repository'
-import type { CanvasDocumentPersistenceBridge } from '@boardmark/canvas-app'
+import type {
+  CanvasDocumentPersistenceBridge,
+  CanvasImageAssetBridge,
+  CanvasImageAssetError
+} from '@boardmark/canvas-app'
 import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 
 type BrowserDocumentBridgeOptions = {
@@ -27,6 +31,7 @@ type MemoryDocumentSource = {
 }
 
 type PersistedDocumentSource = {
+  assetDirectoryHandle: FileSystemDirectoryHandle | null
   fileHandle: FileSystemFileHandle
   locator: CanvasFileDocumentLocator
   source: string
@@ -34,6 +39,7 @@ type PersistedDocumentSource = {
 
 type BrowserDocumentBridge = BoardmarkDocumentBridge & {
   persistence: CanvasDocumentPersistenceBridge
+  imageAssets: CanvasImageAssetBridge
 }
 
 export function createBrowserDocumentBridge(
@@ -116,6 +122,7 @@ export function createBrowserDocumentBridge(
 
       fileSequence += 1
       fileSources.set(locator.path, {
+        assetDirectoryHandle: null,
         fileHandle,
         locator,
         source: fileResult.value
@@ -124,6 +131,7 @@ export function createBrowserDocumentBridge(
       return {
         ok: true,
         value: {
+          assetDirectoryHandle: null,
           locator,
           fileHandle,
           source: fileResult.value
@@ -160,6 +168,7 @@ export function createBrowserDocumentBridge(
           : createFileLocator(input.fileHandle.name, fileSequence++)
 
       fileSources.set(locator.path, {
+        assetDirectoryHandle: input.assetDirectoryHandle ?? fileSources.get(locator.path)?.assetDirectoryHandle ?? null,
         fileHandle: input.fileHandle,
         locator,
         source: input.source
@@ -168,6 +177,10 @@ export function createBrowserDocumentBridge(
       return {
         ok: true,
         value: {
+          assetDirectoryHandle:
+            input.assetDirectoryHandle ??
+            fileSources.get(locator.path)?.assetDirectoryHandle ??
+            null,
           locator,
           fileHandle: input.fileHandle,
           source: input.source
@@ -234,6 +247,7 @@ export function createBrowserDocumentBridge(
 
       fileSequence += 1
       fileSources.set(locator.path, {
+        assetDirectoryHandle: null,
         fileHandle,
         locator,
         source: input.source
@@ -242,6 +256,7 @@ export function createBrowserDocumentBridge(
       return {
         ok: true,
         value: {
+          assetDirectoryHandle: null,
           locator,
           fileHandle,
           source: input.source
@@ -278,6 +293,7 @@ export function createBrowserDocumentBridge(
         }
 
         fileSources.set(locator.path, {
+          assetDirectoryHandle: persisted?.assetDirectoryHandle ?? null,
           fileHandle,
           locator,
           source: sourceResult.value
@@ -293,8 +309,238 @@ export function createBrowserDocumentBridge(
     }
   }
 
+  const ensureDocumentAssetAccess: CanvasImageAssetBridge['ensureDocumentAssetAccess'] = async ({
+    document,
+    documentState
+  }) => {
+    if (document.locator.kind !== 'file' || !documentState.fileHandle) {
+      return {
+        ok: false,
+        error: {
+          code: 'unsupported',
+          message: 'Browser image asset access requires a persisted file.'
+        }
+      }
+    }
+
+    const storedDirectory = documentState.assetDirectoryHandle
+      ?? fileSources.get(document.locator.path)?.assetDirectoryHandle
+
+    if (storedDirectory) {
+      return {
+        ok: true,
+        value: storedDirectory
+      }
+    }
+
+    if (!rootWindow.showDirectoryPicker) {
+      return {
+        ok: false,
+        error: {
+          code: 'unsupported',
+          message: 'File System Access directory picker is not available.'
+        }
+      }
+    }
+
+    const pickerResult = await runPicker(
+      rootWindow.showDirectoryPicker({
+        mode: 'readwrite'
+      }),
+      'open-failed',
+      'Could not open the directory picker.'
+    )
+
+    if (!pickerResult.ok) {
+      return {
+        ok: false,
+        error: toImageAssetError(pickerResult.error)
+      }
+    }
+
+    const validationResult = await validateDocumentDirectoryHandle({
+      directoryHandle: pickerResult.value,
+      fileHandle: documentState.fileHandle
+    })
+
+    if (!validationResult.ok) {
+      return validationResult
+    }
+
+    const persisted = fileSources.get(document.locator.path)
+
+    if (persisted) {
+      fileSources.set(document.locator.path, {
+        ...persisted,
+        assetDirectoryHandle: pickerResult.value
+      })
+    }
+
+    return {
+      ok: true,
+      value: pickerResult.value
+    }
+  }
+
+  const importImageAsset: CanvasImageAssetBridge['importImageAsset'] = async ({
+    bytes,
+    document,
+    documentState,
+    fileName
+  }) => {
+    const accessResult = await ensureDocumentAssetAccess?.({
+      document,
+      documentState
+    })
+
+    if (!accessResult || !accessResult.ok || !accessResult.value) {
+      const accessError = accessResult && !accessResult.ok
+        ? accessResult.error
+        : {
+            code: 'permission-denied' as const,
+            message: 'Document directory access is required for image assets.'
+          }
+
+      return {
+        ok: false,
+        error: accessError
+      }
+    }
+
+    const assetDirectoryHandle = await accessResult.value.getDirectoryHandle(
+      readAssetDirectoryName(document.name),
+      { create: true }
+    )
+    const assetFileName = await readNextAvailableAssetFileName(assetDirectoryHandle, fileName)
+    const fileHandle = await assetDirectoryHandle.getFileHandle(assetFileName, { create: true })
+    const writeResult = await writeHandleBytes({
+      bytes,
+      fallbackMessage: `Could not write "${assetFileName}".`,
+      fileHandle
+    })
+
+    if (!writeResult.ok) {
+      return {
+        ok: false,
+        error: {
+          code: 'import-failed',
+          message: writeResult.error.message
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      value: {
+        src: `./${readAssetDirectoryName(document.name)}/${assetFileName}`
+      }
+    }
+  }
+
+  const resolveImageSource: CanvasImageAssetBridge['resolveImageSource'] = async ({
+    document,
+    documentState,
+    src
+  }) => {
+    if (isRemoteImageSource(src) || /^data:|^blob:/.test(src)) {
+      return {
+        ok: true,
+        value: {
+          src
+        }
+      }
+    }
+
+    if (/^\//.test(src)) {
+      return {
+        ok: false,
+        error: {
+          code: 'resolve-failed',
+          message: 'Absolute local paths are not supported in the browser shell.'
+        }
+      }
+    }
+
+    if (!document || document.locator.kind !== 'file') {
+      return {
+        ok: false,
+        error: {
+          code: 'resolve-failed',
+          message: 'A persisted document is required to resolve relative image paths.'
+        }
+      }
+    }
+
+    const accessResult = await ensureDocumentAssetAccess?.({
+      document,
+      documentState: documentState ?? {
+        locator: document.locator,
+        fileHandle: null,
+        assetDirectoryHandle: null,
+        isPersisted: true,
+        currentSource: document.source,
+        persistedSnapshotSource: document.source,
+        isDirty: false
+      }
+    })
+
+    if (!accessResult || !accessResult.ok || !accessResult.value) {
+      const accessError = accessResult && !accessResult.ok
+        ? accessResult.error
+        : {
+            code: 'permission-denied' as const,
+            message: 'Document directory access is required to resolve this image.'
+          }
+
+      return {
+        ok: false,
+        error: accessError
+      }
+    }
+
+    const fileHandleResult = await resolveRelativeFileHandle(accessResult.value, src)
+
+    if (!fileHandleResult.ok) {
+      return fileHandleResult
+    }
+
+    const file = await fileHandleResult.value.getFile()
+
+    return {
+      ok: true,
+      value: {
+        src: URL.createObjectURL(file)
+      }
+    }
+  }
+
+  const openImageSource: CanvasImageAssetBridge['openSource'] = async ({ src }) => {
+    if (!isRemoteImageSource(src)) {
+      return {
+        ok: false,
+        error: {
+          code: 'unsupported',
+          message: 'Opening local image sources is not supported in the browser shell.'
+        }
+      }
+    }
+
+    rootWindow.open(src, '_blank', 'noopener')
+
+    return {
+      ok: true,
+      value: undefined
+    }
+  }
+
   return {
     persistence,
+    imageAssets: {
+      ensureDocumentAssetAccess,
+      importImageAsset,
+      resolveImageSource,
+      openSource: openImageSource
+    },
 
     picker: {
       async pickOpenLocator() {
@@ -656,6 +902,38 @@ async function writeHandleSource({
   )
 }
 
+async function writeHandleBytes({
+  bytes,
+  fileHandle,
+  fallbackMessage
+}: {
+  bytes: Uint8Array
+  fileHandle: FileSystemFileHandle
+  fallbackMessage: string
+}) {
+  const permissionResult = await ensureHandlePermission({
+    fileHandle,
+    mode: 'readwrite',
+    fallbackMessage
+  })
+
+  if (!permissionResult.ok) {
+    return permissionResult
+  }
+
+  return fileHandle.createWritable().then(
+    async (stream) => {
+      await stream.write(Uint8Array.from(bytes))
+      await stream.close()
+      return { ok: true as const }
+    },
+    (error: unknown) => ({
+      ok: false as const,
+      error: toPickerError('save-failed', error, fallbackMessage)
+    })
+  )
+}
+
 async function writeCanvasFile({
   documentRepository,
   fileHandle,
@@ -692,7 +970,7 @@ async function ensureHandlePermission({
   mode,
   fallbackMessage
 }: {
-  fileHandle: FileSystemFileHandle
+  fileHandle: FileSystemFileHandle | FileSystemDirectoryHandle
   mode: 'read' | 'readwrite'
   fallbackMessage: string
 }): Promise<{ ok: true } | { ok: false; error: CanvasDocumentPickerError }> {
@@ -736,6 +1014,125 @@ async function ensureHandlePermission({
   }
 }
 
+function readAssetDirectoryName(documentName: string) {
+  return `${documentName.replace(/(?:\.canvas)?\.md$/i, '')}.assets`
+}
+
+async function readNextAvailableAssetFileName(
+  directoryHandle: FileSystemDirectoryHandle,
+  fileName: string
+) {
+  const match = /^(.*?)(\.[^.]+)?$/.exec(fileName)
+  const baseName = match?.[1] ?? 'image'
+  const extension = match?.[2] ?? '.png'
+  let index = 0
+
+  while (true) {
+    const candidate = `${baseName}${index === 0 ? '' : `-${index}`}${extension}`
+
+    try {
+      await directoryHandle.getFileHandle(candidate)
+      index += 1
+    } catch {
+      return candidate
+    }
+  }
+}
+
+async function validateDocumentDirectoryHandle({
+  directoryHandle,
+  fileHandle
+}: {
+  directoryHandle: FileSystemDirectoryHandle
+  fileHandle: FileSystemFileHandle
+}) {
+  try {
+    const siblingHandle = await directoryHandle.getFileHandle(fileHandle.name)
+
+    if (
+      typeof siblingHandle.isSameEntry === 'function' &&
+      !(await siblingHandle.isSameEntry(fileHandle))
+    ) {
+      return {
+        ok: false as const,
+        error: {
+          code: 'permission-denied' as const,
+          message: `The selected directory does not contain "${fileHandle.name}".`
+        }
+      }
+    }
+
+    return {
+      ok: true as const,
+      value: undefined
+    }
+  } catch {
+    return {
+      ok: false as const,
+      error: {
+        code: 'permission-denied' as const,
+        message: `The selected directory does not contain "${fileHandle.name}".`
+      }
+    }
+  }
+}
+
+async function resolveRelativeFileHandle(
+  directoryHandle: FileSystemDirectoryHandle,
+  src: string
+): Promise<
+  | { ok: true; value: FileSystemFileHandle }
+  | { ok: false; error: { code: 'resolve-failed'; message: string } }
+> {
+  const normalized = src.replace(/^\.\//, '').replace(/\\/g, '/')
+  const segments = normalized.split('/').filter(Boolean)
+
+  if (segments.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: 'resolve-failed',
+        message: 'The image source is empty.'
+      }
+    }
+  }
+
+  let currentDirectory = directoryHandle
+
+  for (const segment of segments.slice(0, -1)) {
+    try {
+      currentDirectory = await currentDirectory.getDirectoryHandle(segment)
+    } catch {
+      return {
+        ok: false,
+        error: {
+          code: 'resolve-failed',
+          message: `Could not find "${src}".`
+        }
+      }
+    }
+  }
+
+  try {
+    return {
+      ok: true,
+      value: await currentDirectory.getFileHandle(segments[segments.length - 1] ?? normalized)
+    }
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: 'resolve-failed',
+        message: `Could not find "${src}".`
+      }
+    }
+  }
+}
+
+function isRemoteImageSource(src: string) {
+  return /^https?:\/\//.test(src)
+}
+
 function unsupportedPickerResult(
   code: Exclude<CanvasDocumentPickerError['code'], 'cancelled'>,
   message: string
@@ -746,6 +1143,15 @@ function unsupportedPickerResult(
       code,
       message
     }
+  }
+}
+
+function toImageAssetError(
+  error: CanvasDocumentPickerError
+): CanvasImageAssetError {
+  return {
+    code: error.code === 'cancelled' ? 'cancelled' : 'permission-denied',
+    message: error.message
   }
 }
 

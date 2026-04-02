@@ -24,6 +24,7 @@ export function createCanvasDocumentRecordPatch(
     options?.documentState ??
     createCanvasDocumentState({
       record,
+      assetDirectoryHandle: options?.documentState?.assetDirectoryHandle,
       isPersisted: record.locator.kind === 'file',
       persistedSnapshotSource: record.locator.kind === 'file' ? record.source : null
     })

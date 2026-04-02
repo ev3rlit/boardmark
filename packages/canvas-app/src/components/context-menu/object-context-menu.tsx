@@ -16,6 +16,15 @@ type ObjectContextMenuProps = {
   x: number
   y: number
   canEdit: boolean
+  imageActions?: {
+    canReveal: boolean
+    lockAspectRatioLabel: string
+    onEditAltText: () => void
+    onOpenSource: () => void
+    onReplaceImage: () => void
+    onRevealFile: () => void
+    onToggleLockAspectRatio: () => void
+  } | null
   onDelete: () => void
   onEdit: () => void
 }
@@ -25,6 +34,7 @@ export function ObjectContextMenu({
   x,
   y,
   canEdit,
+  imageActions,
   onDelete,
   onEdit
 }: ObjectContextMenuProps) {
@@ -49,6 +59,39 @@ export function ObjectContextMenu({
           label={`Delete ${selectionLabel}`}
           onClick={onDelete}
         />
+      </div>
+
+      <div className="viewer-context-menu-section">
+        {imageActions ? (
+          <>
+            <ContextMenuItem
+              icon={Copy}
+              label="Replace image"
+              onClick={imageActions.onReplaceImage}
+            />
+            <ContextMenuItem
+              icon={Palette}
+              label="Edit alt text"
+              onClick={imageActions.onEditAltText}
+            />
+            <ContextMenuItem
+              icon={Layers}
+              label={imageActions.lockAspectRatioLabel}
+              onClick={imageActions.onToggleLockAspectRatio}
+            />
+            <ContextMenuItem
+              icon={BetweenHorizontalStart}
+              label="Open source"
+              onClick={imageActions.onOpenSource}
+            />
+            <ContextMenuItem
+              disabled={!imageActions.canReveal}
+              icon={Lock}
+              label="Reveal file"
+              onClick={imageActions.onRevealFile}
+            />
+          </>
+        ) : null}
       </div>
 
       <div className="viewer-context-menu-section">

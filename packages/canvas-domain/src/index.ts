@@ -6,6 +6,8 @@ export type CanvasViewport = {
   zoom: number
 }
 
+export type CanvasAssetPolicy = 'document-adjacent'
+
 export type CanvasFrontmatter = {
   type: 'canvas'
   version: number
@@ -13,6 +15,7 @@ export type CanvasFrontmatter = {
   components?: string[]
   preset?: string
   defaultStyle?: string
+  assetPolicy?: CanvasAssetPolicy
   viewport?: CanvasViewport
 }
 
@@ -52,6 +55,10 @@ export type CanvasNode = {
   at: CanvasObjectAt
   style?: CanvasObjectStyle
   body?: string
+  src?: string
+  alt?: string
+  title?: string
+  lockAspectRatio?: boolean
   position: CanvasSourceRange
   sourceMap: CanvasDirectiveSourceMap
 }

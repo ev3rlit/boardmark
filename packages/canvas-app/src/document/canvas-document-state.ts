@@ -3,6 +3,7 @@ import type { CanvasDocumentLocator, CanvasDocumentRecord } from '@boardmark/can
 export type CanvasDocumentState = {
   locator: CanvasDocumentLocator
   fileHandle: FileSystemFileHandle | null
+  assetDirectoryHandle: FileSystemDirectoryHandle | null
   isPersisted: boolean
   currentSource: string
   persistedSnapshotSource: string | null
@@ -12,6 +13,7 @@ export type CanvasDocumentState = {
 export function createCanvasDocumentState(params: {
   record: CanvasDocumentRecord
   fileHandle?: FileSystemFileHandle | null
+  assetDirectoryHandle?: FileSystemDirectoryHandle | null
   isPersisted: boolean
   persistedSnapshotSource?: string | null
   currentSource?: string
@@ -22,6 +24,7 @@ export function createCanvasDocumentState(params: {
   return {
     locator: params.record.locator,
     fileHandle: params.fileHandle ?? null,
+    assetDirectoryHandle: params.assetDirectoryHandle ?? null,
     isPersisted: params.isPersisted,
     currentSource,
     persistedSnapshotSource,

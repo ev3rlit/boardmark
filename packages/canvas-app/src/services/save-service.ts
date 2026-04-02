@@ -402,12 +402,14 @@ async function runSave({
   if (documentPersistenceBridge) {
     const persistResult = documentState.isPersisted
       ? await documentPersistenceBridge.saveDocument({
+          assetDirectoryHandle: documentState.assetDirectoryHandle,
           defaultName: document.name,
           locator: documentState.locator,
           fileHandle: documentState.fileHandle,
           source: documentState.currentSource
         })
       : await documentPersistenceBridge.saveDocumentAs({
+          assetDirectoryHandle: documentState.assetDirectoryHandle,
           defaultName: document.name,
           locator: documentState.locator,
           source: documentState.currentSource
@@ -461,6 +463,7 @@ async function runSave({
       document: recordResult.value,
       documentState: createCanvasDocumentState({
         record: recordResult.value,
+        assetDirectoryHandle: persistResult.value.assetDirectoryHandle ?? documentState.assetDirectoryHandle,
         fileHandle: persistResult.value.fileHandle,
         isPersisted: true,
         persistedSnapshotSource: persistResult.value.source

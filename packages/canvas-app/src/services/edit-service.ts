@@ -31,6 +31,33 @@ export type CanvasDocumentEditIntent =
       width: number
       height: number
     }
+  | {
+      kind: 'create-image'
+      anchorNodeId?: string
+      id: string
+      src: string
+      alt: string
+      title?: string
+      lockAspectRatio: boolean
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+  | {
+      kind: 'replace-image-source'
+      nodeId: string
+      src: string
+      alt: string
+      title?: string
+    }
+  | {
+      kind: 'update-image-metadata'
+      nodeId: string
+      alt?: string
+      title?: string
+      lockAspectRatio?: boolean
+    }
   | { kind: 'delete-node'; nodeId: string }
   | { kind: 'update-edge-endpoints'; edgeId: string; from: string; to: string }
   | { kind: 'replace-edge-body'; edgeId: string; markdown: string }
@@ -110,6 +137,22 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
           return createNote(source, record, intent)
         case 'create-shape':
           return createShape(source, record, intent)
+        case 'create-image':
+          return createImage(source, record, intent)
+        case 'replace-image-source':
+          return patchNodeMetadata(source, record, intent.nodeId, (metadata) => ({
+            ...metadata,
+            src: intent.src,
+            alt: intent.alt,
+            title: intent.title
+          }))
+        case 'update-image-metadata':
+          return patchNodeMetadata(source, record, intent.nodeId, (metadata) => ({
+            ...metadata,
+            alt: intent.alt ?? metadata.alt ?? '',
+            title: intent.title === undefined ? metadata.title : intent.title,
+            lockAspectRatio: intent.lockAspectRatio ?? metadata.lockAspectRatio ?? true
+          }))
         case 'delete-node':
           return deleteNode(source, record, intent.nodeId)
         case 'create-edge':
@@ -289,6 +332,38 @@ function createShape(
   })
 }
 
+function createImage(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'create-image' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const block = [
+    stringifyDirectiveHeader('image', {
+      id: intent.id,
+      src: intent.src,
+      alt: intent.alt,
+      title: intent.title,
+      lockAspectRatio: intent.lockAspectRatio,
+      at: {
+        x: roundGeometry(intent.x),
+        y: roundGeometry(intent.y),
+        w: roundGeometry(intent.width),
+        h: roundGeometry(intent.height)
+      }
+    }),
+    ':::'
+  ].join('\n')
+
+  return ok({
+    source: insertObjectBlock(
+      source,
+      block,
+      record.ast.nodes.find((node) => node.id === intent.anchorNodeId)?.sourceMap.objectRange.end.offset
+    ),
+    dirty: true
+  })
+}
+
 function deleteNode(
   source: string,
   record: CanvasDocumentRecord,
@@ -426,6 +501,8 @@ function orderMetadata(name: string, metadata: Record<string, unknown>) {
   const preferredKeys =
     name === 'edge'
       ? ['id', 'from', 'to', 'style']
+      : name === 'image'
+        ? ['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'style']
       : ['id', 'at', 'style']
 
   for (const key of preferredKeys) {
@@ -535,7 +612,7 @@ function readRangeText(source: string, range: CanvasSourceRange) {
   return source.slice(range.start.offset, range.end.offset)
 }
 
-function readNextId(prefix: 'note' | 'shape' | 'edge', existingIds: Set<string>) {
+function readNextId(prefix: 'note' | 'shape' | 'edge' | 'image', existingIds: Set<string>) {
   let index = 1
 
   while (existingIds.has(`${prefix}-${index}`)) {

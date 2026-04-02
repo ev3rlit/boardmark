@@ -2,6 +2,7 @@ import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
 import {
   DEFAULT_CANVAS_VIEWPORT,
+  type CanvasAssetPolicy,
   type CanvasAST,
   type CanvasDirectiveSourceMap,
   type CanvasEdge,
@@ -185,6 +186,12 @@ function parseFrontmatter(
     return err(viewportResult.error)
   }
 
+  const assetPolicyResult = parseAssetPolicy(frontmatter.assetPolicy)
+
+  if (assetPolicyResult.isErr()) {
+    return err(assetPolicyResult.error)
+  }
+
   return ok({
     content: splitResult.value.content,
     contentStartLine: splitResult.value.contentStartLine,
@@ -196,6 +203,7 @@ function parseFrontmatter(
       components: componentsResult.value,
       preset: readOptionalString(frontmatter.preset),
       defaultStyle: readOptionalString(frontmatter.defaultStyle),
+      assetPolicy: assetPolicyResult.value,
       viewport: viewportResult.value
     }
   })
@@ -310,6 +318,10 @@ function splitObjectBlocks({
 }
 
 function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue> {
+  if (block.header.name === 'image') {
+    return parseImageNodeBlock(block)
+  }
+
   const metadataResult = parseInlineMetadata(block.header.rawMetadata)
 
   if (metadataResult.isErr()) {
@@ -350,6 +362,86 @@ function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue
     at: atResult.value,
     style: styleResult.value,
     body: readBlockBody(block.rawBody),
+    position: block.sourceMap.objectRange,
+    sourceMap: block.sourceMap
+  })
+}
+
+function parseImageNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue> {
+  const metadataResult = parseInlineMetadata(block.header.rawMetadata)
+
+  if (metadataResult.isErr()) {
+    return err(invalidNode(block, metadataResult.error))
+  }
+
+  const metadata = metadataResult.value
+  const extraKeys = Object.keys(metadata).filter((key) => {
+    return !['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'style'].includes(key)
+  })
+
+  if (extraKeys.length > 0) {
+    return err(
+      invalidNode(
+        block,
+        `Node "image" contains unsupported top-level keys: ${extraKeys.join(', ')}.`
+      )
+    )
+  }
+
+  if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
+    return err(invalidNode(block, 'Image node is missing a valid id.'))
+  }
+
+  const atResult = parseObjectAt(metadata.id, metadata.at)
+
+  if (atResult.isErr()) {
+    return err(invalidNode(block, atResult.error, metadata.id))
+  }
+
+  const styleResult = parseOptionalObjectStyle(metadata.id, metadata.style)
+
+  if (styleResult.isErr()) {
+    return err(invalidNode(block, styleResult.error, metadata.id))
+  }
+
+  if (typeof metadata.src !== 'string' || metadata.src.trim().length === 0) {
+    return err(invalidNode(block, `Image "${metadata.id}" must define a non-empty "src" string.`, metadata.id))
+  }
+
+  if (typeof metadata.alt !== 'string') {
+    return err(invalidNode(block, `Image "${metadata.id}" must define an "alt" string.`, metadata.id))
+  }
+
+  if (metadata.title !== undefined && typeof metadata.title !== 'string') {
+    return err(invalidNode(block, `Image "${metadata.id}" must define "title" as a string when present.`, metadata.id))
+  }
+
+  if (
+    metadata.lockAspectRatio !== undefined &&
+    typeof metadata.lockAspectRatio !== 'boolean'
+  ) {
+    return err(
+      invalidNode(
+        block,
+        `Image "${metadata.id}" must define "lockAspectRatio" as a boolean when present.`,
+        metadata.id
+      )
+    )
+  }
+
+  if ((readBlockBody(block.rawBody) ?? '').trim().length > 0) {
+    return err(invalidNode(block, `Image "${metadata.id}" must not define a body.`, metadata.id))
+  }
+
+  return ok({
+    id: metadata.id,
+    component: 'image',
+    at: atResult.value,
+    style: styleResult.value,
+    src: metadata.src,
+    alt: metadata.alt,
+    title: typeof metadata.title === 'string' ? metadata.title : undefined,
+    lockAspectRatio: metadata.lockAspectRatio ?? true,
     position: block.sourceMap.objectRange,
     sourceMap: block.sourceMap
   })
@@ -469,6 +561,23 @@ function parseOptionalStringArray(
     return err({
       kind: 'invalid-frontmatter',
       message: `Frontmatter "${key}" must be an array of strings.`
+    })
+  }
+
+  return ok(value)
+}
+
+function parseAssetPolicy(
+  value: unknown
+): Result<CanvasAssetPolicy | undefined, CanvasParseError> {
+  if (value === undefined) {
+    return ok(undefined)
+  }
+
+  if (value !== 'document-adjacent') {
+    return err({
+      kind: 'invalid-frontmatter',
+      message: 'Frontmatter "assetPolicy" must be "document-adjacent" when present.'
     })
   }
 

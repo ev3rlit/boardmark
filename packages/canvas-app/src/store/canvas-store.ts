@@ -30,6 +30,7 @@ export function createCanvasStore({
   documentPicker,
   documentRepository,
   documentPersistenceBridge,
+  imageAssetBridge,
   templateSource
 }: CanvasStoreOptions) {
   let disposeExternalChanges: (() => void) | null = null
@@ -58,6 +59,7 @@ export function createCanvasStore({
         conflictService,
         documentService,
         editingService,
+        imageAssetBridge,
         onExternalSource(source) {
           void reconcileCanvasExternalSource(get, set, conflictService, source)
         }

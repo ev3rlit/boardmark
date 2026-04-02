@@ -19,7 +19,8 @@ export type CanvasAppCapabilities = {
   canOpen: boolean
   canSave: boolean
   canPersist: boolean
-  canDropImport: boolean
+  canDropDocumentImport: boolean
+  canDropImageInsertion: boolean
   supportsMultiSelect: boolean
   newDocumentMode: 'persist-template' | 'reset-template'
 }
@@ -38,11 +39,19 @@ type CanvasAppProps = {
 
 export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const currentDocument = useStore(store, selectCanvasDocument)
+  const createMarkdownImageAsset = useStore(store, (state) => state.createMarkdownImageAsset)
   const deleteSelection = useStore(store, (state) => state.deleteSelection)
+  const insertImageFromClipboard = useStore(store, (state) => state.insertImageFromClipboard)
+  const insertImageFromDrop = useStore(store, (state) => state.insertImageFromDrop)
   const openDroppedDocument = useStore(store, (state) => state.openDroppedDocument)
+  const openSelectedImageSource = useStore(store, (state) => state.openSelectedImageSource)
+  const replaceSelectedImageFromFile = useStore(store, (state) => state.replaceSelectedImageFromFile)
+  const revealSelectedImageSource = useStore(store, (state) => state.revealSelectedImageSource)
   const setDropActive = useStore(store, (state) => state.setDropActive)
   const setDropError = useStore(store, (state) => state.setDropError)
   const setPanShortcutActive = useStore(store, (state) => state.setPanShortcutActive)
+  const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
+  const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
   const editingState = useStore(store, selectCanvasEditingState)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
@@ -121,6 +130,41 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   }, [deleteSelection, editingState.status, setPanShortcutActive])
 
   useEffect(() => {
+    const handlePaste = async (event: ClipboardEvent) => {
+      const imageFile = readClipboardImageFile(event)
+
+      if (!imageFile) {
+        return
+      }
+
+      if (editingState.status !== 'idle' && event.target instanceof HTMLTextAreaElement) {
+        event.preventDefault()
+        const markdown = await createMarkdownImageAsset(imageFile)
+
+        if (!markdown) {
+          return
+        }
+
+        insertTextAtSelection(event.target, markdown)
+        return
+      }
+
+      if (isEditableTarget(event.target)) {
+        return
+      }
+
+      event.preventDefault()
+      await insertImageFromClipboard(imageFile)
+    }
+
+    window.addEventListener('paste', handlePaste)
+
+    return () => {
+      window.removeEventListener('paste', handlePaste)
+    }
+  }, [createMarkdownImageAsset, editingState.status, insertImageFromClipboard])
+
+  useEffect(() => {
     if (!objectContextMenu) {
       return
     }
@@ -158,27 +202,35 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
         return
       }
 
-      const source = await readDroppedFileText(file)
-      await openDroppedDocument({
-        name: file.name,
-        source
-      })
+      if (isCanvasMarkdownFile(file)) {
+        const source = await readDroppedFileText(file)
+        await openDroppedDocument({
+          name: file.name,
+          source
+        })
+        return
+      }
+
+      if (file.type.startsWith('image/')) {
+        await insertImageFromDrop(file)
+      }
     },
-    [openDroppedDocument]
+    [insertImageFromDrop, openDroppedDocument]
   )
 
   const { getInputProps, getRootProps } = useDropzone({
     accept: {
-      'text/markdown': ['.canvas.md', '.md']
+      'text/markdown': ['.canvas.md', '.md'],
+      'image/*': []
     },
-    disabled: !capabilities.canDropImport,
+    disabled: !capabilities.canDropDocumentImport && !capabilities.canDropImageInsertion,
     multiple: false,
     noClick: true,
     noKeyboard: true,
     onDragEnter: () => setDropActive(true),
     onDragLeave: () => setDropActive(false),
     onDrop: () => setDropActive(false),
-    onDropRejected: () => setDropError('Only .canvas.md or .md files can be dropped.'),
+    onDropRejected: () => setDropError('Only canvas markdown documents or image files can be dropped.'),
     onDropAccepted
   })
 
@@ -196,6 +248,9 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
 
   const selectionLabel = readSelectionLabel(selectedNodeIds.length, selectedEdgeIds.length)
   const canEditSelection = selectedNodeIds.length + selectedEdgeIds.length === 1
+  const selectedNode = selectedNodeIds[0]
+    ? nodes.find((node) => node.id === selectedNodeIds[0])
+    : undefined
   const alignedObjectContextMenu =
     objectContextMenu
       ? {
@@ -221,13 +276,13 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
           supportsMultiSelect={capabilities.supportsMultiSelect}
         />
 
-        {capabilities.canDropImport && isDropActive ? (
+        {(capabilities.canDropDocumentImport || capabilities.canDropImageInsertion) && isDropActive ? (
           <div
             className="pointer-events-none absolute inset-0 z-10 bg-[color:color-mix(in_oklab,var(--color-primary)_10%,transparent)]"
             data-testid="drop-overlay"
           >
             <div className="absolute inset-x-8 top-24 rounded-[1.4rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] px-6 py-5 text-sm text-[var(--color-on-surface)] shadow-[0_20px_40px_rgba(43,52,55,0.08)]">
-              Drop a .canvas.md or .md file to replace the current board.
+              Drop a `.canvas.md` file to replace the board, or drop an image to insert it.
             </div>
           </div>
         ) : null}
@@ -266,6 +321,46 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
             <div className="pointer-events-auto absolute inset-0 z-30">
               <ObjectContextMenu
                 canEdit={canEditSelection}
+                imageActions={
+                  selectedNode?.component === 'image'
+                    ? {
+                        canReveal: !/^https?:\/\//.test(selectedNode.src ?? ''),
+                        lockAspectRatioLabel:
+                          selectedNode.lockAspectRatio
+                            ? 'Unlock aspect ratio'
+                            : 'Lock aspect ratio',
+                        onEditAltText: () => {
+                          const alt = window.prompt('Alt text', selectedNode.alt ?? '')
+
+                          setObjectContextMenu(null)
+
+                          if (alt !== null) {
+                            void updateSelectedImageAltText(alt)
+                          }
+                        },
+                        onOpenSource: () => {
+                          setObjectContextMenu(null)
+                          void openSelectedImageSource()
+                        },
+                        onReplaceImage: () => {
+                          setObjectContextMenu(null)
+                          void pickImageFileFromDocument(globalThis.document).then((file) => {
+                            if (file) {
+                              void replaceSelectedImageFromFile(file)
+                            }
+                          })
+                        },
+                        onRevealFile: () => {
+                          setObjectContextMenu(null)
+                          void revealSelectedImageSource()
+                        },
+                        onToggleLockAspectRatio: () => {
+                          setObjectContextMenu(null)
+                          void toggleSelectedImageLockAspectRatio()
+                        }
+                      }
+                    : null
+                }
                 onDelete={() => {
                   setObjectContextMenu(null)
                   void deleteSelection()
@@ -274,7 +369,9 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                   setObjectContextMenu(null)
 
                   if (selectedNodeIds[0]) {
-                    const selectedNode = nodes.find((node) => node.id === selectedNodeIds[0])
+                    if (selectedNode && selectedNode.component === 'image') {
+                      return
+                    }
 
                     if (selectedNode && selectedNode.component !== 'note') {
                       startShapeEditing(selectedNode.id)
@@ -307,6 +404,61 @@ async function readDroppedFileText(file: File) {
   }
 
   return new Response(file).text()
+}
+
+function isCanvasMarkdownFile(file: File) {
+  return /\.canvas\.md$|\.md$/i.test(file.name)
+}
+
+function readClipboardImageFile(event: ClipboardEvent) {
+  const items = event.clipboardData?.items ?? []
+
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+
+      if (file) {
+        return file
+      }
+    }
+  }
+
+  return null
+}
+
+function insertTextAtSelection(target: HTMLTextAreaElement, text: string) {
+  const start = target.selectionStart ?? target.value.length
+  const end = target.selectionEnd ?? start
+  const nextValue = `${target.value.slice(0, start)}${text}${target.value.slice(end)}`
+  const nextCursor = start + text.length
+
+  target.value = nextValue
+  target.setSelectionRange(nextCursor, nextCursor)
+  target.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+async function pickImageFileFromDocument(rootDocument: Document) {
+  if (!rootDocument.body) {
+    return null
+  }
+
+  const input = rootDocument.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.hidden = true
+  rootDocument.body.appendChild(input)
+
+  return new Promise<File | null>((resolve) => {
+    const finish = (file: File | null) => {
+      input.remove()
+      resolve(file)
+    }
+
+    input.addEventListener('change', () => {
+      finish(input.files?.[0] ?? null)
+    }, { once: true })
+    input.click()
+  })
 }
 
 function isEditableTarget(target: EventTarget | null) {

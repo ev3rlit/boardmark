@@ -5,6 +5,7 @@ import {
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
   type BuiltInComponentKey,
+  type BuiltInImageResolver,
   type CanvasEdge,
   type CanvasNode,
   type CanvasObjectStyle,
@@ -16,10 +17,15 @@ export type CanvasFlowNodeData = {
   id: string
   component: string
   body?: string
+  src?: string
+  alt?: string
+  title?: string
+  lockAspectRatio?: boolean
   style?: CanvasObjectStyle
   resolvedThemeRef?: string
   height?: number
   width?: number
+  imageResolver?: BuiltInImageResolver
 }
 
 export type CanvasFlowEdgeData = {
@@ -28,7 +34,13 @@ export type CanvasFlowEdgeData = {
   style?: CanvasObjectStyle
 }
 
-export function toFlowNode(node: CanvasNode, defaultStyle?: string): Node<CanvasFlowNodeData> {
+export function toFlowNode(
+  node: CanvasNode,
+  options?: {
+    defaultStyle?: string
+    imageResolver?: BuiltInImageResolver
+  }
+): Node<CanvasFlowNodeData> {
   const contract = readBuiltInContract(node.component)
   const width = node.at.w ?? contract?.defaultSize.width ?? DEFAULT_NOTE_WIDTH
   const height = node.at.h ?? contract?.defaultSize.height ?? DEFAULT_NOTE_HEIGHT
@@ -48,10 +60,15 @@ export function toFlowNode(node: CanvasNode, defaultStyle?: string): Node<Canvas
       id: node.id,
       component: node.component,
       body: node.body,
+      src: node.src,
+      alt: node.alt,
+      title: node.title,
+      lockAspectRatio: node.lockAspectRatio,
       style: node.style,
-      resolvedThemeRef: node.style?.themeRef ?? defaultStyle,
+      resolvedThemeRef: node.style?.themeRef ?? options?.defaultStyle,
       height,
-      width
+      width,
+      imageResolver: options?.imageResolver
     },
     width,
     height,
@@ -105,6 +122,7 @@ function readBuiltInContract(component: string) {
 function isBuiltInComponentKey(component: string): component is BuiltInComponentKey {
   return component in {
     note: true,
+    image: true,
     'boardmark.shape.rect': true,
     'boardmark.shape.roundRect': true,
     'boardmark.shape.ellipse': true,

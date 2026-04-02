@@ -2,6 +2,7 @@ import type {
   BuiltInComponentKey,
   BuiltInRendererContract
 } from '@boardmark/canvas-domain'
+import { ImageRenderer } from './image/image-renderer'
 import { NotebookNoteRenderer } from './note/notebook-note-renderer'
 import { CircleShapeRenderer } from './shape/circle-shape-renderer'
 import { EllipseShapeRenderer } from './shape/ellipse-shape-renderer'
@@ -20,6 +21,14 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
     supportsMarkdown: true,
     defaultSize: { width: 340, height: 240 },
     tokenUsage: ['color.surface.lowest', 'color.text.primary', 'color.accent.primary', 'shadow.note']
+  },
+  image: {
+    component: 'image',
+    variant: 'image',
+    category: 'image',
+    supportsMarkdown: false,
+    defaultSize: { width: 320, height: 240 },
+    tokenUsage: ['color.surface.lowest', 'color.text.primary', 'shadow.float']
   },
   'boardmark.shape.rect': {
     component: 'boardmark.shape.rect',
@@ -65,6 +74,7 @@ export const BUILT_IN_RENDERER_CONTRACTS: Record<
 
 export const BUILT_IN_RENDERER_COMPONENTS = {
   note: NotebookNoteRenderer,
+  image: ImageRenderer,
   'boardmark.shape.rect': RectShapeRenderer,
   'boardmark.shape.roundRect': RoundRectShapeRenderer,
   'boardmark.shape.ellipse': EllipseShapeRenderer,

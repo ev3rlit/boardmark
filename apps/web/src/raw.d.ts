@@ -11,6 +11,9 @@ declare global {
     showSaveFilePicker?: (
       options?: SaveFilePickerOptions
     ) => Promise<FileSystemFileHandle>
+    showDirectoryPicker?: (
+      options?: DirectoryPickerOptions
+    ) => Promise<FileSystemDirectoryHandle>
   }
 
   interface OpenFilePickerOptions {
@@ -30,6 +33,10 @@ declare global {
     description?: string
   }
 
+  interface DirectoryPickerOptions {
+    mode?: 'read' | 'readwrite'
+  }
+
   interface FileSystemWritableFileStream {
     close(): Promise<void>
     write(data: BlobPart): Promise<void>
@@ -40,7 +47,27 @@ declare global {
     readonly name: string
     createWritable(): Promise<FileSystemWritableFileStream>
     getFile(): Promise<File>
+    isSameEntry?(other: FileSystemHandle): Promise<boolean>
+    queryPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+    requestPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
   }
+
+  interface FileSystemDirectoryHandle {
+    readonly kind: 'directory'
+    readonly name: string
+    getDirectoryHandle(
+      name: string,
+      options?: { create?: boolean }
+    ): Promise<FileSystemDirectoryHandle>
+    getFileHandle(
+      name: string,
+      options?: { create?: boolean }
+    ): Promise<FileSystemFileHandle>
+    queryPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+    requestPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+  }
+
+  type FileSystemHandle = FileSystemFileHandle | FileSystemDirectoryHandle
 }
 
 export {}

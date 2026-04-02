@@ -26,6 +26,7 @@ export function NotebookNoteRenderer(
         <MarkdownContent
           className="markdown-content note-markdown"
           content={props.body ?? ''}
+          imageResolver={props.imageResolver}
         />
       </div>
     </div>

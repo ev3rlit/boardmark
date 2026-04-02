@@ -98,6 +98,14 @@ function MarkdownImage({
     )
   }
 
+  if (resolution.status !== 'resolved') {
+    return (
+      <span className="inline-flex min-h-20 min-w-20 items-center justify-center rounded-xl bg-[color:color-mix(in_oklab,var(--color-surface-low)_82%,white)] px-4 py-3 text-xs text-[var(--color-on-surface-variant)]">
+        Loading image
+      </span>
+    )
+  }
+
   return (
     <img
       alt={alt ?? ''}

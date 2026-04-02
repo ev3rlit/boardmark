@@ -90,4 +90,21 @@ const shipped = true
     expect(container.querySelector('pre code.hljs.language-ts')).not.toBeNull()
     expect(screen.getByText('code')).toContainHTML('<code>code</code>')
   })
+
+  it('renders local markdown images through the async image resolver', async () => {
+    render(
+      <MarkdownContent
+        content="![Mockup](./welcome.assets/mockup.png)"
+        imageResolver={async () => ({
+          status: 'resolved',
+          src: 'file:///tmp/mockup.png'
+        })}
+      />
+    )
+
+    expect(await screen.findByRole('img', { name: 'Mockup' })).toHaveAttribute(
+      'src',
+      'file:///tmp/mockup.png'
+    )
+  })
 })

@@ -139,6 +139,7 @@ export function createCanvasDocumentService({
           record: readResult.value,
           documentState: createCanvasDocumentState({
             record: readResult.value,
+            assetDirectoryHandle: openResult.value.assetDirectoryHandle ?? null,
             fileHandle: openResult.value.fileHandle,
             isPersisted: true,
             persistedSnapshotSource: openResult.value.source

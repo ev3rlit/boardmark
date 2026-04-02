@@ -240,6 +240,63 @@ After fence.
     expect(result.value.ast.nodes[0]?.body).toBe('```ts\nconst block = "::: not a directive"\n```\n\nAfter fence.\n')
     expect(result.value.issues).toEqual([])
   })
+
+  it('parses image nodes with assetPolicy frontmatter', () => {
+    const source = `---
+type: canvas
+version: 2
+assetPolicy: document-adjacent
+---
+
+::: image { id: hero-shot, src: "./hero.assets/hero-shot.png", alt: "Main capture", title: Hero, lockAspectRatio: true, at: { x: 240, y: 160, w: 420, h: 280 } }
+:::`
+
+    const result = parseCanvasDocument(source)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.ast.frontmatter.assetPolicy).toBe('document-adjacent')
+    expect(result.value.ast.nodes[0]).toEqual(
+      expect.objectContaining({
+        component: 'image',
+        src: './hero.assets/hero-shot.png',
+        alt: 'Main capture',
+        title: 'Hero',
+        lockAspectRatio: true
+      })
+    )
+  })
+
+  it('rejects image nodes with body content', () => {
+    const source = `---
+type: canvas
+version: 2
+---
+
+::: image { id: hero-shot, src: "./hero.assets/hero-shot.png", alt: "Main capture", lockAspectRatio: true, at: { x: 240, y: 160, w: 420, h: 280 } }
+not allowed
+:::`
+
+    const result = parseCanvasDocument(source)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.ast.nodes).toEqual([])
+    expect(result.value.issues).toEqual([
+      expect.objectContaining({
+        kind: 'invalid-node',
+        message: expect.stringContaining('must not define a body')
+      })
+    ])
+  })
 })
 
 function readRangeText(source: string, range: CanvasSourceRange | undefined): string {

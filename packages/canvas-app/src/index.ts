@@ -9,6 +9,13 @@ export {
   type CanvasDocumentState
 } from '@canvas-app/document/canvas-document-state'
 export {
+  type CanvasImageAssetBridge,
+  type CanvasImageAssetError,
+  type CanvasImageAssetImportInput,
+  type CanvasImageAssetImportPayload,
+  type CanvasImageAssetResolvePayload
+} from '@canvas-app/document/canvas-image-asset-bridge'
+export {
   type CanvasDocumentPersistenceBridge,
   type CanvasDocumentPersistencePayload,
   type CanvasDocumentPersistenceSaveInput

@@ -61,6 +61,8 @@ export function CanvasScene({
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
+  const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
+  const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const clearSelection = useStore(store, (state) => state.clearSelection)
   const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
   const replaceSelectedEdges = useStore(store, (state) => state.replaceSelectedEdges)
@@ -73,9 +75,14 @@ export function CanvasScene({
   const editingState = useStore(store, (state) => state.editingState)
   const isPanMode = activeToolMode === 'pan'
 
+  const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
   const baseFlowNodes = useMemo(
-    () => readFlowNodes(nodes, interactionOverrides, selectedNodeIds, defaultStyle),
-    [nodes, interactionOverrides, selectedNodeIds, defaultStyle]
+    () =>
+      readFlowNodes(nodes, interactionOverrides, selectedNodeIds, {
+        defaultStyle,
+        imageResolver: resolveImageSource
+      }),
+    [nodes, interactionOverrides, selectedNodeIds, defaultStyle, resolveImageSource]
   )
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const flowEdges = useMemo(
@@ -144,6 +151,14 @@ export function CanvasScene({
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => clearSelection()}
+        onPaneMouseMove={(event) => {
+          setLastCanvasPointer(
+            reactFlow.screenToFlowPosition({
+              x: event.clientX,
+              y: event.clientY
+            })
+          )
+        }}
         onPaneContextMenu={() => onPaneContextMenu?.()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
@@ -227,7 +242,10 @@ export function readFlowNodes(
   nodes: CanvasNode[],
   interactionOverrides: CanvasStoreState['interactionOverrides'] = {},
   selectedNodeIds: string[] = [],
-  defaultStyle?: string
+  options?: {
+    defaultStyle?: string
+    imageResolver?: CanvasFlowNodeData['imageResolver']
+  }
 ) {
   return nodes.map((node) => {
     const override = interactionOverrides[node.id]
@@ -243,7 +261,7 @@ export function readFlowNodes(
     }
 
     return {
-      ...toFlowNode(patchedNode, defaultStyle),
+      ...toFlowNode(patchedNode, options),
       selected: selectedNodeIds.includes(node.id)
     }
   })
@@ -305,6 +323,7 @@ function CanvasFlowViewportSync({ store, viewport }: CanvasFlowViewportSyncProps
 
 function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
   const editingState = useStore(store, (state) => state.editingState)
+  const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
@@ -381,6 +400,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
             <MarkdownContent
               className="markdown-content note-markdown"
               content={data.body ?? ''}
+              imageResolver={resolveImageSource}
             />
           </div>
         )}
@@ -402,7 +422,8 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
   const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const isEditing = editingState.status === 'shape' && editingState.objectId === id
+  const isImageNode = data.component === 'image'
+  const isEditing = !isImageNode && editingState.status === 'shape' && editingState.objectId === id
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
@@ -419,12 +440,16 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
   return (
     <div
       className="max-w-none"
-      onDoubleClick={() => startShapeEditing(id)}
+      onDoubleClick={() => {
+        if (!isImageNode) {
+          startShapeEditing(id)
+        }
+      }}
     >
       <NodeResizer
         isVisible={selected && !isEditing}
-        minWidth={120}
-        minHeight={120}
+        minWidth={isImageNode ? 96 : 120}
+        minHeight={isImageNode ? 96 : 120}
         color="rgba(96, 66, 214, 0.72)"
         handleClassName="boardmark-flow__resize-handle"
         lineClassName="boardmark-flow__resize-line"
@@ -468,12 +493,17 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
       ) : Renderer ? (
         <Renderer
           component={data.component as BuiltInComponentKey}
+          alt={data.alt}
           body={data.body}
           height={data.height}
+          imageResolver={data.imageResolver}
+          lockAspectRatio={data.lockAspectRatio}
           nodeId={id}
           resolvedThemeRef={data.resolvedThemeRef}
           selected={selected}
+          src={data.src}
           style={data.style}
+          title={data.title}
           width={typeof data.width === 'number' ? data.width : undefined}
         />
       ) : (
@@ -506,6 +536,7 @@ function CanvasMarkdownEdge({
 }: EdgeProps<Edge<CanvasFlowEdgeData>> & { store: CanvasStore }) {
   const edgeData = (data ?? {}) as CanvasFlowEdgeData
   const editingState = useStore(store, (state) => state.editingState)
+  const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
@@ -567,6 +598,7 @@ function CanvasMarkdownEdge({
               <MarkdownContent
                 className="markdown-content edge-markdown"
                 content={edgeData.body}
+                imageResolver={resolveImageSource}
               />
             ) : (
               <span className="text-xs text-[var(--color-on-surface-variant)]">Double-click to label</span>

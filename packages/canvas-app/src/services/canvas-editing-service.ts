@@ -97,6 +97,7 @@ export function createCanvasEditingService({
 
       const nextDocumentState = createCanvasDocumentState({
         record: context.document,
+        assetDirectoryHandle: context.documentState.assetDirectoryHandle,
         fileHandle: context.documentState.fileHandle,
         isPersisted: context.documentState.isPersisted,
         persistedSnapshotSource: context.documentState.persistedSnapshotSource,
@@ -129,6 +130,7 @@ export function createCanvasEditingService({
         record: readResult.value,
         documentState: createCanvasDocumentState({
           record: readResult.value,
+          assetDirectoryHandle: context.documentState.assetDirectoryHandle,
           fileHandle: context.documentState.fileHandle,
           isPersisted: context.documentState.isPersisted,
           persistedSnapshotSource: context.documentState.persistedSnapshotSource,

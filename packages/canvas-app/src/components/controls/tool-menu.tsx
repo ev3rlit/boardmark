@@ -26,29 +26,41 @@ type ToolMenuProps = {
 
 export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuProps) {
   const createFrameAtViewport = useStore(store, (state) => state.createFrameAtViewport)
+  const insertImageFromFile = useStore(store, (state) => state.insertImageFromFile)
+  const insertImageFromLink = useStore(store, (state) => state.insertImageFromLink)
   const createNoteAtViewport = useStore(store, (state) => state.createNoteAtViewport)
   const createShapeAtViewport = useStore(store, (state) => state.createShapeAtViewport)
   const editingState = useStore(store, (state) => state.editingState)
   const setToolMode = useStore(store, (state) => state.setToolMode)
   const activeToolMode = useStore(store, readActiveToolMode)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const [isImageMenuOpen, setIsImageMenuOpen] = useState(false)
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false)
   const shapeMenuRef = useRef<HTMLDivElement | null>(null)
+  const imageMenuRef = useRef<HTMLDivElement | null>(null)
   const isBusy = editingState.status !== 'idle'
 
   useEffect(() => {
-    if (!isShapeMenuOpen) {
+    if (!isShapeMenuOpen && !isImageMenuOpen) {
       return
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!shapeMenuRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+
+      if (
+        !shapeMenuRef.current?.contains(target) &&
+        !imageMenuRef.current?.contains(target)
+      ) {
         setIsShapeMenuOpen(false)
+        setIsImageMenuOpen(false)
       }
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsShapeMenuOpen(false)
+        setIsImageMenuOpen(false)
       }
     }
 
@@ -59,7 +71,7 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isShapeMenuOpen])
+  }, [isImageMenuOpen, isShapeMenuOpen])
 
   return (
     <div
@@ -141,14 +153,86 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
         label="Frame"
         onClick={() => void createFrameAtViewport()}
       />
-      <ToolMenuButton
-        className="viewer-control-button--pending"
-        disabled
-        icon={ImagePlus}
-        label="Image"
-        onClick={() => undefined}
-        title="Image coming soon"
-      />
+      <div
+        className="relative"
+        ref={imageMenuRef}
+      >
+        <input
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+
+            if (file) {
+              void insertImageFromFile(file)
+            }
+
+            event.target.value = ''
+            setIsImageMenuOpen(false)
+          }}
+          ref={imageInputRef}
+          type="file"
+        />
+        <ToolMenuButton
+          active={isImageMenuOpen}
+          className="viewer-control-button--spaced"
+          disabled={isBusy}
+          icon={ImagePlus}
+          label="Image"
+          onClick={() => setIsImageMenuOpen((current) => !current)}
+        />
+        {isImageMenuOpen ? (
+          <div
+            className="viewer-context-menu bottom-[calc(100%+0.75rem)] left-0"
+            role="menu"
+          >
+            <div className="viewer-context-menu-section">
+              <button
+                className="viewer-context-menu-item"
+                onClick={() => {
+                  const src = window.prompt('Image URL or local path')
+
+                  if (!src || src.trim().length === 0) {
+                    setIsImageMenuOpen(false)
+                    return
+                  }
+
+                  const alt = window.prompt('Alt text', '') ?? ''
+                  const title = window.prompt('Title (optional)', '') ?? ''
+
+                  setIsImageMenuOpen(false)
+                  void insertImageFromLink({
+                    alt,
+                    lockAspectRatio: true,
+                    src: src.trim(),
+                    title: title.trim().length > 0 ? title.trim() : undefined
+                  })
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <ImagePlus
+                  aria-hidden="true"
+                  className="viewer-context-menu-icon"
+                />
+                <span>Link</span>
+              </button>
+              <button
+                className="viewer-context-menu-item"
+                onClick={() => imageInputRef.current?.click()}
+                role="menuitem"
+                type="button"
+              >
+                <ImagePlus
+                  aria-hidden="true"
+                  className="viewer-context-menu-icon"
+                />
+                <span>File</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
       <ToolMenuButton
         active={isFullscreen}
         className="viewer-control-button--spaced"

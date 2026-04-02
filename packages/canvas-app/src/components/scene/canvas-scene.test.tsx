@@ -194,7 +194,9 @@ describe('CanvasScene', () => {
       }
     ]
 
-    const flowNodes = readFlowNodes(nodes, {}, [], 'boardmark.editorial.soft')
+    const flowNodes = readFlowNodes(nodes, {}, [], {
+      defaultStyle: 'boardmark.editorial.soft'
+    })
 
     expect(flowNodes[0]?.type).toBe('canvas-component')
     expect(flowNodes[0]?.data.component).toBe('boardmark.shape.roundRect')

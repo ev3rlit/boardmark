@@ -1,5 +1,6 @@
 import type { StoreApi } from 'zustand'
 import type {
+  BuiltInImageResolution,
   CanvasEdge,
   CanvasLoadState,
   CanvasNode,
@@ -13,6 +14,7 @@ import type {
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
+import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-asset-bridge'
 import type { CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 
 export type ToolMode = 'select' | 'pan'
@@ -47,10 +49,16 @@ export type CanvasInteractionOverrides = Record<
   }>
 >
 
+export type CanvasPointer = {
+  x: number
+  y: number
+}
+
 export type CanvasStoreOptions = {
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
   documentPersistenceBridge?: CanvasDocumentPersistenceBridge
+  imageAssetBridge?: CanvasImageAssetBridge
   templateSource: string
 }
 
@@ -65,6 +73,7 @@ export type CanvasStoreState = {
   selectedEdgeIds: string[]
   toolMode: ToolMode
   panShortcutActive: boolean
+  lastCanvasPointer: CanvasPointer | null
   loadState: CanvasLoadState
   saveState: CanvasSaveState
   parseIssues: CanvasParseIssue[]
@@ -95,6 +104,7 @@ export type CanvasStoreState = {
   setViewport: (viewport: CanvasViewport) => void
   setToolMode: (mode: ToolMode) => void
   setPanShortcutActive: (active: boolean) => void
+  setLastCanvasPointer: (pointer: CanvasPointer | null) => void
   previewNodeMove: (nodeId: string, x: number, y: number) => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
   previewNodeResize: (nodeId: string, geometry: {
@@ -118,6 +128,22 @@ export type CanvasStoreState = {
     height: number
     width: number
   }) => Promise<void>
+  insertImageFromLink: (input: {
+    alt: string
+    lockAspectRatio?: boolean
+    src: string
+    title?: string
+  }) => Promise<void>
+  insertImageFromFile: (file: File) => Promise<void>
+  insertImageFromClipboard: (file: File) => Promise<void>
+  insertImageFromDrop: (file: File) => Promise<void>
+  createMarkdownImageAsset: (file: File) => Promise<string | null>
+  replaceSelectedImageFromFile: (file: File) => Promise<void>
+  openSelectedImageSource: () => Promise<void>
+  revealSelectedImageSource: () => Promise<void>
+  toggleSelectedImageLockAspectRatio: () => Promise<void>
+  updateSelectedImageAltText: (alt: string) => Promise<void>
+  resolveImageSource: (src: string) => Promise<BuiltInImageResolution>
   createFrameAtViewport: () => Promise<void>
   deleteSelection: () => Promise<void>
   startNoteEditing: (nodeId: string) => void

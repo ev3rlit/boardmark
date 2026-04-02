@@ -17,6 +17,10 @@ const IPC_CHANNELS = {
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
   saveDocument: 'boardmark/document/save',
+  importImageAsset: 'boardmark/image/import',
+  resolveImageSource: 'boardmark/image/resolve',
+  openImageSource: 'boardmark/image/open',
+  revealImageSource: 'boardmark/image/reveal',
   subscribeExternalChanges: 'boardmark/document/subscribe-external-changes',
   unsubscribeExternalChanges: 'boardmark/document/unsubscribe-external-changes',
   externalChanged: 'boardmark/document/external-changed'
@@ -106,6 +110,22 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC_CHANNELS.saveDocument, async (_event, input) =>
     documentService.saveDocument(input)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.importImageAsset, async (_event, input) =>
+    documentService.importImageAsset(input)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.resolveImageSource, async (_event, input) =>
+    documentService.resolveImageSource(input)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.openImageSource, async (_event, input) =>
+    documentService.openImageSource(input)
+  )
+
+  ipcMain.handle(IPC_CHANNELS.revealImageSource, async (_event, input) =>
+    documentService.revealImageSource(input)
   )
 
   ipcMain.handle(IPC_CHANNELS.subscribeExternalChanges, async (_event, path: string) => {

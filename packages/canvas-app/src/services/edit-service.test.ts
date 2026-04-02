@@ -254,4 +254,68 @@ describe('canvas document edit service', () => {
     )
     expect(createdShape.value.source).toContain('Frame\n\n```yaml props\npalette: neutral\ntone: soft\n```\n:::')
   })
+
+  it('creates header-only image blocks and updates image metadata', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'image-test',
+        name: 'image.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const createdImage = editService.apply(source, recordResult.value, {
+      kind: 'create-image',
+      anchorNodeId: 'welcome',
+      id: 'image-1',
+      src: './welcome.assets/mockup.png',
+      alt: 'Mockup',
+      title: 'Welcome',
+      lockAspectRatio: true,
+      x: 220,
+      y: 180,
+      width: 480,
+      height: 320
+    })
+
+    expect(createdImage.isOk()).toBe(true)
+
+    if (createdImage.isErr()) {
+      return
+    }
+
+    expect(createdImage.value.source).toContain(
+      '::: image { id: image-1, src: "./welcome.assets/mockup.png", alt: Mockup, title: Welcome, lockAspectRatio: true, at: { x: 220, y: 180, w: 480, h: 320 } }'
+    )
+
+    const imageRecord = repository.readSource({
+      locator: recordResult.value.locator,
+      source: createdImage.value.source,
+      isTemplate: false
+    })
+
+    if (imageRecord.isErr()) {
+      throw new Error(imageRecord.error.message)
+    }
+
+    const updatedImage = editService.apply(createdImage.value.source, imageRecord.value, {
+      kind: 'update-image-metadata',
+      nodeId: 'image-1',
+      alt: 'Updated mockup',
+      lockAspectRatio: false
+    })
+
+    expect(updatedImage.isOk()).toBe(true)
+    expect(updatedImage._unsafeUnwrap().source).toContain(
+      '::: image { id: image-1, src: "./welcome.assets/mockup.png", alt: "Updated mockup", title: Welcome, lockAspectRatio: false, at: { x: 220, y: 180, w: 480, h: 320 } }'
+    )
+  })
 })

@@ -1,6 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { errAsync, fromPromise, okAsync, type ResultAsync } from 'neverthrow'
-import { dialog, type BrowserWindow } from 'electron'
+import { dialog, shell, type BrowserWindow } from 'electron'
+import { pathToFileURL } from 'node:url'
 import {
   createCanvasMarkdownDocumentRepository,
   toAsyncResult,
@@ -46,6 +48,23 @@ export type DocumentService = {
   saveDocument: (
     input: CanvasDocumentSaveInput
   ) => Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+  importImageAsset: (input: {
+    documentPath: string
+    bytes: Uint8Array
+    fileName: string
+  }) => Promise<AsyncResult<{ src: string }, { code: string; message: string }>>
+  resolveImageSource: (input: {
+    documentPath: string
+    src: string
+  }) => Promise<AsyncResult<{ src: string }, { code: string; message: string }>>
+  openImageSource: (input: {
+    documentPath: string
+    src: string
+  }) => Promise<AsyncResult<void, { code: string; message: string }>>
+  revealImageSource: (input: {
+    documentPath: string
+    src: string
+  }) => Promise<AsyncResult<void, { code: string; message: string }>>
 }
 
 export function createDocumentService(): DocumentService {
@@ -84,6 +103,109 @@ export function createDocumentService(): DocumentService {
         (value) => ({ ok: true, value }),
         (error) => ({ ok: false, error })
       )
+    },
+
+    async importImageAsset(input) {
+      try {
+        const assetDirectory = readAssetDirectoryPath(input.documentPath)
+        await mkdir(assetDirectory, { recursive: true })
+        const targetPath = await readNextAvailableAssetPath(assetDirectory, input.fileName)
+        await writeFile(targetPath, Buffer.from(input.bytes))
+
+        return {
+          ok: true,
+          value: {
+            src: toDocumentRelativeAssetPath(input.documentPath, targetPath)
+          }
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'import-failed',
+            message: error instanceof Error ? error.message : 'Could not import the image asset.'
+          }
+        }
+      }
+    },
+
+    async resolveImageSource(input) {
+      try {
+        if (isRemoteImageSource(input.src)) {
+          return {
+            ok: true,
+            value: {
+              src: input.src
+            }
+          }
+        }
+
+        return {
+          ok: true,
+          value: {
+            src: toFileUrl(resolveImagePath(input.documentPath, input.src))
+          }
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'resolve-failed',
+            message: error instanceof Error ? error.message : 'Could not resolve the image source.'
+          }
+        }
+      }
+    },
+
+    async openImageSource(input) {
+      try {
+        if (isRemoteImageSource(input.src)) {
+          await shell.openExternal(input.src)
+        } else {
+          await shell.openPath(resolveImagePath(input.documentPath, input.src))
+        }
+
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'open-failed',
+            message: error instanceof Error ? error.message : 'Could not open the image source.'
+          }
+        }
+      }
+    },
+
+    async revealImageSource(input) {
+      if (isRemoteImageSource(input.src)) {
+        return {
+          ok: false,
+          error: {
+            code: 'reveal-failed',
+            message: 'Remote images cannot be revealed in the desktop shell.'
+          }
+        }
+      }
+
+      try {
+        shell.showItemInFolder(resolveImagePath(input.documentPath, input.src))
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'reveal-failed',
+            message: error instanceof Error ? error.message : 'Could not reveal the image source.'
+          }
+        }
+      }
     }
   }
 }
@@ -167,4 +289,56 @@ function toRepositoryError(
     kind,
     message: error instanceof Error ? error.message : fallback
   }
+}
+
+function readAssetDirectoryPath(documentPath: string) {
+  const documentDirectory = dirname(documentPath)
+  const documentName = basename(documentPath).replace(/(?:\.canvas)?\.md$/i, '')
+
+  return join(documentDirectory, `${documentName}.assets`)
+}
+
+async function readNextAvailableAssetPath(directory: string, fileName: string) {
+  const extension = extname(fileName)
+  const baseName = basename(fileName, extension)
+  let index = 0
+
+  while (true) {
+    const candidate = join(
+      directory,
+      `${baseName}${index === 0 ? '' : `-${index}`}${extension}`
+    )
+
+    try {
+      await readFile(candidate)
+      index += 1
+    } catch {
+      return candidate
+    }
+  }
+}
+
+function toDocumentRelativeAssetPath(documentPath: string, targetPath: string) {
+  const relativePath = relative(dirname(documentPath), targetPath).replace(/\\/g, '/')
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`
+}
+
+function resolveImagePath(documentPath: string, src: string) {
+  if (isRemoteImageSource(src)) {
+    return src
+  }
+
+  if (isAbsolute(src)) {
+    return src
+  }
+
+  return resolve(dirname(documentPath), src)
+}
+
+function isRemoteImageSource(src: string) {
+  return /^https?:\/\//.test(src)
+}
+
+function toFileUrl(path: string) {
+  return pathToFileURL(path).href
 }

@@ -7,6 +7,7 @@ import type {
 export type CanvasDocumentPersistencePayload = {
   locator: CanvasDocumentLocator
   fileHandle: FileSystemFileHandle | null
+  assetDirectoryHandle?: FileSystemDirectoryHandle | null
   source: string
 }
 
@@ -14,6 +15,7 @@ export type CanvasDocumentPersistenceSaveInput = {
   defaultName: string
   locator: CanvasDocumentLocator
   fileHandle: FileSystemFileHandle | null
+  assetDirectoryHandle?: FileSystemDirectoryHandle | null
   source: string
 }
 

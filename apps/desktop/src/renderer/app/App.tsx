@@ -4,11 +4,13 @@ import {
   EMPTY_CANVAS_SOURCE,
   createCanvasStore,
   type CanvasDocumentPersistenceBridge,
+  type CanvasImageAssetBridge,
   type CanvasStore
 } from '@boardmark/canvas-app'
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
   persistence?: CanvasDocumentPersistenceBridge
+  imageAssets?: CanvasImageAssetBridge
 }
 
 const fallbackBridge: DesktopDocumentBridge =
@@ -76,12 +78,43 @@ const fallbackBridge: DesktopDocumentBridge =
               message: 'Desktop persistence bridge unavailable. Restart the app and try again.'
             }
           })
+        },
+        imageAssets: {
+          importImageAsset: async () => ({
+            ok: false as const,
+            error: {
+              code: 'unsupported' as const,
+              message: 'Desktop image bridge unavailable. Restart the app and try again.'
+            }
+          }),
+          resolveImageSource: async () => ({
+            ok: false as const,
+            error: {
+              code: 'resolve-failed' as const,
+              message: 'Desktop image bridge unavailable. Restart the app and try again.'
+            }
+          }),
+          openSource: async () => ({
+            ok: false as const,
+            error: {
+              code: 'open-failed' as const,
+              message: 'Desktop image bridge unavailable. Restart the app and try again.'
+            }
+          }),
+          revealSource: async () => ({
+            ok: false as const,
+            error: {
+              code: 'reveal-failed' as const,
+              message: 'Desktop image bridge unavailable. Restart the app and try again.'
+            }
+          })
         }
       }
 
 export const defaultCanvasStore = createCanvasStore({
   documentPicker: fallbackBridge.picker,
   documentPersistenceBridge: fallbackBridge.persistence,
+  imageAssetBridge: fallbackBridge.imageAssets,
   documentRepository: fallbackBridge.repository,
   templateSource: EMPTY_CANVAS_SOURCE
 })
@@ -90,7 +123,8 @@ const desktopCapabilities = {
   canOpen: true,
   canSave: true,
   canPersist: true,
-  canDropImport: false,
+  canDropDocumentImport: false,
+  canDropImageInsertion: true,
   supportsMultiSelect: false,
   newDocumentMode: 'persist-template'
 } as const

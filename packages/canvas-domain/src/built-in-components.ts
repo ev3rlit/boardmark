@@ -45,11 +45,13 @@ export type BuiltInShapeVariant =
   | 'triangle'
 
 export type BuiltInNoteVariant = 'note'
+export type BuiltInImageVariant = 'image'
 
-export type BuiltInComponentCategory = 'shape' | 'note'
+export type BuiltInComponentCategory = 'shape' | 'note' | 'image'
 
 export type BuiltInComponentKey =
   | 'note'
+  | 'image'
   | 'boardmark.shape.rect'
   | 'boardmark.shape.roundRect'
   | 'boardmark.shape.ellipse'
@@ -83,12 +85,20 @@ export type BuiltInRendererSize = {
 
 export type BuiltInRendererContract = {
   component: BuiltInComponentKey
-  variant: BuiltInShapeVariant | BuiltInNoteVariant
+  variant: BuiltInShapeVariant | BuiltInNoteVariant | BuiltInImageVariant
   category: BuiltInComponentCategory
   supportsMarkdown: boolean
   defaultSize: BuiltInRendererSize
   tokenUsage: SemanticTokenKey[]
 }
+
+export type BuiltInImageResolution =
+  | { status: 'resolved'; src: string }
+  | { status: 'error'; message: string }
+
+export type BuiltInImageResolver = (
+  src: string
+) => Promise<BuiltInImageResolution>
 
 export type BuiltInRendererProps = {
   nodeId: string
@@ -97,8 +107,13 @@ export type BuiltInRendererProps = {
   width?: number
   height?: number
   body?: string
+  src?: string
+  alt?: string
+  title?: string
+  lockAspectRatio?: boolean
   style?: CanvasObjectStyle
   resolvedThemeRef?: string
+  imageResolver?: BuiltInImageResolver
   tokens?: Partial<Record<SemanticTokenKey, string>>
   className?: string
 }

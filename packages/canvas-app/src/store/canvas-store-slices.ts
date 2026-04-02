@@ -2,11 +2,20 @@ import {
   DEFAULT_CANVAS_VIEWPORT,
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
+  type BuiltInImageResolution,
+  type CanvasEdge,
   MAX_CANVAS_ZOOM,
   MIN_CANVAS_ZOOM,
+  type CanvasNode,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
 import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
+import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-asset-bridge'
+import {
+  fitCanvasImageSize,
+  normalizeAssetFileName,
+  prepareCanvasImageAsset
+} from '@canvas-app/services/canvas-image-service'
 import { createCanvasDocumentRecordPatch, createCanvasInvalidDocumentPatch } from '@canvas-app/store/canvas-store-projection'
 import type {
   CanvasConflictService,
@@ -25,6 +34,7 @@ type CanvasStoreSliceServices = {
   conflictService: CanvasConflictService
   documentService: CanvasDocumentService
   editingService: CanvasEditingService
+  imageAssetBridge?: CanvasImageAssetBridge
   onExternalSource: (source: string) => void
 }
 
@@ -342,6 +352,7 @@ export function createCanvasInteractionSlice() {
     selectedEdgeIds: [],
     toolMode: 'select' as const,
     panShortcutActive: false,
+    lastCanvasPointer: null,
     interactionOverrides: {}
   }
 }
@@ -378,6 +389,7 @@ export function createCanvasCommandSlice(
   | 'setViewport'
   | 'setToolMode'
   | 'setPanShortcutActive'
+  | 'setLastCanvasPointer'
   | 'previewNodeMove'
   | 'commitNodeMove'
   | 'previewNodeResize'
@@ -386,6 +398,17 @@ export function createCanvasCommandSlice(
   | 'createEdgeFromConnection'
   | 'createNoteAtViewport'
   | 'createShapeAtViewport'
+  | 'insertImageFromLink'
+  | 'insertImageFromFile'
+  | 'insertImageFromClipboard'
+  | 'insertImageFromDrop'
+  | 'createMarkdownImageAsset'
+  | 'replaceSelectedImageFromFile'
+  | 'openSelectedImageSource'
+  | 'revealSelectedImageSource'
+  | 'toggleSelectedImageLockAspectRatio'
+  | 'updateSelectedImageAltText'
+  | 'resolveImageSource'
   | 'createFrameAtViewport'
   | 'deleteSelection'
   | 'startNoteEditing'
@@ -641,6 +664,13 @@ export function createCanvasCommandSlice(
       )
     },
 
+    setLastCanvasPointer(pointer) {
+      set((state) => ({
+        ...state,
+        lastCanvasPointer: pointer
+      }))
+    },
+
     previewNodeMove(nodeId, x, y) {
       set((state) => ({
         ...state,
@@ -678,29 +708,31 @@ export function createCanvasCommandSlice(
     },
 
     previewNodeResize(nodeId, geometry) {
+      const nextGeometry = readResizedGeometryForNode(get(), nodeId, geometry)
       set((state) => ({
         ...state,
         interactionOverrides: {
           ...state.interactionOverrides,
           [nodeId]: {
             ...state.interactionOverrides[nodeId],
-            x: roundGeometry(geometry.x),
-            y: roundGeometry(geometry.y),
-            w: roundGeometry(geometry.width),
-            h: roundGeometry(geometry.height)
+            x: roundGeometry(nextGeometry.x),
+            y: roundGeometry(nextGeometry.y),
+            w: roundGeometry(nextGeometry.width),
+            h: roundGeometry(nextGeometry.height)
           }
         }
       }))
     },
 
     async commitNodeResize(nodeId, geometry) {
+      const nextGeometry = readResizedGeometryForNode(get(), nodeId, geometry)
       clearInteractionOverride(set, get, nodeId)
       logCanvasDiagnostic('debug', 'Committing node resize intent from the canvas store.', {
         nodeId,
-        x: geometry.x,
-        y: geometry.y,
-        width: geometry.width,
-        height: geometry.height
+        x: nextGeometry.x,
+        y: nextGeometry.y,
+        width: nextGeometry.width,
+        height: nextGeometry.height
       })
       await commitCanvasIntent({
         controls,
@@ -710,10 +742,10 @@ export function createCanvasCommandSlice(
         intent: {
           kind: 'resize-node',
           nodeId,
-          x: geometry.x,
-          y: geometry.y,
-          width: geometry.width,
-          height: geometry.height
+          x: nextGeometry.x,
+          y: nextGeometry.y,
+          width: nextGeometry.width,
+          height: nextGeometry.height
         },
         set
       })
@@ -821,6 +853,264 @@ export function createCanvasCommandSlice(
         },
         set
       })
+    },
+
+    async insertImageFromLink({
+      alt,
+      lockAspectRatio = true,
+      src,
+      title
+    }) {
+      const state = get()
+      const geometry = readImageGeometry(DEFAULT_NOTE_WIDTH, DEFAULT_NOTE_HEIGHT)
+      const id = readNextGeneratedId('image', state.nodes, state.edges)
+      const position = readPreferredInsertPosition(state, geometry)
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        intent: {
+          kind: 'create-image',
+          anchorNodeId: readAnchorNodeId(state),
+          id,
+          src,
+          alt,
+          title,
+          lockAspectRatio,
+          x: position.x,
+          y: position.y,
+          width: geometry.width,
+          height: geometry.height
+        },
+        onSuccess() {
+          set({
+            selectedEdgeIds: [],
+            selectedNodeIds: [id]
+          })
+        },
+        set
+      })
+    },
+
+    async insertImageFromFile(file) {
+      await insertImageAsset({
+        controls,
+        file,
+        get,
+        kind: 'file',
+        services,
+        set
+      })
+    },
+
+    async insertImageFromClipboard(file) {
+      await insertImageAsset({
+        controls,
+        file,
+        get,
+        kind: 'clipboard',
+        services,
+        set
+      })
+    },
+
+    async insertImageFromDrop(file) {
+      await insertImageAsset({
+        controls,
+        file,
+        get,
+        kind: 'drop',
+        services,
+        set
+      })
+    },
+
+    async createMarkdownImageAsset(file) {
+      const prepared = await importPreparedImageAsset({
+        file,
+        get,
+        silentUnsupported: true,
+        services,
+        set
+      })
+
+      if (!prepared) {
+        return null
+      }
+
+      return `![${prepared.alt}](${prepared.src})`
+    },
+
+    async replaceSelectedImageFromFile(file) {
+      const state = get()
+      const selectedImage = readPrimarySelectedImage(state)
+
+      if (!selectedImage) {
+        set({
+          operationError: 'Select one image before replacing its source.'
+        })
+        return
+      }
+
+      const prepared = await importPreparedImageAsset({
+        file,
+        get,
+        services,
+        set
+      })
+
+      if (!prepared) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        intent: {
+          kind: 'replace-image-source',
+          nodeId: selectedImage.id,
+          src: prepared.src,
+          alt: selectedImage.alt ?? prepared.alt,
+          title: selectedImage.title
+        },
+        set
+      })
+    },
+
+    async openSelectedImageSource() {
+      const state = get()
+      const selectedImage = readPrimarySelectedImage(state)
+
+      if (!selectedImage) {
+        set({
+          operationError: 'Select one image before opening its source.'
+        })
+        return
+      }
+
+      const result = await services.imageAssetBridge?.openSource({
+        document: state.document,
+        documentState: state.documentState,
+        src: selectedImage.src ?? ''
+      })
+
+      if (!result?.ok) {
+        set({
+          operationError: result?.error.message ?? 'Image source could not be opened.'
+        })
+      }
+    },
+
+    async revealSelectedImageSource() {
+      const state = get()
+      const selectedImage = readPrimarySelectedImage(state)
+
+      if (!selectedImage) {
+        set({
+          operationError: 'Select one image before revealing its file.'
+        })
+        return
+      }
+
+      const result = await services.imageAssetBridge?.revealSource?.({
+        document: state.document,
+        documentState: state.documentState,
+        src: selectedImage.src ?? ''
+      })
+
+      if (!result?.ok) {
+        set({
+          operationError: result?.error.message ?? 'Image source could not be revealed.'
+        })
+      }
+    },
+
+    async toggleSelectedImageLockAspectRatio() {
+      const state = get()
+      const selectedImage = readPrimarySelectedImage(state)
+
+      if (!selectedImage) {
+        set({
+          operationError: 'Select one image before changing its aspect-ratio lock.'
+        })
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        intent: {
+          kind: 'update-image-metadata',
+          nodeId: selectedImage.id,
+          lockAspectRatio: !selectedImage.lockAspectRatio
+        },
+        set
+      })
+    },
+
+    async updateSelectedImageAltText(alt) {
+      const state = get()
+      const selectedImage = readPrimarySelectedImage(state)
+
+      if (!selectedImage) {
+        set({
+          operationError: 'Select one image before updating its alt text.'
+        })
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        intent: {
+          kind: 'update-image-metadata',
+          nodeId: selectedImage.id,
+          alt
+        },
+        set
+      })
+    },
+
+    async resolveImageSource(src) {
+      if (/^(https?:|data:|blob:|file:)/.test(src)) {
+        return {
+          status: 'resolved',
+          src
+        } satisfies BuiltInImageResolution
+      }
+
+      if (!services.imageAssetBridge) {
+        return {
+          status: 'error',
+          message: 'Image source could not be resolved in this environment.'
+        } satisfies BuiltInImageResolution
+      }
+
+      const result = await services.imageAssetBridge.resolveImageSource({
+        document: get().document,
+        documentState: get().documentState,
+        src
+      })
+
+      if (!result.ok) {
+        return {
+          status: 'error',
+          message: result.error.message
+        } satisfies BuiltInImageResolution
+      }
+
+      return {
+        status: 'resolved',
+        src: result.value.src
+      } satisfies BuiltInImageResolution
     },
 
     async createFrameAtViewport() {
@@ -1076,6 +1366,296 @@ function clampViewport(viewport: CanvasViewport) {
     x: Number(viewport.x.toFixed(2)),
     y: Number(viewport.y.toFixed(2)),
     zoom: clampZoom(viewport.zoom)
+  }
+}
+
+function readAnchorNodeId(state: CanvasStoreState) {
+  return state.selectedNodeIds[0]
+}
+
+function readPreferredInsertPosition(
+  state: CanvasStoreState,
+  geometry: {
+    width: number
+    height: number
+  }
+) {
+  if (state.lastCanvasPointer) {
+    return {
+      x: roundGeometry(state.lastCanvasPointer.x - geometry.width / 2),
+      y: roundGeometry(state.lastCanvasPointer.y - geometry.height / 2)
+    }
+  }
+
+  const anchorNode = state.selectedNodeIds[0]
+    ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
+    : undefined
+
+  if (anchorNode) {
+    return {
+      x: anchorNode.at.x + 48,
+      y: anchorNode.at.y + 48
+    }
+  }
+
+  return {
+    x: Math.abs(state.viewport.x) + 120,
+    y: Math.abs(state.viewport.y) + 120
+  }
+}
+
+function readImageGeometry(width: number, height: number) {
+  const fitted = fitCanvasImageSize(width, height)
+
+  return {
+    width: Math.max(96, fitted.width),
+    height: Math.max(96, fitted.height)
+  }
+}
+
+function readNextGeneratedId(prefix: 'image', nodes: CanvasNode[], edges: CanvasEdge[]) {
+  const existingIds = new Set([
+    ...nodes.map((node) => node.id),
+    ...edges.map((edge) => edge.id)
+  ])
+  let index = 1
+
+  while (existingIds.has(`${prefix}-${index}`)) {
+    index += 1
+  }
+
+  return `${prefix}-${index}`
+}
+
+function readPrimarySelectedImage(state: CanvasStoreState) {
+  if (state.selectedNodeIds.length !== 1) {
+    return null
+  }
+
+  const node = state.nodes.find((entry) => entry.id === state.selectedNodeIds[0])
+
+  return node?.component === 'image' ? node : null
+}
+
+async function ensurePersistedDocumentForImageInsertion({
+  get,
+  set
+}: {
+  get: CanvasStoreGetState
+  set: CanvasStoreSetState
+}) {
+  const state = get()
+
+  if (state.document && state.documentState?.isPersisted) {
+    return state
+  }
+
+  await get().saveCurrentDocument()
+
+  const nextState = get()
+
+  if (!nextState.document || !nextState.documentState?.isPersisted) {
+    set({
+      operationError: nextState.saveState.status === 'error'
+        ? nextState.saveState.message
+        : 'Save the document before inserting local image assets.'
+    })
+    return null
+  }
+
+  return nextState
+}
+
+async function importPreparedImageAsset({
+  file,
+  get,
+  silentUnsupported = false,
+  services,
+  set
+}: {
+  file: File
+  get: CanvasStoreGetState
+  silentUnsupported?: boolean
+  services: CanvasStoreSliceServices
+  set: CanvasStoreSetState
+}) {
+  if (!services.imageAssetBridge) {
+    set({
+      operationError: 'Image assets are not supported in this environment.'
+    })
+    return null
+  }
+
+  const persistedState = await ensurePersistedDocumentForImageInsertion({
+    get,
+    set
+  })
+
+  if (!persistedState?.document || !persistedState.documentState) {
+    return null
+  }
+
+  const prepared = await prepareCanvasImageAsset({
+    blob: file,
+    fileName: normalizeAssetFileName(file.name, file.type)
+  }).catch(() => null)
+
+  if (!prepared) {
+    if (!silentUnsupported) {
+      set({
+        operationError:
+          'This image format is not supported for local asset import in the current runtime.'
+      })
+    }
+    return null
+  }
+
+  const accessResult = await services.imageAssetBridge.ensureDocumentAssetAccess?.({
+    document: persistedState.document,
+    documentState: persistedState.documentState
+  })
+
+  if (accessResult && !accessResult.ok) {
+    set({
+      operationError: accessResult.error.message
+    })
+    return null
+  }
+
+  if (accessResult?.ok && persistedState.documentState) {
+    set((state) => ({
+      ...state,
+      documentState: state.documentState
+        ? {
+            ...state.documentState,
+            assetDirectoryHandle: accessResult.value ?? state.documentState.assetDirectoryHandle
+          }
+        : state.documentState
+    }))
+  }
+
+  const importResult = await services.imageAssetBridge.importImageAsset({
+    document: persistedState.document,
+    documentState: get().documentState ?? persistedState.documentState,
+    bytes: prepared.bytes,
+    fileName: prepared.fileName
+  })
+
+  if (!importResult.ok) {
+    set({
+      operationError: importResult.error.message
+    })
+    return null
+  }
+
+  return {
+    alt: prepared.alt,
+    height: prepared.height,
+    src: importResult.value.src,
+    width: prepared.width
+  }
+}
+
+async function insertImageAsset({
+  controls,
+  file,
+  get,
+  kind,
+  services,
+  set
+}: {
+  controls: CanvasStoreSubscriptionControls
+  file: File
+  get: CanvasStoreGetState
+  kind: 'clipboard' | 'drop' | 'file'
+  services: CanvasStoreSliceServices
+  set: CanvasStoreSetState
+}) {
+  const prepared = await importPreparedImageAsset({
+    file,
+    get,
+    silentUnsupported: kind === 'clipboard',
+    services,
+    set
+  })
+
+  if (!prepared) {
+    if (kind === 'clipboard') {
+      return
+    }
+
+    return
+  }
+
+  const state = get()
+  const geometry = readImageGeometry(prepared.width, prepared.height)
+  const position = readPreferredInsertPosition(state, geometry)
+  const id = readNextGeneratedId('image', state.nodes, state.edges)
+
+  await commitCanvasIntent({
+    controls,
+    documentService: services.documentService,
+    editingService: services.editingService,
+    get,
+    intent: {
+      kind: 'create-image',
+      anchorNodeId: readAnchorNodeId(state),
+      id,
+      src: prepared.src,
+      alt: prepared.alt,
+      lockAspectRatio: true,
+      x: position.x,
+      y: position.y,
+      width: geometry.width,
+      height: geometry.height
+    },
+    onSuccess() {
+      set({
+        selectedEdgeIds: [],
+        selectedNodeIds: [id]
+      })
+    },
+    set
+  })
+}
+
+function readResizedGeometryForNode(
+  state: CanvasStoreState,
+  nodeId: string,
+  geometry: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+) {
+  const node = state.nodes.find((entry) => entry.id === nodeId)
+
+  if (!node || node.component !== 'image' || !node.lockAspectRatio) {
+    return geometry
+  }
+
+  const currentWidth = node.at.w ?? geometry.width
+  const currentHeight = node.at.h ?? geometry.height
+
+  if (currentWidth <= 0 || currentHeight <= 0) {
+    return geometry
+  }
+
+  const widthChange = Math.abs(geometry.width - currentWidth) / currentWidth
+  const heightChange = Math.abs(geometry.height - currentHeight) / currentHeight
+  const ratio = currentWidth / currentHeight
+
+  if (widthChange >= heightChange) {
+    return {
+      ...geometry,
+      height: Math.round(geometry.width / ratio)
+    }
+  }
+
+  return {
+    ...geometry,
+    width: Math.round(geometry.height * ratio)
   }
 }
 

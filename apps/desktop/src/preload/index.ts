@@ -10,7 +10,11 @@ import type {
   CanvasDocumentSaveInput,
   CanvasDocumentSourceInput
 } from '../../../../packages/canvas-repository/src/index'
-import type { CanvasDocumentPersistenceBridge } from '@boardmark/canvas-app'
+import type {
+  CanvasDocumentPersistenceBridge,
+  CanvasImageAssetBridge,
+  CanvasImageAssetError
+} from '@boardmark/canvas-app'
 
 const IPC_CHANNELS = {
   pickOpenLocator: 'boardmark/document/pick-open-locator',
@@ -18,6 +22,10 @@ const IPC_CHANNELS = {
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
   saveDocument: 'boardmark/document/save',
+  importImageAsset: 'boardmark/image/import',
+  resolveImageSource: 'boardmark/image/resolve',
+  openImageSource: 'boardmark/image/open',
+  revealImageSource: 'boardmark/image/reveal',
   subscribeExternalChanges: 'boardmark/document/subscribe-external-changes',
   unsubscribeExternalChanges: 'boardmark/document/unsubscribe-external-changes',
   externalChanged: 'boardmark/document/external-changed'
@@ -25,6 +33,7 @@ const IPC_CHANNELS = {
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
   persistence: CanvasDocumentPersistenceBridge
+  imageAssets: CanvasImageAssetBridge
 }
 
 const documentBridge: DesktopDocumentBridge = {
@@ -195,6 +204,41 @@ const documentBridge: DesktopDocumentBridge = {
         ipcRenderer.removeListener(eventName, listener)
         void ipcRenderer.invoke(IPC_CHANNELS.unsubscribeExternalChanges, subscriptionId)
       }
+    }
+  },
+  imageAssets: {
+    importImageAsset(input) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.importImageAsset,
+        input
+      ) as Promise<AsyncResult<{ src: string }, CanvasImageAssetError>>
+    },
+    resolveImageSource(input) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.resolveImageSource,
+        {
+          documentPath: input.document?.locator.kind === 'file' ? input.document.locator.path : '',
+          src: input.src
+        }
+      ) as Promise<AsyncResult<{ src: string }, CanvasImageAssetError>>
+    },
+    openSource(input) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.openImageSource,
+        {
+          documentPath: input.document?.locator.kind === 'file' ? input.document.locator.path : '',
+          src: input.src
+        }
+      ) as Promise<AsyncResult<void, CanvasImageAssetError>>
+    },
+    revealSource(input) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.revealImageSource,
+        {
+          documentPath: input.document?.locator.kind === 'file' ? input.document.locator.path : '',
+          src: input.src
+        }
+      ) as Promise<AsyncResult<void, CanvasImageAssetError>>
     }
   }
 }

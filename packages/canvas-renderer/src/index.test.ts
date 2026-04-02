@@ -54,7 +54,9 @@ describe('canvas renderer helpers', () => {
         },
         sourceMap
       },
-      'boardmark.editorial.default'
+      {
+        defaultStyle: 'boardmark.editorial.default'
+      }
     )
 
     expect(node.type).toBe('canvas-note')
@@ -80,7 +82,9 @@ describe('canvas renderer helpers', () => {
         },
         sourceMap
       },
-      'boardmark.editorial.soft'
+      {
+        defaultStyle: 'boardmark.editorial.soft'
+      }
     )
 
     expect(node.type).toBe('canvas-component')
@@ -90,6 +94,38 @@ describe('canvas renderer helpers', () => {
     expect(node.style?.width).toBe(420)
     expect(node.style?.height).toBe(280)
     expect(node.data.resolvedThemeRef).toBe('boardmark.editorial.soft')
+  })
+
+  it('maps image nodes with image metadata and a resolver', () => {
+    const imageResolver = async () => ({
+      status: 'resolved' as const,
+      src: 'file:///tmp/mockup.png'
+    })
+    const node = toFlowNode(
+      {
+        id: 'image-1',
+        component: 'image',
+        at: { x: 120, y: 140, w: 420, h: 280 },
+        src: './welcome.assets/mockup.png',
+        alt: 'Mockup',
+        title: 'Welcome',
+        lockAspectRatio: true,
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      },
+      {
+        imageResolver
+      }
+    )
+
+    expect(node.data.component).toBe('image')
+    expect(node.data.src).toBe('./welcome.assets/mockup.png')
+    expect(node.data.alt).toBe('Mockup')
+    expect(node.data.lockAspectRatio).toBe(true)
+    expect(node.data.imageResolver).toBe(imageResolver)
   })
 
   it('maps edges and viewport to react flow data', () => {
@@ -145,8 +181,9 @@ tone: soft
 
   it('exports built-in renderer contracts for note and shape components', () => {
     expect(BUILT_IN_RENDERER_CONTRACTS.note.supportsMarkdown).toBe(true)
+    expect(BUILT_IN_RENDERER_CONTRACTS.image?.category).toBe('image')
     expect(BUILT_IN_RENDERER_CONTRACTS['boardmark.shape.circle']?.category).toBe('shape')
     expect(BUILT_IN_RENDERER_CONTRACTS.note.tokenUsage).toContain('shadow.note')
-    expect(Object.keys(BUILT_IN_RENDERER_CONTRACTS)).toHaveLength(6)
+    expect(Object.keys(BUILT_IN_RENDERER_CONTRACTS)).toHaveLength(7)
   })
 })
