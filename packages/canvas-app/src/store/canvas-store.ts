@@ -3,6 +3,7 @@ import { ZOOM_STEP, type CanvasViewport } from '@boardmark/canvas-domain'
 import { createCanvasConflictService } from '@canvas-app/services/canvas-conflict-service'
 import { createCanvasDocumentService } from '@canvas-app/services/canvas-document-service'
 import { createCanvasEditingService } from '@canvas-app/services/canvas-editing-service'
+import { createCanvasHistoryService } from '@canvas-app/services/canvas-history-service'
 import {
   createCanvasCommandSlice,
   createCanvasDocumentSlice,
@@ -13,6 +14,8 @@ import {
 import type {
   CanvasConflictState,
   CanvasEditingState,
+  CanvasHistoryEntry,
+  CanvasHistoryState,
   CanvasStoreOptions,
   CanvasStoreState,
   ToolMode
@@ -44,6 +47,9 @@ export function createCanvasStore({
   const editingService = createCanvasEditingService({
     documentRepository
   })
+  const historyService = createCanvasHistoryService({
+    documentRepository
+  })
   const conflictService = createCanvasConflictService({
     documentRepository
   })
@@ -59,6 +65,7 @@ export function createCanvasStore({
         conflictService,
         documentService,
         editingService,
+        historyService,
         imageAssetBridge,
         onExternalSource(source) {
           void reconcileCanvasExternalSource(get, set, conflictService, source)
@@ -104,4 +111,10 @@ export function applyZoomStep(viewport: CanvasViewport, direction: 'in' | 'out')
   }
 }
 
-export type { CanvasConflictState, CanvasEditingState, CanvasStoreState }
+export type {
+  CanvasConflictState,
+  CanvasEditingState,
+  CanvasHistoryEntry,
+  CanvasHistoryState,
+  CanvasStoreState
+}

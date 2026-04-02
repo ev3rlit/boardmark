@@ -16,6 +16,10 @@ import {
   normalizeAssetFileName,
   prepareCanvasImageAsset
 } from '@canvas-app/services/canvas-image-service'
+import {
+  createEmptyCanvasHistoryState,
+  type CanvasHistoryService
+} from '@canvas-app/services/canvas-history-service'
 import { createCanvasDocumentRecordPatch, createCanvasInvalidDocumentPatch } from '@canvas-app/store/canvas-store-projection'
 import type {
   CanvasConflictService,
@@ -34,6 +38,7 @@ type CanvasStoreSliceServices = {
   conflictService: CanvasConflictService
   documentService: CanvasDocumentService
   editingService: CanvasEditingService
+  historyService: CanvasHistoryService
   imageAssetBridge?: CanvasImageAssetBridge
   onExternalSource: (source: string) => void
 }
@@ -110,6 +115,7 @@ function applyDocumentCommandResult({
     set(
       createCanvasDocumentRecordPatch(result.record, {
         documentState: result.documentState,
+        history: get().history,
         lastSavedAt: result.savedAt,
         saveState: {
           status: 'saved',
@@ -133,6 +139,8 @@ function applyEditingOutcome({
   controls,
   documentService,
   get,
+  historyEntry,
+  historyService,
   outcome,
   onSuccess,
   set
@@ -140,6 +148,13 @@ function applyEditingOutcome({
   controls: CanvasStoreSubscriptionControls
   documentService: CanvasDocumentService
   get: CanvasStoreGetState
+  historyEntry: {
+    label: string
+    selectedEdgeIds: string[]
+    selectedNodeIds: string[]
+    source: string
+  } | null
+  historyService: CanvasHistoryService
   outcome: CanvasEditingOutcome
   onSuccess?: () => void
   set: CanvasStoreSetState
@@ -168,9 +183,15 @@ function applyEditingOutcome({
       : outcome.record.locator.key
   })
 
+  const nextHistory =
+    historyEntry && historyEntry.source !== outcome.documentState.currentSource
+      ? historyService.pushEntry(get().history, historyEntry)
+      : get().history
+
   set(
     createCanvasDocumentRecordPatch(outcome.record, {
       documentState: outcome.documentState,
+      history: nextHistory,
       viewport: get().viewport,
       selectedNodeIds: get().selectedNodeIds,
       selectedEdgeIds: get().selectedEdgeIds
@@ -233,6 +254,7 @@ async function commitCanvasIntent({
   documentService,
   editingService,
   get,
+  historyService,
   intent,
   onSuccess,
   set
@@ -241,11 +263,13 @@ async function commitCanvasIntent({
   documentService: CanvasDocumentService
   editingService: CanvasEditingService
   get: CanvasStoreGetState
+  historyService: CanvasHistoryService
   intent: CanvasDocumentEditIntent
   onSuccess?: () => void
   set: CanvasStoreSetState
 }) {
   const state = get()
+  const historyEntry = historyService.captureEntry(state, readHistoryLabel(intent))
   const outcome = await editingService.applyIntent(
     {
       conflictState: state.conflictState,
@@ -261,6 +285,8 @@ async function commitCanvasIntent({
     controls,
     documentService,
     get,
+    historyEntry,
+    historyService,
     outcome,
     onSuccess,
     set
@@ -341,7 +367,8 @@ export function createCanvasDocumentSlice() {
     isDirty: false,
     lastSavedAt: null,
     conflictState: { status: 'idle' } as const,
-    invalidState: { status: 'valid' } as const
+    invalidState: { status: 'valid' } as const,
+    history: createEmptyCanvasHistoryState()
   }
 }
 
@@ -419,6 +446,8 @@ export function createCanvasCommandSlice(
   | 'cancelInlineEditing'
   | 'reloadFromDisk'
   | 'keepLocalDraft'
+  | 'undo'
+  | 'redo'
 > {
   let droppedDocumentSequence = 0
 
@@ -697,6 +726,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'move-node',
           nodeId,
@@ -739,6 +769,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'resize-node',
           nodeId,
@@ -762,6 +793,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'update-edge-endpoints',
           edgeId,
@@ -782,6 +814,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'create-edge',
           from,
@@ -805,6 +838,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'create-note',
           anchorNodeId: anchorNode?.id,
@@ -841,6 +875,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'create-shape',
           anchorNodeId: anchorNode?.id,
@@ -871,6 +906,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'create-image',
           anchorNodeId: readAnchorNodeId(state),
@@ -970,6 +1006,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'replace-image-source',
           nodeId: selectedImage.id,
@@ -1045,6 +1082,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'update-image-metadata',
           nodeId: selectedImage.id,
@@ -1070,6 +1108,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent: {
           kind: 'update-image-metadata',
           nodeId: selectedImage.id,
@@ -1120,38 +1159,23 @@ export function createCanvasCommandSlice(
     async deleteSelection() {
       const state = get()
 
-      if (state.selectedNodeIds.length > 0) {
-        for (const nodeId of [...state.selectedNodeIds]) {
-          await commitCanvasIntent({
-            controls,
-            documentService: services.documentService,
-            editingService: services.editingService,
-            get,
-            intent: {
-              kind: 'delete-node',
-              nodeId
-            },
-            set
-          })
-        }
+      if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
         return
       }
 
-      if (state.selectedEdgeIds.length > 0) {
-        for (const edgeId of [...state.selectedEdgeIds]) {
-          await commitCanvasIntent({
-            controls,
-            documentService: services.documentService,
-            editingService: services.editingService,
-            get,
-            intent: {
-              kind: 'delete-edge',
-              edgeId
-            },
-            set
-          })
-        }
-      }
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'delete-objects',
+          nodeIds: state.selectedNodeIds,
+          edgeIds: state.selectedEdgeIds
+        },
+        set
+      })
     },
 
     startNoteEditing(nodeId) {
@@ -1255,6 +1279,7 @@ export function createCanvasCommandSlice(
         documentService: services.documentService,
         editingService: services.editingService,
         get,
+        historyService: services.historyService,
         intent,
         onSuccess() {
           set({
@@ -1294,6 +1319,148 @@ export function createCanvasCommandSlice(
         conflictState: { status: 'idle' },
         operationError: null
       })
+    },
+
+    async undo() {
+      const state = get()
+
+      if (state.editingState.status !== 'idle') {
+        set({
+          operationError: 'Finish inline editing before undoing document changes.'
+        })
+        return
+      }
+
+      if (state.conflictState.status === 'conflict') {
+        set({
+          operationError: 'Resolve the external-change conflict before undoing document changes.'
+        })
+        return
+      }
+
+      if (state.invalidState.status === 'invalid') {
+        set({
+          operationError: state.invalidState.message
+        })
+        return
+      }
+
+      const target = state.history.past.at(-1)
+
+      if (!target) {
+        return
+      }
+
+      const currentEntry = services.historyService.captureEntry(state, target.label)
+
+      if (!currentEntry) {
+        set({
+          operationError: 'No editable document is loaded.'
+        })
+        return
+      }
+
+      const transition = services.historyService.undo(state.history, currentEntry)
+
+      if (!transition) {
+        return
+      }
+
+      const result = await services.historyService.restoreEntry({
+        document: state.document,
+        documentState: state.documentState,
+        entry: transition.target
+      })
+
+      if (result.status === 'blocked' || result.status === 'error') {
+        set({
+          operationError: result.message
+        })
+        return
+      }
+
+      set(
+        createCanvasDocumentRecordPatch(result.record, {
+          documentState: result.documentState,
+          history: transition.history,
+          viewport: get().viewport,
+          selectedNodeIds: result.entry.selectedNodeIds,
+          selectedEdgeIds: result.entry.selectedEdgeIds
+        })
+      )
+
+      void controls.resubscribeExternalChanges()
+    },
+
+    async redo() {
+      const state = get()
+
+      if (state.editingState.status !== 'idle') {
+        set({
+          operationError: 'Finish inline editing before redoing document changes.'
+        })
+        return
+      }
+
+      if (state.conflictState.status === 'conflict') {
+        set({
+          operationError: 'Resolve the external-change conflict before redoing document changes.'
+        })
+        return
+      }
+
+      if (state.invalidState.status === 'invalid') {
+        set({
+          operationError: state.invalidState.message
+        })
+        return
+      }
+
+      const target = state.history.future[0]
+
+      if (!target) {
+        return
+      }
+
+      const currentEntry = services.historyService.captureEntry(state, target.label)
+
+      if (!currentEntry) {
+        set({
+          operationError: 'No editable document is loaded.'
+        })
+        return
+      }
+
+      const transition = services.historyService.redo(state.history, currentEntry)
+
+      if (!transition) {
+        return
+      }
+
+      const result = await services.historyService.restoreEntry({
+        document: state.document,
+        documentState: state.documentState,
+        entry: transition.target
+      })
+
+      if (result.status === 'blocked' || result.status === 'error') {
+        set({
+          operationError: result.message
+        })
+        return
+      }
+
+      set(
+        createCanvasDocumentRecordPatch(result.record, {
+          documentState: result.documentState,
+          history: transition.history,
+          viewport: get().viewport,
+          selectedNodeIds: result.entry.selectedNodeIds,
+          selectedEdgeIds: result.entry.selectedEdgeIds
+        })
+      )
+
+      void controls.resubscribeExternalChanges()
     }
   }
 }
@@ -1343,6 +1510,39 @@ function areSameIds(left: string[], right: string[]) {
 
 function roundGeometry(value: number) {
   return Math.round(value)
+}
+
+function readHistoryLabel(intent: CanvasDocumentEditIntent) {
+  switch (intent.kind) {
+    case 'move-node':
+      return 'Move node'
+    case 'resize-node':
+      return 'Resize node'
+    case 'replace-object-body':
+      return 'Edit object'
+    case 'replace-edge-body':
+      return 'Edit connector'
+    case 'create-note':
+      return 'Create note'
+    case 'create-shape':
+      return 'Create shape'
+    case 'create-image':
+      return 'Insert image'
+    case 'replace-image-source':
+      return 'Replace image'
+    case 'update-image-metadata':
+      return 'Update image'
+    case 'delete-node':
+    case 'delete-edge':
+    case 'delete-objects':
+      return 'Delete selection'
+    case 'update-edge-endpoints':
+      return 'Reconnect edge'
+    case 'create-edge':
+      return 'Create edge'
+    default:
+      return 'Edit canvas'
+  }
 }
 
 function createShapeBody(label: string, props?: Record<string, unknown>) {
@@ -1597,6 +1797,7 @@ async function insertImageAsset({
     documentService: services.documentService,
     editingService: services.editingService,
     get,
+    historyService: services.historyService,
     intent: {
       kind: 'create-image',
       anchorNodeId: readAnchorNodeId(state),

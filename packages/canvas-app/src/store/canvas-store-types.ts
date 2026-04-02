@@ -54,6 +54,18 @@ export type CanvasPointer = {
   y: number
 }
 
+export type CanvasHistoryEntry = {
+  label: string
+  source: string
+  selectedNodeIds: string[]
+  selectedEdgeIds: string[]
+}
+
+export type CanvasHistoryState = {
+  past: CanvasHistoryEntry[]
+  future: CanvasHistoryEntry[]
+}
+
 export type CanvasStoreOptions = {
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
@@ -86,6 +98,7 @@ export type CanvasStoreState = {
   editingState: CanvasEditingState
   conflictState: CanvasConflictState
   invalidState: CanvasInvalidState
+  history: CanvasHistoryState
   operationError: string | null
   hydrateTemplate: () => Promise<void>
   resetToTemplate: () => Promise<void>
@@ -154,6 +167,8 @@ export type CanvasStoreState = {
   cancelInlineEditing: () => void
   reloadFromDisk: () => Promise<void>
   keepLocalDraft: () => void
+  undo: () => Promise<void>
+  redo: () => Promise<void>
 }
 
 export type CanvasStoreSetState = StoreApi<CanvasStoreState>['setState']

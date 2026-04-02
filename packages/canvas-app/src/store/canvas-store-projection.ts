@@ -1,8 +1,10 @@
 import { DEFAULT_CANVAS_VIEWPORT, type CanvasSaveState, type CanvasViewport } from '@boardmark/canvas-domain'
 import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import { createCanvasDocumentState, type CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
+import { createEmptyCanvasHistoryState } from '@canvas-app/services/canvas-history-service'
 import type {
   CanvasDropState,
+  CanvasHistoryState,
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
 
@@ -14,6 +16,7 @@ type CanvasDocumentRecordPatchOptions = {
   viewport?: CanvasViewport
   selectedNodeIds?: string[]
   selectedEdgeIds?: string[]
+  history?: CanvasHistoryState
 }
 
 export function createCanvasDocumentRecordPatch(
@@ -50,6 +53,7 @@ export function createCanvasDocumentRecordPatch(
     editingState: { status: 'idle' },
     conflictState: { status: 'idle' },
     invalidState: { status: 'valid' },
+    history: options?.history ?? createEmptyCanvasHistoryState(),
     operationError: null
   }
 }
@@ -68,6 +72,7 @@ export function createCanvasInvalidDocumentPatch(
       status: 'invalid',
       message
     },
+    history: state.history,
     parseIssues: [
       {
         level: 'error',

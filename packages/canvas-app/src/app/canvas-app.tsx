@@ -9,6 +9,7 @@ import {
 } from '@canvas-app/store/canvas-selectors'
 import { CanvasScene } from '@canvas-app/components/scene/canvas-scene'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
+import { HistoryControls } from '@canvas-app/components/controls/history-controls'
 import { ObjectContextMenu } from '@canvas-app/components/context-menu/object-context-menu'
 import { StatusPanels } from '@canvas-app/components/controls/status-panels'
 import { ToolMenu } from '@canvas-app/components/controls/tool-menu'
@@ -51,6 +52,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const setDropError = useStore(store, (state) => state.setDropError)
   const setPanShortcutActive = useStore(store, (state) => state.setPanShortcutActive)
   const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
+  const redo = useStore(store, (state) => state.redo)
+  const undo = useStore(store, (state) => state.undo)
   const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
   const editingState = useStore(store, selectCanvasEditingState)
@@ -87,6 +90,22 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
 
         event.preventDefault()
         setPanShortcutActive(true)
+        return
+      }
+
+      if (isUndoRedoShortcut(event)) {
+        if (editingState.status !== 'idle' || isEditableTarget(event.target)) {
+          return
+        }
+
+        event.preventDefault()
+
+        if (isRedoShortcut(event)) {
+          void redo()
+          return
+        }
+
+        void undo()
         return
       }
 
@@ -127,7 +146,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', handleWindowBlur)
     }
-  }, [deleteSelection, editingState.status, setPanShortcutActive])
+  }, [deleteSelection, editingState.status, redo, setPanShortcutActive, undo])
 
   useEffect(() => {
     const handlePaste = async (event: ClipboardEvent) => {
@@ -313,7 +332,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
             />
           </div>
 
-          <div className="pointer-events-auto absolute bottom-5 right-5">
+          <div className="pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">
+            <HistoryControls store={store} />
             <ZoomControls store={store} />
           </div>
 
@@ -468,6 +488,20 @@ function isEditableTarget(target: EventTarget | null) {
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   )
+}
+
+function isRedoShortcut(event: KeyboardEvent) {
+  const key = event.key.toLowerCase()
+  return (key === 'z' && event.shiftKey) || key === 'y'
+}
+
+function isUndoRedoShortcut(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+    return false
+  }
+
+  const key = event.key.toLowerCase()
+  return key === 'z' || key === 'y'
 }
 
 function readSelectionLabel(selectedNodeCount: number, selectedEdgeCount: number) {

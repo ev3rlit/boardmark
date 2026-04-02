@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   CanvasDocumentPicker,
@@ -84,6 +84,8 @@ describe('CanvasApp', () => {
     expect(store.getState().edges).toHaveLength(0)
     expect(screen.getByRole('application')).toBeInTheDocument()
     expect(screen.getByText('100%')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image' })).toBeInTheDocument()
@@ -314,6 +316,132 @@ describe('CanvasApp', () => {
     })
     expect(store.getState().draftSource).toContain('Line 1\nLine 2')
     expect(screen.queryByRole('textbox', { name: 'Edit welcome' })).not.toBeInTheDocument()
+  })
+
+  it('reflects history availability in the shared controls', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    const undoButton = screen.getByRole('button', { name: 'Undo' })
+    const redoButton = screen.getByRole('button', { name: 'Redo' })
+
+    expect(undoButton).toBeDisabled()
+    expect(redoButton).toBeDisabled()
+
+    act(() => {
+      store.setState({
+        history: {
+          past: [
+            {
+              label: 'Move node',
+              source: templateSource,
+              selectedNodeIds: ['welcome'],
+              selectedEdgeIds: []
+            }
+          ],
+          future: [
+            {
+              label: 'Move node',
+              source: templateSource,
+              selectedNodeIds: ['welcome'],
+              selectedEdgeIds: []
+            }
+          ]
+        }
+      })
+    })
+
+    expect(undoButton).toBeEnabled()
+    expect(redoButton).toBeEnabled()
+  })
+
+  it('dispatches undo and redo shortcuts only when the canvas is idle', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const undoSpy = vi.spyOn(store.getState(), 'undo')
+    const redoSpy = vi.spyOn(store.getState(), 'redo')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    fireEvent.keyDown(window, { key: 'z', metaKey: true })
+    fireEvent.keyDown(window, { key: 'Z', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+
+    expect(undoSpy).toHaveBeenCalledTimes(1)
+    expect(redoSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not intercept undo shortcuts while inline editing is active', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const undoSpy = vi.spyOn(store.getState(), 'undo')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    fireEvent.doubleClick(noteText)
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+
+    fireEvent.keyDown(editor, { key: 'z', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'y', ctrlKey: true })
+
+    expect(undoSpy).not.toHaveBeenCalled()
   })
 })
 

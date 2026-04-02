@@ -234,6 +234,61 @@ describe('viewer store', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
+  it('records document edits in history and restores them through undo/redo', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome'])
+    await store.getState().commitNodeMove('welcome', 140, 160)
+
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().history.future).toHaveLength(0)
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+    )
+
+    await store.getState().undo()
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }'
+    )
+    expect(store.getState().selectedNodeIds).toEqual(['welcome'])
+    expect(store.getState().history.past).toHaveLength(0)
+    expect(store.getState().history.future).toHaveLength(1)
+
+    await store.getState().redo()
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+    )
+    expect(store.getState().selectedNodeIds).toEqual(['welcome'])
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().history.future).toHaveLength(0)
+  })
+
+  it('clears redo history when a new edit is committed after undo', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMove('welcome', 140, 160)
+    await store.getState().undo()
+    await store.getState().commitNodeMove('welcome', 220, 260)
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 220, y: 260, w: 320, h: 220 } }'
+    )
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().history.future).toHaveLength(0)
+  })
+
   it('creates frame presets as round-rect shape nodes', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -321,6 +376,134 @@ describe('viewer store', () => {
       y: 240,
       zoom: 1.35
     })
+  })
+
+  it('preserves history across save flows and autosave', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const persistenceBridge = createPersistenceBridge()
+      const store = createCanvasStore({
+        documentPicker: createPicker(),
+        documentPersistenceBridge: persistenceBridge,
+        documentRepository: createRepository(),
+        templateSource
+      })
+
+      await store.getState().openDocument()
+      await store.getState().commitNodeMove('open', 180, 220)
+
+      expect(store.getState().history.past).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(650)
+
+      expect(store.getState().history.past).toHaveLength(1)
+      expect(store.getState().history.future).toHaveLength(0)
+
+      await store.getState().saveCurrentDocument()
+
+      expect(store.getState().history.past).toHaveLength(1)
+      expect(store.getState().history.future).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resets history when a document session is reopened or reloaded from disk', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMove('welcome', 140, 160)
+    expect(store.getState().history.past).toHaveLength(1)
+
+    await store.getState().openDocument()
+    expect(store.getState().history.past).toHaveLength(0)
+    expect(store.getState().history.future).toHaveLength(0)
+
+    await store.getState().commitNodeMove('open', 180, 220)
+    store.setState({
+      conflictState: {
+        status: 'conflict',
+        diskSource: openedSource.replace('Opened Board', 'Reloaded Board')
+      }
+    })
+
+    await store.getState().reloadFromDisk()
+
+    expect(store.getState().history.past).toHaveLength(0)
+    expect(store.getState().history.future).toHaveLength(0)
+    expect(store.getState().draftSource).toContain('Reloaded Board')
+  })
+
+  it('records multi-object deletion as a single undo step', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().deleteSelection()
+
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().nodes).toHaveLength(0)
+    expect(store.getState().edges).toHaveLength(0)
+
+    await store.getState().undo()
+
+    expect(store.getState().nodes).toHaveLength(2)
+    expect(store.getState().edges).toHaveLength(1)
+  })
+
+  it('blocks undo and redo while conflict or invalid states are active', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMove('welcome', 140, 160)
+    const movedSource = store.getState().draftSource
+
+    store.setState({
+      conflictState: {
+        status: 'conflict',
+        diskSource: openedSource
+      }
+    })
+    await store.getState().undo()
+
+    expect(store.getState().draftSource).toBe(movedSource)
+    expect(store.getState().operationError).toContain('Resolve the external-change conflict')
+
+    store.setState({
+      conflictState: { status: 'idle' },
+      invalidState: {
+        status: 'invalid',
+        message: 'Invalid draft.'
+      },
+      history: {
+        past: [],
+        future: [
+          {
+            label: 'Move node',
+            source: templateSource,
+            selectedNodeIds: [],
+            selectedEdgeIds: []
+          }
+        ]
+      }
+    })
+    await store.getState().redo()
+
+    expect(store.getState().draftSource).toBe(movedSource)
+    expect(store.getState().operationError).toBe('Invalid draft.')
   })
 
   it('autosaves persisted drafts after edit commits', async () => {

@@ -58,6 +58,11 @@ export type CanvasDocumentEditIntent =
       title?: string
       lockAspectRatio?: boolean
     }
+  | {
+      kind: 'delete-objects'
+      nodeIds: string[]
+      edgeIds: string[]
+    }
   | { kind: 'delete-node'; nodeId: string }
   | { kind: 'update-edge-endpoints'; edgeId: string; from: string; to: string }
   | { kind: 'replace-edge-body'; edgeId: string; markdown: string }
@@ -153,6 +158,8 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
             title: intent.title === undefined ? metadata.title : intent.title,
             lockAspectRatio: intent.lockAspectRatio ?? metadata.lockAspectRatio ?? true
           }))
+        case 'delete-objects':
+          return deleteObjects(source, record, intent)
         case 'delete-node':
           return deleteNode(source, record, intent.nodeId)
         case 'create-edge':
@@ -389,6 +396,55 @@ function deleteNode(
   })
 }
 
+function deleteObjects(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'delete-objects' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const requestedNodeIds = [...new Set(intent.nodeIds)]
+  const requestedEdgeIds = [...new Set(intent.edgeIds)]
+  const deletedNodeIds = new Set<string>()
+  const ranges: CanvasSourceRange[] = []
+
+  for (const nodeId of requestedNodeIds) {
+    const node = record.ast.nodes.find((entry) => entry.id === nodeId)
+
+    if (!node) {
+      return err({
+        kind: 'object-not-found',
+        message: `Node "${nodeId}" was not found in the current document.`
+      })
+    }
+
+    deletedNodeIds.add(nodeId)
+    ranges.push(node.sourceMap.objectRange)
+  }
+
+  const implicitEdgeIds = new Set(
+    record.ast.edges
+      .filter((edge) => deletedNodeIds.has(edge.from) || deletedNodeIds.has(edge.to))
+      .map((edge) => edge.id)
+  )
+
+  for (const edgeId of [...requestedEdgeIds, ...implicitEdgeIds]) {
+    const edge = record.ast.edges.find((entry) => entry.id === edgeId)
+
+    if (!edge) {
+      return err({
+        kind: 'object-not-found',
+        message: `Edge "${edgeId}" was not found in the current document.`
+      })
+    }
+
+    ranges.push(edge.sourceMap.objectRange)
+  }
+
+  return ok({
+    source: removeObjectRanges(source, dedupeRanges(ranges)),
+    dirty: true
+  })
+}
+
 function createEdge(
   source: string,
   record: CanvasDocumentRecord,
@@ -606,6 +662,24 @@ function expandRemovalRange(source: string, range: CanvasSourceRange) {
 
 function replaceRange(source: string, range: CanvasSourceRange, replacement: string) {
   return `${source.slice(0, range.start.offset)}${replacement}${source.slice(range.end.offset)}`
+}
+
+function dedupeRanges(ranges: CanvasSourceRange[]) {
+  const seen = new Set<string>()
+  const unique: CanvasSourceRange[] = []
+
+  for (const range of ranges) {
+    const key = `${range.start.offset}:${range.end.offset}`
+
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    unique.push(range)
+  }
+
+  return unique
 }
 
 function readRangeText(source: string, range: CanvasSourceRange) {

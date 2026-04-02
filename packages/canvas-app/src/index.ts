@@ -39,5 +39,7 @@ export {
   type CanvasStore,
   type CanvasConflictState,
   type CanvasEditingState,
+  type CanvasHistoryEntry,
+  type CanvasHistoryState,
   type CanvasStoreState
 } from '@canvas-app/store/canvas-store'
