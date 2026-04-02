@@ -5,7 +5,7 @@ import {
   EMPTY_CANVAS_SOURCE,
   createCanvasStore
 } from '@boardmark/canvas-app'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { createBrowserDocumentBridge } from './document-bridge'
 
@@ -58,10 +58,68 @@ describe('Web App', () => {
     await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
+    await user.click(screen.getByRole('button', { name: "Don't save" }))
 
-    await waitFor(() => expect(screen.getByText('Uploaded Board')).toBeInTheDocument())
+    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.canvas.md'))
     expect(store.getState().documentState?.isPersisted).toBe(true)
     expect(store.getState().document?.name).toBe('uploaded.canvas.md')
+  })
+
+  it('shows a custom unsaved-changes dialog before opening another file', async () => {
+    const user = userEvent.setup()
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    window.showOpenFilePicker = showOpenFilePicker
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
+
+    render(<App store={store} />)
+
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('Open another file?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "Don't save" })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save and continue' })).toBeInTheDocument()
+    expect(showOpenFilePicker).not.toHaveBeenCalled()
+  })
+
+  it('discards the current draft when opening another file without saving', async () => {
+    const user = userEvent.setup()
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    window.showOpenFilePicker = showOpenFilePicker
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
+
+    render(<App store={store} />)
+
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
+    await user.click(screen.getByRole('button', { name: "Don't save" }))
+
+    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.canvas.md'))
+    expect(showOpenFilePicker).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(store.getState().document?.name).toBe('uploaded.canvas.md')
+  })
+
+  it('keeps the current draft when unsaved-changes dialog is cancelled', async () => {
+    const user = userEvent.setup()
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    window.showOpenFilePicker = showOpenFilePicker
+    const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
+
+    render(<App store={store} />)
+
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(showOpenFilePicker).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME)
+    expect(store.getState().isDirty).toBe(true)
   })
 
   it('surfaces parse failures from broken uploads', async () => {
@@ -74,6 +132,7 @@ describe('Web App', () => {
     await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
+    await user.click(screen.getByRole('button', { name: "Don't save" }))
 
     await waitFor(() =>
       expect(screen.getByText(/Canvas repository could not parse/)).toBeInTheDocument()
