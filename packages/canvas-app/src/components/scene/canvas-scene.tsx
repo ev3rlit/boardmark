@@ -36,6 +36,8 @@ import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { readActiveToolMode, type CanvasStore, type CanvasStoreState } from '@canvas-app/store/canvas-store'
 
+const CANVAS_EDITOR_INTERACTION_CLASS = 'nodrag nopan'
+
 type CanvasSceneProps = {
   onObjectContextMenu?: (input: {
     edgeIds: string[]
@@ -385,11 +387,11 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         selected={selected}
       >
         {isEditing ? (
-          <div className="min-h-0 flex-1">
+          <div className={`min-h-0 flex-1 ${CANVAS_EDITOR_INTERACTION_CLASS}`}>
             <textarea
               ref={textareaRef}
               aria-label={`Edit ${id}`}
-              className="h-full min-h-0 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
+              className={`h-full min-h-0 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
               value={editingState.markdown}
               onChange={(event) => updateEditingMarkdown(event.target.value)}
               onBlur={() => void commitInlineEditing()}
@@ -480,11 +482,13 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
         className="boardmark-flow__handle"
       />
       {isEditing ? (
-        <div className="rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)]">
+        <div
+          className={`rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)] ${CANVAS_EDITOR_INTERACTION_CLASS}`}
+        >
           <textarea
             ref={textareaRef}
             aria-label={`Edit ${id}`}
-            className="min-h-18 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none"
+            className={`min-h-18 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
             value={editingState.markdown}
             onChange={(event) => updateEditingMarkdown(event.target.value)}
             onBlur={() => void commitInlineEditing()}
@@ -582,14 +586,14 @@ function CanvasMarkdownEdge({
           }}
         >
           <div
-            className="rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)]"
+            className={`rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)] ${CANVAS_EDITOR_INTERACTION_CLASS}`}
             onDoubleClick={() => startEdgeEditing(id)}
           >
             {isEditing ? (
               <textarea
                 ref={textareaRef}
                 aria-label={`Edit ${id}`}
-                className="min-h-12 w-48 resize-none bg-transparent outline-none"
+                className={`min-h-12 w-48 resize-none bg-transparent outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
                 value={editingState.markdown}
                 onChange={(event) => updateEditingMarkdown(event.target.value)}
                 onBlur={() => void commitInlineEditing()}

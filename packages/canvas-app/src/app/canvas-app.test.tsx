@@ -335,6 +335,8 @@ describe('CanvasApp', () => {
     fireEvent.change(editor, { target: { value: 'Line 1\nLine 2' } })
 
     expect(editor).toHaveValue('Line 1\nLine 2')
+    expect(editor).toHaveClass('nodrag')
+    expect(editor).toHaveClass('nopan')
     expect(store.getState().editingState.status).toBe('note')
     expect(commitInlineEditingSpy).not.toHaveBeenCalled()
     expect(store.getState().draftSource).not.toContain('Line 1\nLine 2')
