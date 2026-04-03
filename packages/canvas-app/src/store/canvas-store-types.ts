@@ -54,6 +54,11 @@ export type CanvasPointer = {
   y: number
 }
 
+export type CanvasViewportSize = {
+  width: number
+  height: number
+}
+
 export type CanvasHistoryEntry = {
   label: string
   source: string
@@ -86,6 +91,7 @@ export type CanvasStoreState = {
   toolMode: ToolMode
   panShortcutActive: boolean
   lastCanvasPointer: CanvasPointer | null
+  viewportSize: CanvasViewportSize
   loadState: CanvasLoadState
   saveState: CanvasSaveState
   parseIssues: CanvasParseIssue[]
@@ -115,6 +121,7 @@ export type CanvasStoreState = {
   setDropActive: (active: boolean) => void
   setDropError: (message: string) => void
   setViewport: (viewport: CanvasViewport) => void
+  setViewportSize: (size: CanvasViewportSize) => void
   setToolMode: (mode: ToolMode) => void
   setPanShortcutActive: (active: boolean) => void
   setLastCanvasPointer: (pointer: CanvasPointer | null) => void

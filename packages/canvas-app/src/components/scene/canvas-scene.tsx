@@ -66,6 +66,7 @@ export function CanvasScene({
   const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
+  const setViewportSize = useStore(store, (state) => state.setViewportSize)
   const clearSelection = useStore(store, (state) => state.clearSelection)
   const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
   const replaceSelectedEdges = useStore(store, (state) => state.replaceSelectedEdges)
@@ -77,6 +78,7 @@ export function CanvasScene({
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
   const editingState = useStore(store, (state) => state.editingState)
   const isPanMode = activeToolMode === 'pan'
+  const viewportRef = useRef<HTMLDivElement | null>(null)
 
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
   const baseFlowNodes = useMemo(
@@ -129,8 +131,51 @@ export function CanvasScene({
     setFlowNodes((currentFlowNodes) => mergeFlowNodes(baseFlowNodes, currentFlowNodes))
   }, [baseFlowNodes])
 
+  useEffect(() => {
+    const element = viewportRef.current
+
+    if (!element) {
+      return
+    }
+
+    const updateViewportSize = (width: number, height: number) => {
+      setViewportSize({
+        width,
+        height
+      })
+    }
+
+    const syncViewportSize = () => {
+      const rect = element.getBoundingClientRect()
+      updateViewportSize(rect.width, rect.height)
+    }
+
+    syncViewportSize()
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0]
+
+        if (!entry) {
+          return
+        }
+
+        updateViewportSize(entry.contentRect.width, entry.contentRect.height)
+      })
+
+      observer.observe(element)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener('resize', syncViewportSize)
+    return () => window.removeEventListener('resize', syncViewportSize)
+  }, [setViewportSize])
+
   return (
-    <div className="h-full w-full">
+    <div
+      className="h-full w-full"
+      ref={viewportRef}
+    >
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
         className={[
           'boardmark-flow',

@@ -297,15 +297,38 @@ describe('viewer store', () => {
     })
 
     await store.getState().hydrateTemplate()
+    store.getState().setViewportSize({
+      width: 1280,
+      height: 720
+    })
     await store.getState().createFrameAtViewport()
 
     expect(store.getState().draftSource).toContain(
-      '::: boardmark.shape.roundRect { id: shape-1, at: { x: 300, y: 240, w: 420, h: 280 } }'
+      '::: boardmark.shape.roundRect { id: shape-1, at: { x: 681, y: 382, w: 420, h: 280 } }'
     )
     expect(store.getState().draftSource).toContain('```yaml props\npalette: neutral\ntone: soft\n```')
     expect(
       store.getState().nodes.some((node) => node.component === 'boardmark.shape.roundRect')
     ).toBe(true)
+  })
+
+  it('creates notes at the center of the current viewport when nothing is selected', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().setViewportSize({
+      width: 1280,
+      height: 720
+    })
+    await store.getState().createNoteAtViewport()
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-1, at: { x: 731, y: 412, w: 320, h: 220 } }'
+    )
   })
 
   it('switches to conflict state when external source changes arrive over a dirty draft', async () => {

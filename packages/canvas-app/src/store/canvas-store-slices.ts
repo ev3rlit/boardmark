@@ -380,6 +380,10 @@ export function createCanvasInteractionSlice() {
     toolMode: 'select' as const,
     panShortcutActive: false,
     lastCanvasPointer: null,
+    viewportSize: {
+      width: 0,
+      height: 0
+    },
     interactionOverrides: {}
   }
 }
@@ -414,6 +418,7 @@ export function createCanvasCommandSlice(
   | 'setDropActive'
   | 'setDropError'
   | 'setViewport'
+  | 'setViewportSize'
   | 'setToolMode'
   | 'setPanShortcutActive'
   | 'setLastCanvasPointer'
@@ -676,6 +681,18 @@ export function createCanvasCommandSlice(
       })
     },
 
+    setViewportSize(size) {
+      set((state) => {
+        const nextSize = clampViewportSize(size)
+        return isSameViewportSize(state.viewportSize, nextSize)
+          ? state
+          : {
+              ...state,
+              viewportSize: nextSize
+            }
+      })
+    },
+
     setToolMode(mode) {
       set({
         toolMode: mode
@@ -830,8 +847,15 @@ export function createCanvasCommandSlice(
       const anchorNode = state.selectedNodeIds[0]
         ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
         : undefined
-      const x = anchorNode ? anchorNode.at.x + 40 : Math.abs(state.viewport.x) + 120
-      const y = anchorNode ? anchorNode.at.y + 40 : Math.abs(state.viewport.y) + 120
+      const position = anchorNode
+        ? {
+            x: anchorNode.at.x + 40,
+            y: anchorNode.at.y + 40
+          }
+        : readCenteredInsertPosition(state, {
+            width: DEFAULT_NOTE_WIDTH,
+            height: DEFAULT_NOTE_HEIGHT
+          })
 
       await commitCanvasIntent({
         controls,
@@ -842,8 +866,8 @@ export function createCanvasCommandSlice(
         intent: {
           kind: 'create-note',
           anchorNodeId: anchorNode?.id,
-          x,
-          y,
+          x: position.x,
+          y: position.y,
           width: DEFAULT_NOTE_WIDTH,
           height: DEFAULT_NOTE_HEIGHT,
           markdown: 'New note'
@@ -867,8 +891,12 @@ export function createCanvasCommandSlice(
       const anchorNode = state.selectedNodeIds[0]
         ? state.nodes.find((node) => node.id === state.selectedNodeIds[0])
         : undefined
-      const x = anchorNode ? anchorNode.at.x + 48 : Math.abs(state.viewport.x) + 120
-      const y = anchorNode ? anchorNode.at.y + 48 : Math.abs(state.viewport.y) + 120
+      const position = anchorNode
+        ? {
+            x: anchorNode.at.x + 48,
+            y: anchorNode.at.y + 48
+          }
+        : readCenteredInsertPosition(state, { width, height })
 
       await commitCanvasIntent({
         controls,
@@ -879,8 +907,8 @@ export function createCanvasCommandSlice(
         intent: {
           kind: 'create-shape',
           anchorNodeId: anchorNode?.id,
-          x,
-          y,
+          x: position.x,
+          y: position.y,
           width,
           height,
           component,
@@ -1569,8 +1597,55 @@ function clampViewport(viewport: CanvasViewport) {
   }
 }
 
+function clampViewportSize(size: CanvasStoreState['viewportSize']) {
+  return {
+    width: Math.max(0, Math.round(size.width)),
+    height: Math.max(0, Math.round(size.height))
+  }
+}
+
+function isSameViewportSize(
+  left: CanvasStoreState['viewportSize'],
+  right: CanvasStoreState['viewportSize']
+) {
+  return left.width === right.width && left.height === right.height
+}
+
 function readAnchorNodeId(state: CanvasStoreState) {
   return state.selectedNodeIds[0]
+}
+
+function readViewportCenter(state: CanvasStoreState) {
+  if (state.viewportSize.width <= 0 || state.viewportSize.height <= 0) {
+    return null
+  }
+
+  return {
+    x: (state.viewportSize.width / 2 - state.viewport.x) / state.viewport.zoom,
+    y: (state.viewportSize.height / 2 - state.viewport.y) / state.viewport.zoom
+  }
+}
+
+function readCenteredInsertPosition(
+  state: CanvasStoreState,
+  geometry: {
+    width: number
+    height: number
+  }
+) {
+  const center = readViewportCenter(state)
+
+  if (center) {
+    return {
+      x: roundGeometry(center.x - geometry.width / 2),
+      y: roundGeometry(center.y - geometry.height / 2)
+    }
+  }
+
+  return {
+    x: Math.abs(state.viewport.x) + 120,
+    y: Math.abs(state.viewport.y) + 120
+  }
 }
 
 function readPreferredInsertPosition(
@@ -1598,10 +1673,7 @@ function readPreferredInsertPosition(
     }
   }
 
-  return {
-    x: Math.abs(state.viewport.x) + 120,
-    y: Math.abs(state.viewport.y) + 120
-  }
+  return readCenteredInsertPosition(state, geometry)
 }
 
 function readImageGeometry(width: number, height: number) {
