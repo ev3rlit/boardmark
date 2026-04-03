@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { highlightCodeBlockMock } = vi.hoisted(() => ({
   highlightCodeBlockMock: vi.fn()
@@ -30,8 +30,17 @@ type Deferred<T> = {
 }
 
 describe('MarkdownContent', () => {
+  let writeTextMock: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     highlightCodeBlockMock.mockReset()
+    writeTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: writeTextMock
+      }
+    })
     highlightCodeBlockMock.mockResolvedValue({
       kind: 'highlighted',
       language: 'typescript',
@@ -45,6 +54,10 @@ describe('MarkdownContent', () => {
       ],
       theme: 'vscode-dark-modern'
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('renders CommonMark and GFM syntax together', () => {
@@ -119,8 +132,10 @@ const shipped = true
       'flowchart TD\n    A[Start] --> B[Ship]'
     )
     expect(container.querySelector('pre [data-testid="mermaid-diagram"]')).toBeNull()
+    expect(screen.getByText('typescript')).toBeInTheDocument()
     expect(await screen.findByText('const')).toBeInTheDocument()
     expect(container.querySelector('pre code.language-ts.markdown-code-block__code')).not.toBeNull()
+    expect(container.querySelectorAll('.markdown-code-block__copy-button')).toHaveLength(1)
     expect(screen.getByText('code')).toContainHTML('<code>code</code>')
     expect(highlightCodeBlockMock).toHaveBeenCalledTimes(1)
     expect(highlightCodeBlockMock).toHaveBeenCalledWith({
@@ -172,7 +187,27 @@ const delayed = true
     })
   })
 
-  it('renders plain fallback blocks from the shared adapter result', async () => {
+  it('renders the raw info string as the language badge for plain fallback blocks', async () => {
+    highlightCodeBlockMock.mockResolvedValue({
+      kind: 'plain',
+      lines: ['plain fallback'],
+      theme: 'vscode-dark-modern'
+    })
+
+    const { container } = render(
+      <MarkdownContent
+        content={`\`\`\`foo
+plain fallback
+\`\`\``}
+      />
+    )
+
+    expect(await screen.findByText('plain fallback')).toBeInTheDocument()
+    expect(screen.getByText('foo')).toBeInTheDocument()
+    expect(container.querySelector('.markdown-code-block__line')).not.toBeNull()
+  })
+
+  it('hides the language badge when a fenced block does not specify a language', async () => {
     highlightCodeBlockMock.mockResolvedValue({
       kind: 'plain',
       lines: ['plain fallback'],
@@ -188,7 +223,60 @@ plain fallback
     )
 
     expect(await screen.findByText('plain fallback')).toBeInTheDocument()
-    expect(container.querySelector('.markdown-code-block__line')).not.toBeNull()
+    expect(container.querySelector('.markdown-code-block__language')).toBeNull()
+  })
+
+  it('copies the original code and resets the success state after a timeout', async () => {
+    vi.useFakeTimers()
+
+    render(
+      <MarkdownContent
+        content={`\`\`\`ts
+const shipped = true
+\`\`\``}
+      />
+    )
+
+    const copyButton = await screen.findByRole('button', { name: 'Copy code' })
+    fireEvent.click(copyButton)
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith('const shipped = true')
+    })
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
+    })
+  })
+
+  it('shows an error state when clipboard copy fails and then resets', async () => {
+    vi.useFakeTimers()
+    writeTextMock.mockRejectedValueOnce(new Error('Clipboard unavailable'))
+
+    render(
+      <MarkdownContent
+        content={`\`\`\`ts
+const shipped = true
+\`\`\``}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy code' }))
+
+    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(1500)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
+    })
   })
 
   it('renders local markdown images through the async image resolver', async () => {

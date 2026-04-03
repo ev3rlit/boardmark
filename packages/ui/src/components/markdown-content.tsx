@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useState, type ComponentProps } from 'react'
+import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -220,6 +221,8 @@ type CodeBlockRendererProps = ComponentProps<'pre'> & {
   language?: string
 }
 
+type CodeBlockCopyStatus = 'idle' | 'copied' | 'error'
+
 function CodeBlockRenderer({
   className,
   code,
@@ -227,6 +230,7 @@ function CodeBlockRenderer({
   ...props
 }: CodeBlockRendererProps) {
   const [result, setResult] = useState<HighlightedCodeBlock | null>(null)
+  const [copyStatus, setCopyStatus] = useState<CodeBlockCopyStatus>('idle')
 
   useEffect(() => {
     let cancelled = false
@@ -256,22 +260,114 @@ function CodeBlockRenderer({
     }
   }, [code, language])
 
+  useEffect(() => {
+    if (copyStatus === 'idle') {
+      return
+    }
+
+    const timeoutHandle = window.setTimeout(() => {
+      setCopyStatus('idle')
+    }, 1500)
+
+    return () => {
+      window.clearTimeout(timeoutHandle)
+    }
+  }, [copyStatus])
+
+  const languageLabel = readCodeBlockLanguageLabel(result, language)
+  const copyAction = readCopyAction(copyStatus)
+  const CopyIcon = copyAction.icon
+
   return (
-    <pre
-      {...props}
-      className={joinClassName(className, 'markdown-code-block')}
-    >
-      <code className={joinClassName(language ? `language-${language}` : undefined, 'markdown-code-block__code')}>
-        {result
-          ? renderCodeBlockLines(result)
-          : (
-              <span className="markdown-code-block__loading">
-                Loading code
-              </span>
-            )}
-      </code>
-    </pre>
+    <div className="markdown-code-block">
+      <div className="markdown-code-block__header">
+        <div className="markdown-code-block__header-slot">
+          {languageLabel ? (
+            <span className="markdown-code-block__language">
+              {languageLabel}
+            </span>
+          ) : null}
+        </div>
+        <button
+          aria-label={copyAction.label}
+          className={joinClassName(
+            'markdown-code-block__copy-button',
+            copyStatus === 'copied' ? 'markdown-code-block__copy-button--copied' : undefined,
+            copyStatus === 'error' ? 'markdown-code-block__copy-button--error' : undefined
+          )}
+          onClick={() => void handleCopyCode(code, setCopyStatus)}
+          title={copyAction.label}
+          type="button"
+        >
+          <CopyIcon
+            aria-hidden="true"
+            className="markdown-code-block__copy-icon"
+          />
+        </button>
+      </div>
+      <pre
+        {...props}
+        className={joinClassName(className, 'markdown-code-block__pre')}
+      >
+        <code className={joinClassName(language ? `language-${language}` : undefined, 'markdown-code-block__code')}>
+          {result
+            ? renderCodeBlockLines(result)
+            : (
+                <span className="markdown-code-block__loading">
+                  Loading code
+                </span>
+              )}
+        </code>
+      </pre>
+    </div>
   )
+}
+
+function readCodeBlockLanguageLabel(
+  result: HighlightedCodeBlock | null,
+  language?: string
+) {
+  if (result?.kind === 'highlighted') {
+    return result.language
+  }
+
+  return language
+}
+
+async function handleCopyCode(
+  code: string,
+  setCopyStatus: (status: CodeBlockCopyStatus) => void
+) {
+  try {
+    await navigator.clipboard.writeText(code)
+    setCopyStatus('copied')
+  } catch {
+    setCopyStatus('error')
+  }
+}
+
+function readCopyAction(copyStatus: CodeBlockCopyStatus): {
+  icon: typeof Copy
+  label: string
+} {
+  if (copyStatus === 'copied') {
+    return {
+      icon: Check,
+      label: 'Copied'
+    }
+  }
+
+  if (copyStatus === 'error') {
+    return {
+      icon: AlertCircle,
+      label: 'Copy failed'
+    }
+  }
+
+  return {
+    icon: Copy,
+    label: 'Copy code'
+  }
 }
 
 function renderCodeBlockLines(result: HighlightedCodeBlock) {
