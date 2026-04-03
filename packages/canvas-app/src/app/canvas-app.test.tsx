@@ -172,6 +172,37 @@ describe('CanvasApp', () => {
     expect(application).not.toHaveClass('boardmark-flow--pan')
   })
 
+  it('does not select objects while pan mode is active', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pan' }))
+    fireEvent.click(noteText)
+
+    expect(store.getState().selectedNodeIds).toEqual([])
+    expect(store.getState().selectedEdgeIds).toEqual([])
+  })
+
   it('opens the object context menu on node right-click', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

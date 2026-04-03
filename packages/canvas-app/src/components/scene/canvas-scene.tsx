@@ -163,9 +163,11 @@ export function CanvasScene({
         onPaneContextMenu={() => onPaneContextMenu?.()}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
-          setFlowNodes((currentFlowNodes) => applyNodeChanges(changes, currentFlowNodes))
+          const nextChanges = filterSelectionChanges(changes, activeToolMode === 'select')
+
+          setFlowNodes((currentFlowNodes) => applyNodeChanges(nextChanges, currentFlowNodes))
           applyNodeChangesToStore({
-            changes,
+            changes: nextChanges,
             previewNodeMove,
             replaceSelectedNodes,
             selectedNodeIds
@@ -173,7 +175,7 @@ export function CanvasScene({
         }}
         onEdgesChange={(changes) => {
           applyEdgeChangesToStore({
-            changes,
+            changes: filterSelectionChanges(changes, activeToolMode === 'select'),
             replaceSelectedEdges,
             selectedEdgeIds
           })
@@ -668,6 +670,14 @@ function FallbackComponentNode({
       <div className="mt-3 text-sm text-[inherit]">{body ?? 'Custom component placeholder'}</div>
     </div>
   )
+}
+
+function filterSelectionChanges<T extends { type: string }>(changes: T[], allowSelectionChanges: boolean) {
+  if (allowSelectionChanges) {
+    return changes
+  }
+
+  return changes.filter((change) => change.type !== 'select')
 }
 
 export function applyNodeChangesToStore({
