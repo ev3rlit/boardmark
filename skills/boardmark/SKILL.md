@@ -9,6 +9,18 @@ Keep answers focused on pasteable Boardmark syntax.
 
 Boardmark is a canvas-style document format that places markdown notes and connections on a 2D board.
 
+## Currently Supported Syntax
+
+Useful Boardmark syntax to mention:
+- document frontmatter
+- `note` objects
+- `edge` objects
+- `image` objects
+- normal markdown inside note bodies
+- markdown images with `![]()`
+- fenced `mermaid` blocks inside notes
+- fenced `sandpack` blocks inside notes
+
 ## Boardmark Shape
 
 A Boardmark canvas document is plain text with:
