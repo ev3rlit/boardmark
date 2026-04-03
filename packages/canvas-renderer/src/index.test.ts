@@ -67,6 +67,9 @@ describe('canvas renderer helpers', () => {
     expect(node.data.body).toBe('# A\n')
     expect(node.data.resolvedThemeRef).toBe('boardmark.editorial.soft')
     expect(node.data.style?.overrides?.fill).toBe('#fff9db')
+    expect(node.draggable).toBeUndefined()
+    expect(node.selectable).toBeUndefined()
+    expect(node.connectable).toBeUndefined()
   })
 
   it('maps component nodes using component keys and at geometry', () => {
@@ -156,6 +159,8 @@ describe('canvas renderer helpers', () => {
     expect(edge.source).toBe('a')
     expect(edge.target).toBe('b')
     expect(edge.data?.body).toBe('Edge label\n')
+    expect(edge.selectable).toBeUndefined()
+    expect(edge.reconnectable).toBeUndefined()
     expect(viewport).toEqual({ x: -120, y: -40, zoom: 1 })
   })
 

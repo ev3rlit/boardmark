@@ -52,10 +52,7 @@ export function toFlowNode(
       x: node.at.x,
       y: node.at.y
     },
-    draggable: true,
     deletable: false,
-    selectable: true,
-    connectable: true,
     data: {
       id: node.id,
       component: node.component,
@@ -88,9 +85,7 @@ export function toFlowEdge(edge: CanvasEdge): Edge<CanvasFlowEdgeData> {
     source: edge.from,
     target: edge.to,
     animated: false,
-    selectable: true,
     deletable: true,
-    reconnectable: true,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: 'rgba(96, 66, 214, 0.72)'
