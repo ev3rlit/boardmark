@@ -16,6 +16,12 @@ type ObjectContextMenuProps = {
   x: number
   y: number
   canEdit: boolean
+  canCopy: boolean
+  canCut: boolean
+  canDuplicate: boolean
+  canGroup: boolean
+  canPaste: boolean
+  canUngroup: boolean
   imageActions?: {
     canReveal: boolean
     lockAspectRatioLabel: string
@@ -25,8 +31,15 @@ type ObjectContextMenuProps = {
     onRevealFile: () => void
     onToggleLockAspectRatio: () => void
   } | null
+  onCopy: () => void
+  onCut: () => void
   onDelete: () => void
+  onDuplicate: () => void
   onEdit: () => void
+  onGroup: () => void
+  onPaste: () => void
+  onPasteInPlace: () => void
+  onUngroup: () => void
 }
 
 export function ObjectContextMenu({
@@ -34,9 +47,22 @@ export function ObjectContextMenu({
   x,
   y,
   canEdit,
+  canCopy,
+  canCut,
+  canDuplicate,
+  canGroup,
+  canPaste,
+  canUngroup,
   imageActions,
+  onCopy,
+  onCut,
   onDelete,
-  onEdit
+  onDuplicate,
+  onEdit,
+  onGroup,
+  onPaste,
+  onPasteInPlace,
+  onUngroup
 }: ObjectContextMenuProps) {
   return (
     <div
@@ -96,16 +122,43 @@ export function ObjectContextMenu({
 
       <div className="viewer-context-menu-section">
         <ContextMenuItem
-          disabled
+          disabled={!canCopy}
           icon={Copy}
-          label="Duplicate"
-          onClick={() => undefined}
+          label="Copy"
+          onClick={onCopy}
         />
         <ContextMenuItem
-          disabled
+          disabled={!canCut}
+          icon={Trash2}
+          label="Cut"
+          onClick={onCut}
+        />
+        <ContextMenuItem
+          disabled={!canPaste}
+          icon={BetweenHorizontalStart}
+          label="Paste"
+          onClick={onPaste}
+        />
+      </div>
+
+      <div className="viewer-context-menu-section">
+        <ContextMenuItem
+          disabled={!canDuplicate}
+          icon={Copy}
+          label="Duplicate"
+          onClick={onDuplicate}
+        />
+        <ContextMenuItem
+          disabled={!canGroup}
           icon={Group}
           label="Group"
-          onClick={() => undefined}
+          onClick={onGroup}
+        />
+        <ContextMenuItem
+          disabled={!canUngroup}
+          icon={Group}
+          label="Ungroup"
+          onClick={onUngroup}
         />
         <ContextMenuItem
           disabled
@@ -117,10 +170,10 @@ export function ObjectContextMenu({
 
       <div className="viewer-context-menu-section">
         <ContextMenuItem
-          disabled
+          disabled={!canPaste}
           icon={BetweenHorizontalStart}
-          label="Distribute"
-          onClick={() => undefined}
+          label="Paste in place"
+          onClick={onPasteInPlace}
         />
         <ContextMenuItem
           disabled

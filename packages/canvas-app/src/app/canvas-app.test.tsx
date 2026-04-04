@@ -232,7 +232,12 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete object' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Cut' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Group' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Ungroup' })).toBeDisabled()
   })
 
   it('opens the shape menu and dispatches the selected shape preset', async () => {
@@ -388,6 +393,7 @@ describe('CanvasApp', () => {
             {
               label: 'Move node',
               source: templateSource,
+              selectedGroupIds: [],
               selectedNodeIds: ['welcome'],
               selectedEdgeIds: []
             }
@@ -396,6 +402,7 @@ describe('CanvasApp', () => {
             {
               label: 'Move node',
               source: templateSource,
+              selectedGroupIds: [],
               selectedNodeIds: ['welcome'],
               selectedEdgeIds: []
             }
@@ -442,6 +449,70 @@ describe('CanvasApp', () => {
     expect(redoSpy).toHaveBeenCalledTimes(2)
   })
 
+  it('dispatches zoom and object shortcuts only when the canvas is idle', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    store.setState({
+      clipboardState: {
+        status: 'ready',
+        payload: {
+          groups: [],
+          nodes: [],
+          edges: [],
+          origin: null
+        }
+      }
+    })
+    const selectAllSpy = vi.spyOn(store.getState(), 'selectAllObjects')
+    const copySpy = vi.spyOn(store.getState(), 'copySelection')
+    const cutSpy = vi.spyOn(store.getState(), 'cutSelection')
+    const duplicateSpy = vi.spyOn(store.getState(), 'duplicateSelection')
+    const nudgeSpy = vi.spyOn(store.getState(), 'nudgeSelection')
+    const pasteSpy = vi.spyOn(store.getState(), 'pasteClipboard')
+    const pasteInPlaceSpy = vi.spyOn(store.getState(), 'pasteClipboardInPlace')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await screen.findByText('Boardmark Viewer')
+
+    fireEvent.keyDown(window, { key: '=', metaKey: true })
+    fireEvent.keyDown(window, { key: '-', metaKey: true })
+    fireEvent.keyDown(window, { key: 'a', metaKey: true })
+    fireEvent.keyDown(window, { key: 'c', metaKey: true })
+    fireEvent.keyDown(window, { key: 'x', metaKey: true })
+    fireEvent.keyDown(window, { key: 'v', metaKey: true })
+    fireEvent.keyDown(window, { key: 'V', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, { key: 'd', metaKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+
+    expect(store.getState().viewport.zoom).toBe(0.92)
+    expect(selectAllSpy).toHaveBeenCalledTimes(1)
+    expect(copySpy).toHaveBeenCalledTimes(1)
+    expect(cutSpy).toHaveBeenCalledTimes(1)
+    expect(pasteSpy).toHaveBeenCalledTimes(1)
+    expect(pasteInPlaceSpy).toHaveBeenCalledTimes(1)
+    expect(duplicateSpy).toHaveBeenCalledTimes(1)
+    expect(nudgeSpy).toHaveBeenNthCalledWith(1, 1, 0)
+    expect(nudgeSpy).toHaveBeenNthCalledWith(2, 10, 0)
+  })
+
   it('does not intercept undo shortcuts while inline editing is active', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -449,6 +520,13 @@ describe('CanvasApp', () => {
       templateSource
     })
     const undoSpy = vi.spyOn(store.getState(), 'undo')
+    const selectAllSpy = vi.spyOn(store.getState(), 'selectAllObjects')
+    const copySpy = vi.spyOn(store.getState(), 'copySelection')
+    const cutSpy = vi.spyOn(store.getState(), 'cutSelection')
+    const duplicateSpy = vi.spyOn(store.getState(), 'duplicateSelection')
+    const nudgeSpy = vi.spyOn(store.getState(), 'nudgeSelection')
+    const pasteSpy = vi.spyOn(store.getState(), 'pasteClipboard')
+    const pasteInPlaceSpy = vi.spyOn(store.getState(), 'pasteClipboardInPlace')
 
     render(
       <CanvasApp
@@ -473,8 +551,24 @@ describe('CanvasApp', () => {
 
     fireEvent.keyDown(editor, { key: 'z', metaKey: true })
     fireEvent.keyDown(editor, { key: 'y', ctrlKey: true })
+    fireEvent.keyDown(editor, { key: '=', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'a', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'c', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'x', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'v', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'V', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(editor, { key: 'd', metaKey: true })
+    fireEvent.keyDown(editor, { key: 'ArrowRight' })
 
     expect(undoSpy).not.toHaveBeenCalled()
+    expect(selectAllSpy).not.toHaveBeenCalled()
+    expect(copySpy).not.toHaveBeenCalled()
+    expect(cutSpy).not.toHaveBeenCalled()
+    expect(duplicateSpy).not.toHaveBeenCalled()
+    expect(nudgeSpy).not.toHaveBeenCalled()
+    expect(pasteSpy).not.toHaveBeenCalled()
+    expect(pasteInPlaceSpy).not.toHaveBeenCalled()
+    expect(store.getState().viewport.zoom).toBe(0.92)
   })
 })
 
@@ -511,6 +605,7 @@ function createRepository(): CanvasDocumentRepositoryGateway {
             version: 2,
             viewport: { x: -180, y: -120, zoom: 0.92 }
           },
+          groups: [],
           nodes: [
             {
               id: 'welcome',

@@ -20,6 +20,7 @@ export type CanvasFlowNodeData = {
   src?: string
   alt?: string
   title?: string
+  locked?: boolean
   lockAspectRatio?: boolean
   style?: CanvasObjectStyle
   resolvedThemeRef?: string
@@ -31,6 +32,7 @@ export type CanvasFlowNodeData = {
 export type CanvasFlowEdgeData = {
   id: string
   body?: string
+  locked?: boolean
   style?: CanvasObjectStyle
 }
 
@@ -60,6 +62,7 @@ export function toFlowNode(
       src: node.src,
       alt: node.alt,
       title: node.title,
+      locked: node.locked,
       lockAspectRatio: node.lockAspectRatio,
       style: node.style,
       resolvedThemeRef: node.style?.themeRef ?? options?.defaultStyle,
@@ -67,10 +70,12 @@ export function toFlowNode(
       width,
       imageResolver: options?.imageResolver
     },
+    draggable: node.locked ? false : undefined,
     width,
     height,
     initialWidth: width,
     initialHeight: height,
+    zIndex: node.z,
     style: {
       width,
       height
@@ -93,8 +98,10 @@ export function toFlowEdge(edge: CanvasEdge): Edge<CanvasFlowEdgeData> {
     data: {
       id: edge.id,
       body: edge.body,
+      locked: edge.locked,
       style: edge.style
-    }
+    },
+    zIndex: edge.z
   }
 }
 

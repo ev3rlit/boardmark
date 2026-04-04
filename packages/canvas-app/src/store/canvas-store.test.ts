@@ -188,6 +188,146 @@ describe('viewer store', () => {
     expect(store.getState().selectedNodeIds).toEqual([])
   })
 
+  it('selects all top-level objects without expanding groups', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().selectAllObjects()
+
+    expect(store.getState().selectedGroupIds).toEqual([])
+    expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
+    expect(store.getState().selectedEdgeIds).toEqual(['welcome-overview'])
+  })
+
+  it('creates a group and resolves first-click selection to the top-level group before drilldown', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().groupSelection()
+
+    expect(store.getState().draftSource).toContain(
+      '::: group { id: group-1, z: 1 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '~~~yaml members\nnodes:\n  - welcome\n  - overview\n~~~'
+    )
+    expect(store.getState().selectedGroupIds).toEqual(['group-1'])
+    expect(store.getState().groupSelectionState).toEqual({
+      status: 'group-selected',
+      groupId: 'group-1'
+    })
+
+    store.getState().clearSelection()
+    store.getState().selectNodeFromCanvas('welcome', false)
+
+    expect(store.getState().selectedGroupIds).toEqual(['group-1'])
+    expect(store.getState().selectedNodeIds).toEqual([])
+    expect(store.getState().groupSelectionState).toEqual({
+      status: 'group-selected',
+      groupId: 'group-1'
+    })
+
+    store.getState().selectNodeFromCanvas('welcome', false)
+
+    expect(store.getState().selectedGroupIds).toEqual([])
+    expect(store.getState().selectedNodeIds).toEqual(['welcome'])
+    expect(store.getState().groupSelectionState).toEqual({
+      status: 'drilldown',
+      groupId: 'group-1',
+      nodeId: 'welcome'
+    })
+  })
+
+  it('ungroups selected groups without deleting member nodes', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().groupSelection()
+    await store.getState().ungroupSelection()
+
+    expect(store.getState().draftSource).not.toContain('::: group { id: group-1')
+    expect(store.getState().nodes.map((node) => node.id)).toEqual(['welcome', 'overview'])
+    expect(store.getState().selectedGroupIds).toEqual([])
+    expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
+  })
+
+  it('copies grouped selections into clipboard payloads with member nodes and eligible edges', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().groupSelection()
+    await store.getState().copySelection()
+
+    expect(store.getState().clipboardState).toEqual({
+      status: 'ready',
+      payload: expect.objectContaining({
+        groups: [
+          expect.objectContaining({
+            id: 'group-1',
+            members: {
+              nodeIds: ['welcome', 'overview']
+            }
+          })
+        ],
+        nodes: [
+          expect.objectContaining({ id: 'welcome' }),
+          expect.objectContaining({ id: 'overview' })
+        ],
+        edges: [
+          expect.objectContaining({ id: 'welcome-overview' })
+        ],
+        origin: { x: 80, y: 72 }
+      })
+    })
+  })
+
+  it('cuts the current selection into clipboard payload and records a single undo step', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().cutSelection()
+
+    expect(store.getState().clipboardState).toEqual({
+      status: 'ready',
+      payload: expect.objectContaining({
+        nodes: [
+          expect.objectContaining({ id: 'welcome' }),
+          expect.objectContaining({ id: 'overview' })
+        ],
+        edges: [
+          expect.objectContaining({ id: 'welcome-overview' })
+        ]
+      })
+    })
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().nodes).toHaveLength(0)
+    expect(store.getState().edges).toHaveLength(0)
+  })
+
   it('replaces the current document with a dropped unsaved draft', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -483,6 +623,110 @@ describe('viewer store', () => {
     expect(store.getState().edges).toHaveLength(1)
   })
 
+  it('duplicates the current selection with offset, derived edges, and a single undo step', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().duplicateSelection()
+
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-1, at: { x: 96, y: 88, w: 320, h: 220 }, z: 1 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-2, at: { x: 396, y: 88, w: 320, h: 220 }, z: 2 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: edge { id: edge-1, from: note-1, to: note-2, z: 3 }'
+    )
+    expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
+    expect(store.getState().selectedEdgeIds).toEqual(['edge-1'])
+
+    await store.getState().undo()
+
+    expect(store.getState().draftSource).not.toContain('::: note { id: note-1')
+    expect(store.getState().draftSource).not.toContain('::: edge { id: edge-1')
+  })
+
+  it('pastes grouped clipboard payloads with regenerated ids and remapped selection', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().groupSelection()
+    await store.getState().copySelection()
+    store.getState().setLastCanvasPointer({ x: 600, y: 400 })
+    await store.getState().pasteClipboard()
+
+    expect(store.getState().draftSource).toContain(
+      '::: group { id: group-2, z: 2 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '~~~yaml members\nnodes:\n  - note-1\n  - note-2\n~~~'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-1, at: { x: 600, y: 400, w: 320, h: 220 }, z: 3 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: edge { id: edge-1, from: note-1, to: note-2, z: 5 }'
+    )
+    expect(store.getState().selectedGroupIds).toEqual(['group-2'])
+    expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
+    expect(store.getState().selectedEdgeIds).toEqual(['edge-1'])
+  })
+
+  it('pastes clipboard payloads in place without changing origin coordinates', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().copySelection()
+    await store.getState().pasteClipboardInPlace()
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-1, at: { x: 80, y: 72, w: 320, h: 220 }, z: 1 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-2, at: { x: 380, y: 72, w: 320, h: 220 }, z: 2 }'
+    )
+  })
+
+  it('nudges selected nodes and ignores direct edge-only selections', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome'])
+    await store.getState().nudgeSelection(1, 0)
+    await store.getState().nudgeSelection(10, 0)
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 91, y: 72, w: 320, h: 220 } }'
+    )
+
+    store.getState().replaceSelectedEdges(['welcome-overview'])
+    const sourceBeforeEdgeNudge = store.getState().draftSource
+    await store.getState().nudgeSelection(1, 0)
+
+    expect(store.getState().draftSource).toBe(sourceBeforeEdgeNudge)
+  })
+
   it('blocks undo and redo while conflict or invalid states are active', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -517,6 +761,7 @@ describe('viewer store', () => {
           {
             label: 'Move node',
             source: templateSource,
+            selectedGroupIds: [],
             selectedNodeIds: [],
             selectedEdgeIds: []
           }

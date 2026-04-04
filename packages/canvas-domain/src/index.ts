@@ -49,10 +49,16 @@ export type CanvasDirectiveSourceMap = {
   closingLineRange: CanvasSourceRange
 }
 
+export type CanvasGroupMembership = {
+  nodeIds: string[]
+}
+
 export type CanvasNode = {
   id: string
   component: string
   at: CanvasObjectAt
+  z?: number
+  locked?: boolean
   style?: CanvasObjectStyle
   body?: string
   src?: string
@@ -67,14 +73,27 @@ export type CanvasEdge = {
   id: string
   from: string
   to: string
+  z?: number
+  locked?: boolean
   style?: CanvasObjectStyle
   body?: string
   position: CanvasSourceRange
   sourceMap: CanvasDirectiveSourceMap
 }
 
+export type CanvasGroup = {
+  id: string
+  z?: number
+  locked?: boolean
+  body?: string
+  members: CanvasGroupMembership
+  position: CanvasSourceRange
+  sourceMap: CanvasDirectiveSourceMap
+}
+
 export type CanvasAST = {
   frontmatter: CanvasFrontmatter
+  groups: CanvasGroup[]
   nodes: CanvasNode[]
   edges: CanvasEdge[]
 }

@@ -32,7 +32,7 @@ export type CanvasHistoryService = {
   canRedo: (history: CanvasHistoryState) => boolean
   canUndo: (history: CanvasHistoryState) => boolean
   captureEntry: (
-    state: Pick<CanvasStoreState, 'draftSource' | 'selectedEdgeIds' | 'selectedNodeIds'>,
+    state: Pick<CanvasStoreState, 'draftSource' | 'selectedEdgeIds' | 'selectedGroupIds' | 'selectedNodeIds'>,
     label: string
   ) => CanvasHistoryEntry | null
   pushEntry: (history: CanvasHistoryState, entry: CanvasHistoryEntry) => CanvasHistoryState
@@ -66,6 +66,7 @@ export function createCanvasHistoryService({
       return {
         label,
         source: state.draftSource,
+        selectedGroupIds: [...state.selectedGroupIds],
         selectedNodeIds: [...state.selectedNodeIds],
         selectedEdgeIds: [...state.selectedEdgeIds]
       }
@@ -159,6 +160,7 @@ function cloneHistoryEntry(entry: CanvasHistoryEntry): CanvasHistoryEntry {
   return {
     label: entry.label,
     source: entry.source,
+    selectedGroupIds: [...entry.selectedGroupIds],
     selectedNodeIds: [...entry.selectedNodeIds],
     selectedEdgeIds: [...entry.selectedEdgeIds]
   }

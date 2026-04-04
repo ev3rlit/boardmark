@@ -318,4 +318,335 @@ describe('canvas document edit service', () => {
       '::: image { id: image-1, src: "./welcome.assets/mockup.png", alt: "Updated mockup", title: Welcome, lockAspectRatio: false, at: { x: 220, y: 180, w: 480, h: 320 } }'
     )
   })
+
+  it('duplicates selected objects with regenerated ids and remapped edges', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'duplicate-test',
+        name: 'duplicate.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const duplicateResult = editService.apply(source, recordResult.value, {
+      kind: 'duplicate-objects',
+      nodeIds: ['welcome', 'overview'],
+      edgeIds: ['welcome-overview'],
+      offsetX: 16,
+      offsetY: 16
+    })
+
+    expect(duplicateResult.isOk()).toBe(true)
+
+    if (duplicateResult.isErr()) {
+      return
+    }
+
+    expect(duplicateResult.value.source).toContain(
+      '::: note { id: note-1, at: { x: 96, y: 88, w: 320, h: 220 }, z: 1 }'
+    )
+    expect(duplicateResult.value.source).toContain(
+      '::: note { id: note-2, at: { x: 396, y: 88, w: 320, h: 220 }, z: 2 }'
+    )
+    expect(duplicateResult.value.source).toContain(
+      '::: edge { id: edge-1, from: note-1, to: note-2, z: 3 }'
+    )
+
+    const reparsedResult = repository.readSource({
+      locator: recordResult.value.locator,
+      source: duplicateResult.value.source,
+      isTemplate: false
+    })
+
+    expect(reparsedResult.isOk()).toBe(true)
+    expect(reparsedResult._unsafeUnwrap().ast.nodes).toHaveLength(4)
+    expect(reparsedResult._unsafeUnwrap().ast.edges).toHaveLength(2)
+  })
+
+  it('nudges multiple node headers without rewriting unrelated objects', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'nudge-test',
+        name: 'nudge.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const nudgeResult = editService.apply(source, recordResult.value, {
+      kind: 'nudge-objects',
+      nodeIds: ['welcome', 'overview'],
+      dx: 10,
+      dy: -2
+    })
+
+    expect(nudgeResult.isOk()).toBe(true)
+
+    if (nudgeResult.isErr()) {
+      return
+    }
+
+    expect(nudgeResult.value.source).toContain(
+      '::: note { id: welcome, at: { x: 90, y: 70, w: 320, h: 220 } }'
+    )
+    expect(nudgeResult.value.source).toContain(
+      '::: note { id: overview, at: { x: 390, y: 70, w: 320, h: 220 } }'
+    )
+    expect(nudgeResult.value.source).toContain(
+      '::: edge { id: welcome-overview, from: welcome, to: overview }'
+    )
+  })
+
+  it('accepts z, locked, and group membership fields during reparsing', () => {
+    const repository = createCanvasMarkdownDocumentRepository()
+    const sourceWithGroups = `---
+type: canvas
+version: 2
+---
+
+::: group { id: ideation-group, z: 40, locked: true }
+~~~yaml members
+nodes:
+  - welcome
+~~~
+:::
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 10, locked: true }
+Boardmark Viewer
+:::
+
+::: edge { id: welcome-self, from: welcome, to: welcome, z: 12, locked: true }
+locked edge
+:::`
+
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'group-parse-test',
+        name: 'group.canvas.md'
+      },
+      source: sourceWithGroups,
+      isTemplate: false
+    })
+
+    expect(recordResult.isOk()).toBe(true)
+
+    if (recordResult.isErr()) {
+      return
+    }
+
+    expect(recordResult.value.ast.groups).toEqual([
+      expect.objectContaining({
+        id: 'ideation-group',
+        z: 40,
+        locked: true,
+        members: {
+          nodeIds: ['welcome']
+        }
+      })
+    ])
+    expect(recordResult.value.ast.nodes[0]).toEqual(
+      expect.objectContaining({
+        id: 'welcome',
+        z: 10,
+        locked: true
+      })
+    )
+    expect(recordResult.value.ast.edges[0]).toEqual(
+      expect.objectContaining({
+        id: 'welcome-self',
+        z: 12,
+        locked: true
+      })
+    )
+  })
+
+  it('creates and updates group directives with yaml membership blocks', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'upsert-group-test',
+        name: 'upsert-group.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const createdGroup = editService.apply(source, recordResult.value, {
+      kind: 'upsert-group',
+      groupId: 'group-1',
+      nodeIds: ['welcome', 'overview'],
+      z: 40
+    })
+
+    expect(createdGroup.isOk()).toBe(true)
+    expect(createdGroup._unsafeUnwrap().source).toContain(
+      '::: group { id: group-1, z: 40 }'
+    )
+    expect(createdGroup._unsafeUnwrap().source).toContain(
+      '~~~yaml members\nnodes:\n  - welcome\n  - overview\n~~~'
+    )
+
+    const createdRecord = repository.readSource({
+      locator: recordResult.value.locator,
+      source: createdGroup._unsafeUnwrap().source,
+      isTemplate: false
+    })
+
+    const updatedGroup = editService.apply(createdGroup._unsafeUnwrap().source, createdRecord._unsafeUnwrap(), {
+      kind: 'upsert-group',
+      groupId: 'group-1',
+      nodeIds: ['overview'],
+      z: 41
+    })
+
+    expect(updatedGroup.isOk()).toBe(true)
+    expect(updatedGroup._unsafeUnwrap().source).toContain(
+      '::: group { id: group-1, z: 41 }'
+    )
+    expect(updatedGroup._unsafeUnwrap().source).toContain(
+      '~~~yaml members\nnodes:\n  - overview\n~~~'
+    )
+  })
+
+  it('deletes group directives without deleting member nodes', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const groupedSource = `${source}
+
+::: group { id: group-1, z: 10 }
+~~~yaml members
+nodes:
+  - welcome
+~~~
+:::`
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'delete-groups-test',
+        name: 'delete-groups.canvas.md'
+      },
+      source: groupedSource,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const deletedGroups = editService.apply(groupedSource, recordResult.value, {
+      kind: 'delete-groups',
+      groupIds: ['group-1']
+    })
+
+    expect(deletedGroups.isOk()).toBe(true)
+    expect(deletedGroups._unsafeUnwrap().source).not.toContain('::: group { id: group-1')
+    expect(deletedGroups._unsafeUnwrap().source).toContain('::: note { id: welcome')
+  })
+
+  it('pastes grouped payloads with regenerated ids and remapped endpoints', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'paste-group-test',
+        name: 'paste-group.canvas.md'
+      },
+      source,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const pasteResult = editService.apply(source, recordResult.value, {
+      kind: 'paste-objects',
+      payload: {
+        groups: [
+          {
+            id: 'ideation-group',
+            z: 10,
+            members: {
+              nodeIds: ['welcome', 'overview']
+            }
+          }
+        ],
+        nodes: [
+          {
+            id: 'welcome',
+            component: 'note',
+            at: { x: 80, y: 72, w: 320, h: 220 },
+            body: 'Boardmark Viewer\n',
+            z: 1
+          },
+          {
+            id: 'overview',
+            component: 'note',
+            at: { x: 380, y: 72, w: 320, h: 220 },
+            body: 'Overview\n',
+            z: 2
+          }
+        ],
+        edges: [
+          {
+            id: 'welcome-overview',
+            from: 'welcome',
+            to: 'overview',
+            body: 'main thread\n',
+            z: 3
+          }
+        ],
+        origin: { x: 80, y: 72 }
+      },
+      anchorX: 600,
+      anchorY: 400,
+      inPlace: false
+    })
+
+    expect(pasteResult.isOk()).toBe(true)
+    expect(pasteResult._unsafeUnwrap().source).toContain(
+      '::: group { id: group-1, z: 1 }'
+    )
+    expect(pasteResult._unsafeUnwrap().source).toContain(
+      '~~~yaml members\nnodes:\n  - note-1\n  - note-2\n~~~'
+    )
+    expect(pasteResult._unsafeUnwrap().source).toContain(
+      '::: note { id: note-1, at: { x: 600, y: 400, w: 320, h: 220 }, z: 2 }'
+    )
+    expect(pasteResult._unsafeUnwrap().source).toContain(
+      '::: edge { id: edge-1, from: note-1, to: note-2, z: 4 }'
+    )
+
+    const reparsedResult = repository.readSource({
+      locator: recordResult.value.locator,
+      source: pasteResult._unsafeUnwrap().source,
+      isTemplate: false
+    })
+
+    expect(reparsedResult.isOk()).toBe(true)
+    expect(reparsedResult._unsafeUnwrap().ast.groups).toHaveLength(1)
+  })
 })

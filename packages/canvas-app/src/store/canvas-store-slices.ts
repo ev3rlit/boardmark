@@ -150,6 +150,7 @@ function applyEditingOutcome({
   get: CanvasStoreGetState
   historyEntry: {
     label: string
+    selectedGroupIds: string[]
     selectedEdgeIds: string[]
     selectedNodeIds: string[]
     source: string
@@ -190,9 +191,12 @@ function applyEditingOutcome({
 
   set(
     createCanvasDocumentRecordPatch(outcome.record, {
+      clipboardState: get().clipboardState,
       documentState: outcome.documentState,
+      groupSelectionState: get().groupSelectionState,
       history: nextHistory,
       viewport: get().viewport,
+      selectedGroupIds: get().selectedGroupIds,
       selectedNodeIds: get().selectedNodeIds,
       selectedEdgeIds: get().selectedEdgeIds
     })
@@ -357,6 +361,7 @@ export function createCanvasDocumentSlice() {
     document: null,
     lastParsedDocument: null,
     documentState: null,
+    groups: [],
     nodes: [],
     edges: [],
     loadState: { status: 'idle' } as const,
@@ -375,8 +380,10 @@ export function createCanvasDocumentSlice() {
 export function createCanvasInteractionSlice() {
   return {
     viewport: DEFAULT_CANVAS_VIEWPORT,
+    selectedGroupIds: [],
     selectedNodeIds: [],
     selectedEdgeIds: [],
+    groupSelectionState: { status: 'idle' } as const,
     toolMode: 'select' as const,
     panShortcutActive: false,
     lastCanvasPointer: null,
@@ -392,6 +399,7 @@ export function createCanvasUiSlice() {
   return {
     dropState: { status: 'idle' } as const,
     editingState: { status: 'idle' } as const,
+    clipboardState: { status: 'empty' } as const,
     operationError: null as string | null
   }
 }
@@ -443,6 +451,18 @@ export function createCanvasCommandSlice(
   | 'resolveImageSource'
   | 'createFrameAtViewport'
   | 'deleteSelection'
+  | 'selectAllObjects'
+  | 'replaceSelection'
+  | 'selectNodeFromCanvas'
+  | 'selectEdgeFromCanvas'
+  | 'copySelection'
+  | 'cutSelection'
+  | 'pasteClipboard'
+  | 'pasteClipboardInPlace'
+  | 'duplicateSelection'
+  | 'nudgeSelection'
+  | 'groupSelection'
+  | 'ungroupSelection'
   | 'startNoteEditing'
   | 'startShapeEditing'
   | 'startEdgeEditing'
@@ -563,88 +583,66 @@ export function createCanvasCommandSlice(
     },
 
     setPrimarySelectedNode(nodeId) {
-      set((state) => {
-        const nextSelectedNodeIds = nodeId ? [nodeId] : []
-
-        if (
-          areSameIds(state.selectedNodeIds, nextSelectedNodeIds) &&
-          state.selectedEdgeIds.length === 0
-        ) {
-          return state
-        }
-
-        return {
-          ...state,
-          selectedNodeIds: nextSelectedNodeIds,
-          selectedEdgeIds: []
-        }
+      get().replaceSelection({
+        groupIds: [],
+        nodeIds: nodeId ? [nodeId] : [],
+        edgeIds: []
       })
     },
 
     toggleSelectedNode(nodeId) {
       set((state) => {
         const hasNode = state.selectedNodeIds.includes(nodeId)
-        return {
-          ...state,
-          selectedNodeIds: hasNode
+
+        return buildSelectionPatch(state, {
+          groupIds: [],
+          nodeIds: hasNode
             ? state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId)
             : [...state.selectedNodeIds, nodeId],
-          selectedEdgeIds: []
-        }
+          edgeIds: []
+        })
       })
     },
 
     replaceSelectedNodes(nodeIds) {
-      set((state) => {
-        const nextSelectedNodeIds = [...new Set(nodeIds)]
-        const nextSelectedEdgeIds = nodeIds.length > 0 ? [] : state.selectedEdgeIds
-
-        if (
-          areSameIds(state.selectedNodeIds, nextSelectedNodeIds) &&
-          areSameIds(state.selectedEdgeIds, nextSelectedEdgeIds)
-        ) {
-          return state
-        }
-
-        return {
-          ...state,
-          selectedNodeIds: nextSelectedNodeIds,
-          selectedEdgeIds: nextSelectedEdgeIds
-        }
+      get().replaceSelection({
+        groupIds: [],
+        nodeIds,
+        edgeIds: nodeIds.length > 0 ? [] : get().selectedEdgeIds
       })
     },
 
     replaceSelectedEdges(edgeIds) {
+      get().replaceSelection({
+        groupIds: [],
+        nodeIds: edgeIds.length > 0 ? [] : get().selectedNodeIds,
+        edgeIds
+      })
+    },
+
+    replaceSelection(input) {
       set((state) => {
-        const nextSelectedEdgeIds = [...new Set(edgeIds)]
-        const nextSelectedNodeIds = edgeIds.length > 0 ? [] : state.selectedNodeIds
+        return buildSelectionPatch(state, input)
+      })
+    },
 
-        if (
-          areSameIds(state.selectedEdgeIds, nextSelectedEdgeIds) &&
-          areSameIds(state.selectedNodeIds, nextSelectedNodeIds)
-        ) {
-          return state
-        }
+    selectNodeFromCanvas(nodeId, additive) {
+      set((state) => {
+        return buildNodeSelectionPatch(state, nodeId, additive)
+      })
+    },
 
-        return {
-          ...state,
-          selectedEdgeIds: nextSelectedEdgeIds,
-          selectedNodeIds: nextSelectedNodeIds
-        }
+    selectEdgeFromCanvas(edgeId, additive) {
+      set((state) => {
+        return buildEdgeSelectionPatch(state, edgeId, additive)
       })
     },
 
     clearSelection() {
-      set((state) => {
-        if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
-          return state
-        }
-
-        return {
-          ...state,
-          selectedNodeIds: [],
-          selectedEdgeIds: []
-        }
+      get().replaceSelection({
+        groupIds: [],
+        nodeIds: [],
+        edgeIds: []
       })
     },
 
@@ -718,6 +716,10 @@ export function createCanvasCommandSlice(
     },
 
     previewNodeMove(nodeId, x, y) {
+      if (isNodeLocked(get(), nodeId)) {
+        return
+      }
+
       set((state) => ({
         ...state,
         interactionOverrides: {
@@ -732,6 +734,10 @@ export function createCanvasCommandSlice(
     },
 
     async commitNodeMove(nodeId, x, y) {
+      if (isNodeLocked(get(), nodeId)) {
+        return
+      }
+
       clearInteractionOverride(set, get, nodeId)
       logCanvasDiagnostic('debug', 'Committing node move intent from the canvas store.', {
         nodeId,
@@ -755,6 +761,10 @@ export function createCanvasCommandSlice(
     },
 
     previewNodeResize(nodeId, geometry) {
+      if (isNodeLocked(get(), nodeId)) {
+        return
+      }
+
       const nextGeometry = readResizedGeometryForNode(get(), nodeId, geometry)
       set((state) => ({
         ...state,
@@ -772,6 +782,10 @@ export function createCanvasCommandSlice(
     },
 
     async commitNodeResize(nodeId, geometry) {
+      if (isNodeLocked(get(), nodeId)) {
+        return
+      }
+
       const nextGeometry = readResizedGeometryForNode(get(), nodeId, geometry)
       clearInteractionOverride(set, get, nodeId)
       logCanvasDiagnostic('debug', 'Committing node resize intent from the canvas store.', {
@@ -800,6 +814,10 @@ export function createCanvasCommandSlice(
     },
 
     async reconnectEdge(edgeId, from, to) {
+      if (isEdgeLocked(get(), edgeId)) {
+        return
+      }
+
       logCanvasDiagnostic('debug', 'Committing edge reconnect intent from the canvas store.', {
         edgeId,
         from,
@@ -822,6 +840,10 @@ export function createCanvasCommandSlice(
     },
 
     async createEdgeFromConnection(from, to) {
+      if (isNodeLocked(get(), from) || isNodeLocked(get(), to)) {
+        return
+      }
+
       logCanvasDiagnostic('debug', 'Committing edge creation intent from the canvas store.', {
         from,
         to
@@ -1011,7 +1033,7 @@ export function createCanvasCommandSlice(
       const state = get()
       const selectedImage = readPrimarySelectedImage(state)
 
-      if (!selectedImage) {
+      if (!selectedImage || isNodeLocked(state, selectedImage.id)) {
         set({
           operationError: 'Select one image before replacing its source.'
         })
@@ -1098,7 +1120,7 @@ export function createCanvasCommandSlice(
       const state = get()
       const selectedImage = readPrimarySelectedImage(state)
 
-      if (!selectedImage) {
+      if (!selectedImage || isNodeLocked(state, selectedImage.id)) {
         set({
           operationError: 'Select one image before changing its aspect-ratio lock.'
         })
@@ -1124,7 +1146,7 @@ export function createCanvasCommandSlice(
       const state = get()
       const selectedImage = readPrimarySelectedImage(state)
 
-      if (!selectedImage) {
+      if (!selectedImage || isNodeLocked(state, selectedImage.id)) {
         set({
           operationError: 'Select one image before updating its alt text.'
         })
@@ -1186,8 +1208,13 @@ export function createCanvasCommandSlice(
 
     async deleteSelection() {
       const state = get()
+      const selection = readUnlockedDocumentSelection(state)
 
-      if (state.selectedNodeIds.length === 0 && state.selectedEdgeIds.length === 0) {
+      if (
+        selection.groupIds.length === 0 &&
+        selection.nodeIds.length === 0 &&
+        selection.edgeIds.length === 0
+      ) {
         return
       }
 
@@ -1199,8 +1226,271 @@ export function createCanvasCommandSlice(
         historyService: services.historyService,
         intent: {
           kind: 'delete-objects',
-          nodeIds: state.selectedNodeIds,
-          edgeIds: state.selectedEdgeIds
+          groupIds: selection.groupIds,
+          nodeIds: selection.nodeIds,
+          edgeIds: selection.edgeIds
+        },
+        set
+      })
+    },
+
+    selectAllObjects() {
+      set((state) => {
+        const selection = readTopLevelSelection(state)
+
+        if (
+          areSameIds(state.selectedGroupIds, selection.groupIds) &&
+          areSameIds(state.selectedNodeIds, selection.nodeIds) &&
+          areSameIds(state.selectedEdgeIds, selection.edgeIds)
+        ) {
+          return state
+        }
+
+        return {
+          ...state,
+          selectedGroupIds: selection.groupIds,
+          groupSelectionState:
+            selection.groupIds.length === 1
+              ? {
+                  status: 'group-selected',
+                  groupId: selection.groupIds[0]
+                }
+              : { status: 'idle' },
+          selectedNodeIds: selection.nodeIds,
+          selectedEdgeIds: selection.edgeIds,
+          operationError: null
+        }
+      })
+    },
+
+    async copySelection() {
+      const payload = readClipboardPayload(get(), {
+        includeLocked: true
+      })
+
+      if (!payload) {
+        return
+      }
+
+      set((state) => ({
+        ...state,
+        clipboardState: {
+          status: 'ready',
+          payload
+        },
+        operationError: null
+      }))
+    },
+
+    async cutSelection() {
+      const payload = readClipboardPayload(get(), {
+        includeLocked: false
+      })
+
+      if (!payload) {
+        return
+      }
+
+      set((state) => ({
+        ...state,
+        clipboardState: {
+          status: 'ready',
+          payload
+        },
+        operationError: null
+      }))
+
+      await get().deleteSelection()
+    },
+
+    async pasteClipboard() {
+      const state = get()
+      const previousMaxZ = readCurrentMaxZFromState(state)
+      const payload = state.clipboardState.status === 'ready' ? state.clipboardState.payload : null
+
+      if (!payload) {
+        return
+      }
+
+      const anchor = readClipboardPasteAnchor(state)
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'paste-objects',
+          payload,
+          anchorX: anchor.x,
+          anchorY: anchor.y,
+          inPlace: false
+        },
+        set
+      })
+
+      selectRecentlyInsertedObjects(get, set, previousMaxZ)
+    },
+
+    async pasteClipboardInPlace() {
+      const state = get()
+      const previousMaxZ = readCurrentMaxZFromState(state)
+      const payload = state.clipboardState.status === 'ready' ? state.clipboardState.payload : null
+
+      if (!payload) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'paste-objects',
+          payload,
+          anchorX: payload.origin?.x ?? 0,
+          anchorY: payload.origin?.y ?? 0,
+          inPlace: true
+        },
+        set
+      })
+
+      selectRecentlyInsertedObjects(get, set, previousMaxZ)
+    },
+
+    async duplicateSelection() {
+      const state = get()
+      const payload = readClipboardPayload(state, {
+        includeLocked: false
+      })
+
+      if (!payload) {
+        return
+      }
+      const previousMaxZ = readCurrentMaxZFromState(state)
+      const anchor = payload.origin
+        ? {
+            x: payload.origin.x + 16,
+            y: payload.origin.y + 16
+          }
+        : readClipboardPasteAnchor(state)
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'paste-objects',
+          payload,
+          anchorX: anchor.x,
+          anchorY: anchor.y,
+          inPlace: false
+        },
+        set
+      })
+      selectRecentlyInsertedObjects(get, set, previousMaxZ)
+    },
+
+    async nudgeSelection(dx, dy) {
+      const state = get()
+      const nodeIds = readUnlockedNodeSelection(state)
+
+      if (nodeIds.length === 0) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'nudge-objects',
+          nodeIds,
+          dx,
+          dy
+        },
+        set
+      })
+    },
+
+    async groupSelection() {
+      const state = get()
+      const topLevelNodeIds = state.selectedNodeIds.filter((nodeId) => isTopLevelNode(state, nodeId))
+        .filter((nodeId) => !isNodeLocked(state, nodeId))
+
+      if (
+        state.selectedGroupIds.length > 0 ||
+        state.selectedEdgeIds.length > 0 ||
+        topLevelNodeIds.length < 2
+      ) {
+        return
+      }
+
+      const groupId = readNextGeneratedGroupId('group', state.nodes, state.edges, state.groups)
+      const nextZ = readCurrentMaxZFromState(state) + 1
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'upsert-group',
+          groupId,
+          nodeIds: topLevelNodeIds,
+          z: nextZ
+        },
+        onSuccess() {
+          set((currentState) => ({
+            ...currentState,
+            selectedGroupIds: [groupId],
+            selectedNodeIds: [],
+            selectedEdgeIds: [],
+            groupSelectionState: {
+              status: 'group-selected',
+              groupId
+            },
+            operationError: null
+          }))
+        },
+        set
+      })
+    },
+
+    async ungroupSelection() {
+      const state = get()
+      const groups = readSelectedGroups(state)
+
+      if (groups.length === 0 || state.groupSelectionState.status === 'drilldown') {
+        return
+      }
+
+      const memberNodeIds = groups.flatMap((group) => group.members.nodeIds)
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'delete-groups',
+          groupIds: groups.map((group) => group.id)
+        },
+        onSuccess() {
+          set((currentState) => buildSelectionPatch(currentState, {
+            groupIds: [],
+            nodeIds: memberNodeIds,
+            edgeIds: []
+          }))
         },
         set
       })
@@ -1209,7 +1499,7 @@ export function createCanvasCommandSlice(
     startNoteEditing(nodeId) {
       const node = get().nodes.find((entry) => entry.id === nodeId)
 
-      if (!node || node.component !== 'note') {
+      if (!node || node.component !== 'note' || isNodeLocked(get(), node.id)) {
         return
       }
 
@@ -1226,7 +1516,7 @@ export function createCanvasCommandSlice(
     startShapeEditing(nodeId) {
       const node = get().nodes.find((entry) => entry.id === nodeId)
 
-      if (!node || node.component === 'note') {
+      if (!node || node.component === 'note' || isNodeLocked(get(), node.id)) {
         return
       }
 
@@ -1243,7 +1533,7 @@ export function createCanvasCommandSlice(
     startEdgeEditing(edgeId) {
       const edge = get().edges.find((entry) => entry.id === edgeId)
 
-      if (!edge) {
+      if (!edge || isEdgeLocked(get(), edge.id)) {
         return
       }
 
@@ -1409,9 +1699,12 @@ export function createCanvasCommandSlice(
 
       set(
         createCanvasDocumentRecordPatch(result.record, {
+          clipboardState: get().clipboardState,
           documentState: result.documentState,
+          groupSelectionState: { status: 'idle' },
           history: transition.history,
           viewport: get().viewport,
+          selectedGroupIds: result.entry.selectedGroupIds,
           selectedNodeIds: result.entry.selectedNodeIds,
           selectedEdgeIds: result.entry.selectedEdgeIds
         })
@@ -1480,9 +1773,12 @@ export function createCanvasCommandSlice(
 
       set(
         createCanvasDocumentRecordPatch(result.record, {
+          clipboardState: get().clipboardState,
           documentState: result.documentState,
+          groupSelectionState: { status: 'idle' },
           history: transition.history,
           viewport: get().viewport,
+          selectedGroupIds: result.entry.selectedGroupIds,
           selectedNodeIds: result.entry.selectedNodeIds,
           selectedEdgeIds: result.entry.selectedEdgeIds
         })
@@ -1543,6 +1839,7 @@ function roundGeometry(value: number) {
 function readHistoryLabel(intent: CanvasDocumentEditIntent) {
   switch (intent.kind) {
     case 'move-node':
+    case 'nudge-objects':
       return 'Move node'
     case 'resize-node':
       return 'Resize node'
@@ -1556,6 +1853,10 @@ function readHistoryLabel(intent: CanvasDocumentEditIntent) {
       return 'Create shape'
     case 'create-image':
       return 'Insert image'
+    case 'duplicate-objects':
+      return 'Duplicate selection'
+    case 'paste-objects':
+      return 'Paste selection'
     case 'replace-image-source':
       return 'Replace image'
     case 'update-image-metadata':
@@ -1563,7 +1864,10 @@ function readHistoryLabel(intent: CanvasDocumentEditIntent) {
     case 'delete-node':
     case 'delete-edge':
     case 'delete-objects':
+    case 'delete-groups':
       return 'Delete selection'
+    case 'upsert-group':
+      return 'Group selection'
     case 'update-edge-endpoints':
       return 'Reconnect edge'
     case 'create-edge':
@@ -1685,8 +1989,14 @@ function readImageGeometry(width: number, height: number) {
   }
 }
 
-function readNextGeneratedId(prefix: 'image', nodes: CanvasNode[], edges: CanvasEdge[]) {
+function readNextGeneratedId(
+  prefix: 'group' | 'image',
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  groups: CanvasStoreState['groups'] = []
+) {
   const existingIds = new Set([
+    ...groups.map((group) => group.id),
     ...nodes.map((node) => node.id),
     ...edges.map((edge) => edge.id)
   ])
@@ -1697,6 +2007,15 @@ function readNextGeneratedId(prefix: 'image', nodes: CanvasNode[], edges: Canvas
   }
 
   return `${prefix}-${index}`
+}
+
+function readNextGeneratedGroupId(
+  prefix: 'group',
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  groups: CanvasStoreState['groups']
+) {
+  return readNextGeneratedId(prefix, nodes, edges, groups)
 }
 
 function readPrimarySelectedImage(state: CanvasStoreState) {
@@ -1934,4 +2253,377 @@ function readResizedGeometryForNode(
 
 function isSameViewport(left: CanvasViewport, right: CanvasViewport) {
   return left.x === right.x && left.y === right.y && left.zoom === right.zoom
+}
+
+function readTopLevelSelection(state: CanvasStoreState) {
+  const groupedNodeIds = new Set(state.groups.flatMap((group) => group.members.nodeIds))
+
+  return {
+    groupIds: state.groups.map((group) => group.id),
+    nodeIds: state.nodes
+      .filter((node) => !groupedNodeIds.has(node.id))
+      .map((node) => node.id),
+    edgeIds: state.edges.map((edge) => edge.id)
+  }
+}
+
+function readUnlockedDocumentSelection(state: CanvasStoreState) {
+  const groupIds = readSelectedGroups(state)
+    .filter((group) => !group.locked)
+    .map((group) => group.id)
+  const nodeIds = readUnlockedNodeSelection(state)
+  const selectedNodeIds = new Set(nodeIds)
+  const explicitlySelectedEdgeIds = state.selectedEdgeIds.filter((edgeId) => !isEdgeLocked(state, edgeId))
+  const relatedEdgeIds = state.edges
+    .filter((edge) => selectedNodeIds.has(edge.from) && selectedNodeIds.has(edge.to) && !isEdgeLocked(state, edge.id))
+    .map((edge) => edge.id)
+
+  return {
+    groupIds,
+    nodeIds,
+    edgeIds: [...new Set([...explicitlySelectedEdgeIds, ...relatedEdgeIds])]
+  }
+}
+
+function readUnlockedNodeSelection(state: CanvasStoreState) {
+  const nodeIds = [
+    ...state.selectedNodeIds,
+    ...readSelectedGroups(state).flatMap((group) => group.members.nodeIds)
+  ]
+
+  return [...new Set(nodeIds)].filter((nodeId) => !isNodeLocked(state, nodeId))
+}
+
+function isNodeLocked(state: Pick<CanvasStoreState, 'groups' | 'nodes'>, nodeId: string) {
+  const node = state.nodes.find((entry) => entry.id === nodeId)
+
+  if (!node) {
+    return false
+  }
+
+  if (node.locked) {
+    return true
+  }
+
+  return state.groups.some((group) => {
+    return group.locked && group.members.nodeIds.includes(nodeId)
+  })
+}
+
+function isEdgeLocked(state: Pick<CanvasStoreState, 'edges' | 'groups' | 'nodes'>, edgeId: string) {
+  const edge = state.edges.find((entry) => entry.id === edgeId)
+
+  if (!edge) {
+    return false
+  }
+
+  if (edge.locked) {
+    return true
+  }
+
+  return isNodeLocked(state, edge.from) || isNodeLocked(state, edge.to)
+}
+
+function readCurrentMaxZFromState(state: CanvasStoreState) {
+  return Math.max(
+    0,
+    ...state.groups.map((group) => group.z ?? 0),
+    ...state.nodes.map((node) => node.z ?? 0),
+    ...state.edges.map((edge) => edge.z ?? 0)
+  )
+}
+
+function buildSelectionPatch(
+  state: CanvasStoreState,
+  input: {
+    groupIds: string[]
+    nodeIds: string[]
+    edgeIds: string[]
+    groupSelectionState?: CanvasStoreState['groupSelectionState']
+  }
+) {
+  const nextGroupIds = [...new Set(input.groupIds)]
+  const nextNodeIds = [...new Set(input.nodeIds)]
+  const nextEdgeIds = [...new Set(input.edgeIds)]
+  const nextGroupSelectionState =
+    input.groupSelectionState ?? deriveGroupSelectionState(nextGroupIds, nextNodeIds, nextEdgeIds)
+
+  if (
+    areSameIds(state.selectedGroupIds, nextGroupIds) &&
+    areSameIds(state.selectedNodeIds, nextNodeIds) &&
+    areSameIds(state.selectedEdgeIds, nextEdgeIds) &&
+    isSameGroupSelectionState(state.groupSelectionState, nextGroupSelectionState)
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    selectedGroupIds: nextGroupIds,
+    selectedNodeIds: nextNodeIds,
+    selectedEdgeIds: nextEdgeIds,
+    groupSelectionState: nextGroupSelectionState,
+    operationError: null
+  }
+}
+
+function buildNodeSelectionPatch(state: CanvasStoreState, nodeId: string, additive: boolean) {
+  const containingGroup = readContainingGroup(state, nodeId)
+
+  if (containingGroup && !additive) {
+    if (
+      state.groupSelectionState.status === 'group-selected' &&
+      state.groupSelectionState.groupId === containingGroup.id &&
+      state.selectedGroupIds.length === 1 &&
+      state.selectedNodeIds.length === 0 &&
+      state.selectedEdgeIds.length === 0
+    ) {
+      return buildSelectionPatch(state, {
+        groupIds: [],
+        nodeIds: [nodeId],
+        edgeIds: [],
+        groupSelectionState: {
+          status: 'drilldown',
+          groupId: containingGroup.id,
+          nodeId
+        }
+      })
+    }
+
+    if (state.groupSelectionState.status === 'drilldown' && state.groupSelectionState.groupId === containingGroup.id) {
+      return buildSelectionPatch(state, {
+        groupIds: [],
+        nodeIds: [nodeId],
+        edgeIds: [],
+        groupSelectionState: {
+          status: 'drilldown',
+          groupId: containingGroup.id,
+          nodeId
+        }
+      })
+    }
+
+    return buildSelectionPatch(state, {
+      groupIds: [containingGroup.id],
+      nodeIds: [],
+      edgeIds: [],
+      groupSelectionState: {
+        status: 'group-selected',
+        groupId: containingGroup.id
+      }
+    })
+  }
+
+  if (containingGroup && additive) {
+    return buildSelectionPatch(state, {
+      groupIds: [...state.selectedGroupIds, containingGroup.id],
+      nodeIds: state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId),
+      edgeIds: state.selectedEdgeIds
+    })
+  }
+
+  if (additive) {
+    const hasNode = state.selectedNodeIds.includes(nodeId)
+
+    return buildSelectionPatch(state, {
+      groupIds: state.selectedGroupIds,
+      nodeIds: hasNode
+        ? state.selectedNodeIds.filter((selectedNodeId) => selectedNodeId !== nodeId)
+        : [...state.selectedNodeIds, nodeId],
+      edgeIds: state.selectedEdgeIds
+    })
+  }
+
+  return buildSelectionPatch(state, {
+    groupIds: [],
+    nodeIds: [nodeId],
+    edgeIds: []
+  })
+}
+
+function buildEdgeSelectionPatch(state: CanvasStoreState, edgeId: string, additive: boolean) {
+  if (additive) {
+    const hasEdge = state.selectedEdgeIds.includes(edgeId)
+
+    return buildSelectionPatch(state, {
+      groupIds: state.selectedGroupIds,
+      nodeIds: state.selectedNodeIds,
+      edgeIds: hasEdge
+        ? state.selectedEdgeIds.filter((selectedEdgeId) => selectedEdgeId !== edgeId)
+        : [...state.selectedEdgeIds, edgeId]
+    })
+  }
+
+  return buildSelectionPatch(state, {
+    groupIds: [],
+    nodeIds: [],
+    edgeIds: [edgeId]
+  })
+}
+
+function deriveGroupSelectionState(
+  groupIds: string[],
+  nodeIds: string[],
+  edgeIds: string[]
+): CanvasStoreState['groupSelectionState'] {
+  if (groupIds.length === 1 && nodeIds.length === 0 && edgeIds.length === 0) {
+    return {
+      status: 'group-selected',
+      groupId: groupIds[0]
+    }
+  }
+
+  return { status: 'idle' }
+}
+
+function isSameGroupSelectionState(
+  left: CanvasStoreState['groupSelectionState'],
+  right: CanvasStoreState['groupSelectionState']
+) {
+  if (left.status !== right.status) {
+    return false
+  }
+
+  if (left.status === 'idle' && right.status === 'idle') {
+    return true
+  }
+
+  if (left.status === 'group-selected' && right.status === 'group-selected') {
+    return left.groupId === right.groupId
+  }
+
+  if (left.status === 'drilldown' && right.status === 'drilldown') {
+    return left.groupId === right.groupId && left.nodeId === right.nodeId
+  }
+
+  return false
+}
+
+function readSelectedGroups(state: CanvasStoreState) {
+  return state.groups.filter((group) => state.selectedGroupIds.includes(group.id))
+}
+
+function readContainingGroup(state: Pick<CanvasStoreState, 'groups'>, nodeId: string) {
+  return state.groups.find((group) => group.members.nodeIds.includes(nodeId)) ?? null
+}
+
+function isTopLevelNode(state: Pick<CanvasStoreState, 'groups'>, nodeId: string) {
+  return readContainingGroup(state, nodeId) === null
+}
+
+function readClipboardPayload(
+  state: CanvasStoreState,
+  options: {
+    includeLocked: boolean
+  }
+) {
+  const selectedGroups = readSelectedGroups(state)
+    .filter((group) => options.includeLocked || !group.locked)
+  const groupNodeIds = selectedGroups.flatMap((group) => group.members.nodeIds)
+  const selectedNodes = state.nodes.filter((node) => {
+    if (options.includeLocked ? false : isNodeLocked(state, node.id)) {
+      return false
+    }
+
+    return state.selectedNodeIds.includes(node.id) || groupNodeIds.includes(node.id)
+  })
+  const selectedNodeIds = new Set(selectedNodes.map((node) => node.id))
+  const selectedEdges = state.edges.filter((edge) => {
+    if (!options.includeLocked && isEdgeLocked(state, edge.id)) {
+      return false
+    }
+
+    if (state.selectedEdgeIds.includes(edge.id)) {
+      return true
+    }
+
+    return selectedNodeIds.has(edge.from) && selectedNodeIds.has(edge.to)
+  })
+
+  if (selectedGroups.length === 0 && selectedNodes.length === 0 && selectedEdges.length === 0) {
+    return null
+  }
+
+  return {
+    groups: selectedGroups.map((group) => ({
+      id: group.id,
+      z: group.z,
+      locked: group.locked,
+      body: group.body,
+      members: {
+        nodeIds: [...group.members.nodeIds]
+      }
+    })),
+    nodes: selectedNodes.map((node) => ({
+      id: node.id,
+      component: node.component,
+      at: {
+        ...node.at
+      },
+      z: node.z,
+      locked: node.locked,
+      style: node.style,
+      body: node.body,
+      src: node.src,
+      alt: node.alt,
+      title: node.title,
+      lockAspectRatio: node.lockAspectRatio
+    })),
+    edges: selectedEdges.map((edge) => ({
+      id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      z: edge.z,
+      locked: edge.locked,
+      style: edge.style,
+      body: edge.body
+    })),
+    origin: readClipboardPayloadOrigin(selectedNodes)
+  }
+}
+
+function readClipboardPayloadOrigin(nodes: CanvasStoreState['nodes']) {
+  if (nodes.length === 0) {
+    return null
+  }
+
+  return {
+    x: Math.min(...nodes.map((node) => node.at.x)),
+    y: Math.min(...nodes.map((node) => node.at.y))
+  }
+}
+
+function readClipboardPasteAnchor(state: CanvasStoreState) {
+  if (state.lastCanvasPointer) {
+    return state.lastCanvasPointer
+  }
+
+  return readViewportCenter(state) ?? { x: 0, y: 0 }
+}
+
+function selectRecentlyInsertedObjects(
+  get: CanvasStoreGetState,
+  set: CanvasStoreSetState,
+  previousMaxZ: number
+) {
+  const nextState = get()
+  const groupIds = nextState.groups
+    .filter((group) => (group.z ?? 0) > previousMaxZ)
+    .map((group) => group.id)
+  const nodeIds = nextState.nodes
+    .filter((node) => (node.z ?? 0) > previousMaxZ)
+    .map((node) => node.id)
+  const edgeIds = nextState.edges
+    .filter((edge) => (edge.z ?? 0) > previousMaxZ)
+    .map((edge) => edge.id)
+
+  if (groupIds.length === 0 && nodeIds.length === 0 && edgeIds.length === 0) {
+    return
+  }
+
+  set((state) => buildSelectionPatch(state, {
+    groupIds,
+    nodeIds,
+    edgeIds
+  }))
 }

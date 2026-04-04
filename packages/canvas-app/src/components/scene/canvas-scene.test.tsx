@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Node } from '@xyflow/react'
-import type { CanvasNode } from '@boardmark/canvas-domain'
+import type { CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import {
   applyNodeChangesToStore,
   mergeFlowNodes,
   readFlowNodes
 } from '@canvas-app/components/scene/canvas-scene'
+import { normalizeTopLevelNodeSelection } from '@canvas-app/components/scene/flow/flow-selection-changes'
 import type { CanvasFlowNodeData } from '@boardmark/canvas-renderer'
 
 const sourceMap = {
@@ -123,7 +124,7 @@ describe('CanvasScene', () => {
 
   it('uses onNodesChange position updates for drag preview state', () => {
     const previewNodeMove = vi.fn()
-    const replaceSelectedNodes = vi.fn()
+    const replaceSelection = vi.fn()
 
     applyNodeChangesToStore({
       changes: [
@@ -134,13 +135,15 @@ describe('CanvasScene', () => {
           dragging: true
         }
       ],
+      groups: [],
       previewNodeMove,
-      replaceSelectedNodes,
+      replaceSelection,
+      selectedEdgeIds: [],
       selectedNodeIds: []
     })
 
     expect(previewNodeMove).toHaveBeenCalledWith('welcome', 144, 168)
-    expect(replaceSelectedNodes).not.toHaveBeenCalled()
+    expect(replaceSelection).not.toHaveBeenCalled()
   })
 
   it('preserves react flow runtime node state across source-driven updates', () => {
@@ -203,5 +206,27 @@ describe('CanvasScene', () => {
     expect(flowNodes[0]?.data.body).toContain('palette: neutral')
     expect(flowNodes[0]?.data.resolvedThemeRef).toBe('boardmark.editorial.soft')
     expect(flowNodes[0]?.style?.height).toBe(280)
+  })
+
+  it('normalizes grouped member node ids to top-level group ids', () => {
+    const groups: CanvasGroup[] = [
+      {
+        id: 'ideation-group',
+        z: 10,
+        members: {
+          nodeIds: ['welcome', 'overview']
+        },
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 5, offset: 0 }
+        },
+        sourceMap
+      }
+    ]
+
+    expect(normalizeTopLevelNodeSelection(['welcome', 'overview', 'solo'], groups)).toEqual({
+      groupIds: ['ideation-group'],
+      nodeIds: ['solo']
+    })
   })
 })

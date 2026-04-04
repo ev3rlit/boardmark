@@ -4,14 +4,25 @@ import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import type {
   CanvasDirectiveSourceMap,
   CanvasEdge,
+  CanvasGroup,
+  CanvasGroupMembership,
   CanvasNode,
   CanvasSourceRange
 } from '@boardmark/canvas-domain'
+import type {
+  CanvasClipboardEdge,
+  CanvasClipboardGroup,
+  CanvasClipboardNode,
+  CanvasClipboardPayload
+} from '@canvas-app/store/canvas-store-types'
 
 export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
   | { kind: 'move-node'; nodeId: string; x: number; y: number }
   | { kind: 'resize-node'; nodeId: string; x: number; y: number; width: number; height: number }
+  | { kind: 'duplicate-objects'; nodeIds: string[]; edgeIds: string[]; offsetX: number; offsetY: number }
+  | { kind: 'paste-objects'; payload: CanvasClipboardPayload; anchorX: number; anchorY: number; inPlace: boolean }
+  | { kind: 'nudge-objects'; nodeIds: string[]; dx: number; dy: number }
   | {
       kind: 'create-note'
       anchorNodeId?: string
@@ -60,9 +71,12 @@ export type CanvasDocumentEditIntent =
     }
   | {
       kind: 'delete-objects'
+      groupIds?: string[]
       nodeIds: string[]
       edgeIds: string[]
     }
+  | { kind: 'upsert-group'; groupId: string; nodeIds: string[]; z: number; locked?: boolean }
+  | { kind: 'delete-groups'; groupIds: string[] }
   | { kind: 'delete-node'; nodeId: string }
   | { kind: 'update-edge-endpoints'; edgeId: string; from: string; to: string }
   | { kind: 'replace-edge-body'; edgeId: string; markdown: string }
@@ -120,6 +134,12 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
               h: Math.max(120, roundGeometry(intent.height))
             }
           }))
+        case 'duplicate-objects':
+          return duplicateObjects(source, record, intent)
+        case 'paste-objects':
+          return pasteObjects(source, record, intent)
+        case 'nudge-objects':
+          return nudgeObjects(source, record, intent)
         case 'update-edge-endpoints':
           return patchEdgeMetadata(source, record, intent.edgeId, (metadata) => ({
             ...metadata,
@@ -160,6 +180,10 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
           }))
         case 'delete-objects':
           return deleteObjects(source, record, intent)
+        case 'upsert-group':
+          return upsertGroup(source, record, intent)
+        case 'delete-groups':
+          return deleteGroups(source, record, intent)
         case 'delete-node':
           return deleteNode(source, record, intent.nodeId)
         case 'create-edge':
@@ -269,6 +293,7 @@ function createNote(
   const nextId = readNextId(
     'note',
     new Set([
+      ...record.ast.groups.map((group) => group.id),
       ...record.ast.nodes.map((node) => node.id),
       ...record.ast.edges.map((edge) => edge.id)
     ])
@@ -307,6 +332,7 @@ function createShape(
   const nextId = readNextId(
     'shape',
     new Set([
+      ...record.ast.groups.map((group) => group.id),
       ...record.ast.nodes.map((node) => node.id),
       ...record.ast.edges.map((edge) => edge.id)
     ])
@@ -371,6 +397,203 @@ function createImage(
   })
 }
 
+function duplicateObjects(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'duplicate-objects' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const requestedNodeIds = [...new Set(intent.nodeIds)]
+  const requestedEdgeIds = [...new Set(intent.edgeIds)]
+  const existingIds = new Set([
+    ...record.ast.groups.map((group) => group.id),
+    ...record.ast.nodes.map((node) => node.id),
+    ...record.ast.edges.map((edge) => edge.id)
+  ])
+  const nodeIdMap = new Map<string, string>()
+  const blocks: string[] = []
+  let nextZ = readCurrentMaxZ(record) + 1
+
+  for (const nodeId of requestedNodeIds) {
+    const node = record.ast.nodes.find((entry) => entry.id === nodeId)
+
+    if (!node) {
+      return err({
+        kind: 'object-not-found',
+        message: `Node "${nodeId}" was not found in the current document.`
+      })
+    }
+
+    const nextId = readNextObjectId(node, existingIds)
+    existingIds.add(nextId)
+    nodeIdMap.set(node.id, nextId)
+    blocks.push(
+      buildObjectBlock(node.component, {
+        ...buildNodeMetadata(node),
+        id: nextId,
+        z: nextZ,
+        at: {
+          ...node.at,
+          x: roundGeometry(node.at.x + intent.offsetX),
+          y: roundGeometry(node.at.y + intent.offsetY),
+          w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+          h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+        }
+      }, node.body)
+    )
+    nextZ += 1
+  }
+
+  for (const edgeId of requestedEdgeIds) {
+    const edge = record.ast.edges.find((entry) => entry.id === edgeId)
+
+    if (!edge) {
+      return err({
+        kind: 'object-not-found',
+        message: `Edge "${edgeId}" was not found in the current document.`
+      })
+    }
+
+    const nextId = readNextId('edge', existingIds)
+    existingIds.add(nextId)
+    blocks.push(
+      buildObjectBlock('edge', {
+        ...buildEdgeMetadata(edge),
+        id: nextId,
+        from: nodeIdMap.get(edge.from) ?? edge.from,
+        to: nodeIdMap.get(edge.to) ?? edge.to,
+        z: nextZ
+      }, edge.body)
+    )
+    nextZ += 1
+  }
+
+  if (blocks.length === 0) {
+    return ok({
+      source,
+      dirty: false
+    })
+  }
+
+  return ok({
+    source: insertObjectBlock(source, blocks.join('\n\n')),
+    dirty: true
+  })
+}
+
+function pasteObjects(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'paste-objects' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const existingIds = new Set([
+    ...record.ast.groups.map((group) => group.id),
+    ...record.ast.nodes.map((node) => node.id),
+    ...record.ast.edges.map((edge) => edge.id)
+  ])
+  const nodeIdMap = new Map<string, string>()
+  const groupIdMap = new Map<string, string>()
+  const blocks: Array<{ block: string; z: number }> = []
+  const nextBaseZ = readCurrentMaxZ(record) + 1
+  const delta = readPasteDelta(intent)
+  let nextZ = nextBaseZ
+
+  for (const group of [...intent.payload.groups].sort(compareByZ)) {
+    const nextGroupId = readNextGroupId(existingIds)
+    existingIds.add(nextGroupId)
+    groupIdMap.set(group.id, nextGroupId)
+    blocks.push({
+      z: group.z ?? 0,
+      block: buildGroupBlock({
+        id: nextGroupId,
+        z: nextZ,
+        locked: group.locked,
+        nodeIds: group.members.nodeIds
+      })
+    })
+    nextZ += 1
+  }
+
+  for (const node of [...intent.payload.nodes].sort(compareByZ)) {
+    const nextId = readNextClipboardNodeId(node, existingIds)
+    existingIds.add(nextId)
+    nodeIdMap.set(node.id, nextId)
+    blocks.push({
+      z: node.z ?? 0,
+      block: buildObjectBlock(node.component, {
+        ...buildClipboardNodeMetadata(node, delta),
+        id: nextId,
+        z: nextZ
+      }, node.body)
+    })
+    nextZ += 1
+  }
+
+  for (const edge of [...intent.payload.edges].sort(compareByZ)) {
+    const nextId = readNextId('edge', existingIds)
+    existingIds.add(nextId)
+    blocks.push({
+      z: edge.z ?? 0,
+      block: buildObjectBlock('edge', {
+        ...buildClipboardEdgeMetadata(edge),
+        id: nextId,
+        from: nodeIdMap.get(edge.from) ?? edge.from,
+        to: nodeIdMap.get(edge.to) ?? edge.to,
+        z: nextZ
+      }, edge.body)
+    })
+    nextZ += 1
+  }
+
+  for (const block of blocks) {
+    if (!block.block.includes('yaml members')) {
+      continue
+    }
+
+    const groupId = readGroupIdFromBlock(block.block)
+
+    if (!groupId) {
+      continue
+    }
+
+    const originalGroupId = [...groupIdMap.entries()].find(([, mappedGroupId]) => mappedGroupId === groupId)?.[0]
+
+    if (!originalGroupId) {
+      continue
+    }
+
+    const originalGroup = intent.payload.groups.find((entry) => entry.id === originalGroupId)
+
+    if (!originalGroup) {
+      continue
+    }
+
+    block.block = buildGroupBlock({
+      id: groupId,
+      z: readGroupZFromBlock(block.block) ?? block.z,
+      locked: originalGroup.locked,
+      nodeIds: originalGroup.members.nodeIds.map((nodeId) => nodeIdMap.get(nodeId) ?? nodeId)
+    })
+  }
+
+  if (blocks.length === 0) {
+    return ok({
+      source,
+      dirty: false
+    })
+  }
+
+  return ok({
+    source: insertObjectBlock(
+      source,
+      blocks
+        .sort((left, right) => left.z - right.z)
+        .map((entry) => entry.block)
+        .join('\n\n')
+    ),
+    dirty: true
+  })
+}
+
 function deleteNode(
   source: string,
   record: CanvasDocumentRecord,
@@ -401,10 +624,30 @@ function deleteObjects(
   record: CanvasDocumentRecord,
   intent: Extract<CanvasDocumentEditIntent, { kind: 'delete-objects' }>
 ): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const requestedGroupIds = [...new Set(intent.groupIds ?? [])]
   const requestedNodeIds = [...new Set(intent.nodeIds)]
   const requestedEdgeIds = [...new Set(intent.edgeIds)]
   const deletedNodeIds = new Set<string>()
   const ranges: CanvasSourceRange[] = []
+
+  for (const groupId of requestedGroupIds) {
+    const group = record.ast.groups.find((entry) => entry.id === groupId)
+
+    if (!group) {
+      return err({
+        kind: 'object-not-found',
+        message: `Group "${groupId}" was not found in the current document.`
+      })
+    }
+
+    ranges.push(group.sourceMap.objectRange)
+
+    for (const nodeId of group.members.nodeIds) {
+      if (!requestedNodeIds.includes(nodeId)) {
+        requestedNodeIds.push(nodeId)
+      }
+    }
+  }
 
   for (const nodeId of requestedNodeIds) {
     const node = record.ast.nodes.find((entry) => entry.id === nodeId)
@@ -445,6 +688,58 @@ function deleteObjects(
   })
 }
 
+function upsertGroup(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'upsert-group' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const existingGroup = record.ast.groups.find((entry) => entry.id === intent.groupId)
+  const groupBlock = buildGroupBlock({
+    id: intent.groupId,
+    z: intent.z,
+    locked: intent.locked,
+    nodeIds: intent.nodeIds
+  })
+
+  if (!existingGroup) {
+    return ok({
+      source: insertObjectBlock(source, groupBlock),
+      dirty: true
+    })
+  }
+
+  return ok({
+    source: replaceRange(source, existingGroup.sourceMap.objectRange, groupBlock),
+    dirty: true
+  })
+}
+
+function deleteGroups(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'delete-groups' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const ranges: CanvasSourceRange[] = []
+
+  for (const groupId of [...new Set(intent.groupIds)]) {
+    const group = record.ast.groups.find((entry) => entry.id === groupId)
+
+    if (!group) {
+      return err({
+        kind: 'object-not-found',
+        message: `Group "${groupId}" was not found in the current document.`
+      })
+    }
+
+    ranges.push(group.sourceMap.objectRange)
+  }
+
+  return ok({
+    source: removeObjectRanges(source, ranges),
+    dirty: true
+  })
+}
+
 function createEdge(
   source: string,
   record: CanvasDocumentRecord,
@@ -460,6 +755,7 @@ function createEdge(
   const nextId = readNextId(
     'edge',
     new Set([
+      ...record.ast.groups.map((group) => group.id),
       ...record.ast.nodes.map((node) => node.id),
       ...record.ast.edges.map((edge) => edge.id)
     ])
@@ -498,6 +794,60 @@ function deleteEdge(
 
   return ok({
     source: removeObjectRanges(source, [edge.sourceMap.objectRange]),
+    dirty: true
+  })
+}
+
+function nudgeObjects(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'nudge-objects' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const requestedNodeIds = [...new Set(intent.nodeIds)]
+
+  if (requestedNodeIds.length === 0) {
+    return ok({
+      source,
+      dirty: false
+    })
+  }
+
+  const replacements: Array<{ range: CanvasSourceRange; replacement: string }> = []
+
+  for (const nodeId of requestedNodeIds) {
+    const node = record.ast.nodes.find((entry) => entry.id === nodeId)
+
+    if (!node) {
+      return err({
+        kind: 'object-not-found',
+        message: `Node "${nodeId}" was not found in the current document.`
+      })
+    }
+
+    const openingLine = readRangeText(source, node.sourceMap.headerLineRange)
+    const parseResult = parseDirectiveHeader(openingLine)
+
+    if (parseResult.isErr()) {
+      return err(parseResult.error)
+    }
+
+    replacements.push({
+      range: node.sourceMap.headerLineRange,
+      replacement: stringifyDirectiveHeader(parseResult.value.name, {
+        ...parseResult.value.metadata,
+        at: {
+          ...readMetadataRecord(parseResult.value.metadata.at),
+          x: roundGeometry(node.at.x + intent.dx),
+          y: roundGeometry(node.at.y + intent.dy),
+          w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+          h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+        }
+      })
+    })
+  }
+
+  return ok({
+    source: replaceRanges(source, replacements),
     dirty: true
   })
 }
@@ -556,10 +906,10 @@ function orderMetadata(name: string, metadata: Record<string, unknown>) {
   const ordered: Record<string, unknown> = {}
   const preferredKeys =
     name === 'edge'
-      ? ['id', 'from', 'to', 'style']
+      ? ['id', 'from', 'to', 'z', 'locked', 'style']
       : name === 'image'
-        ? ['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'style']
-      : ['id', 'at', 'style']
+        ? ['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'z', 'locked', 'style']
+      : ['id', 'at', 'z', 'locked', 'style']
 
   for (const key of preferredKeys) {
     if (metadata[key] !== undefined) {
@@ -664,6 +1014,17 @@ function replaceRange(source: string, range: CanvasSourceRange, replacement: str
   return `${source.slice(0, range.start.offset)}${replacement}${source.slice(range.end.offset)}`
 }
 
+function replaceRanges(
+  source: string,
+  replacements: Array<{ range: CanvasSourceRange; replacement: string }>
+) {
+  return [...replacements]
+    .sort((left, right) => right.range.start.offset - left.range.start.offset)
+    .reduce((nextSource, entry) => {
+      return replaceRange(nextSource, entry.range, entry.replacement)
+    }, source)
+}
+
 function dedupeRanges(ranges: CanvasSourceRange[]) {
   const seen = new Set<string>()
   const unique: CanvasSourceRange[] = []
@@ -694,6 +1055,208 @@ function readNextId(prefix: 'note' | 'shape' | 'edge' | 'image', existingIds: Se
   }
 
   return `${prefix}-${index}`
+}
+
+function readNextObjectId(node: CanvasNode, existingIds: Set<string>) {
+  if (node.component === 'note') {
+    return readNextId('note', existingIds)
+  }
+
+  if (node.component === 'image') {
+    return readNextId('image', existingIds)
+  }
+
+  return readNextId('shape', existingIds)
+}
+
+function buildObjectBlock(name: string, metadata: Record<string, unknown>, body?: string) {
+  const lines = [
+    stringifyDirectiveHeader(name, metadata),
+    ...serializeBodyFragment(body ?? '').split('\n').filter((line, index, allLines) => {
+      return !(index === allLines.length - 1 && line === '')
+    }),
+    ':::'
+  ]
+
+  return lines.join('\n')
+}
+
+function buildGroupBlock(input: {
+  id: string
+  z: number
+  locked?: boolean
+  nodeIds: string[]
+}) {
+  return buildObjectBlock('group', {
+    id: input.id,
+    z: input.z,
+    locked: input.locked
+  }, serializeGroupMembership(input.nodeIds))
+}
+
+function buildNodeMetadata(node: CanvasNode) {
+  if (node.component === 'image') {
+    return {
+      id: node.id,
+      src: node.src ?? '',
+      alt: node.alt ?? '',
+      title: node.title,
+      lockAspectRatio: node.lockAspectRatio ?? true,
+      at: {
+        x: roundGeometry(node.at.x),
+        y: roundGeometry(node.at.y),
+        w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+        h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+      },
+      z: node.z,
+      locked: node.locked,
+      style: node.style
+    }
+  }
+
+  return {
+    id: node.id,
+    at: {
+      x: roundGeometry(node.at.x),
+      y: roundGeometry(node.at.y),
+      w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+      h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+    },
+    z: node.z,
+    locked: node.locked,
+    style: node.style
+  }
+}
+
+function buildClipboardNodeMetadata(
+  node: CanvasClipboardNode,
+  delta: {
+    x: number
+    y: number
+  }
+) {
+  if (node.component === 'image') {
+    return {
+      id: node.id,
+      src: node.src ?? '',
+      alt: node.alt ?? '',
+      title: node.title,
+      lockAspectRatio: node.lockAspectRatio ?? true,
+      at: {
+        x: roundGeometry(node.at.x + delta.x),
+        y: roundGeometry(node.at.y + delta.y),
+        w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+        h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+      },
+      locked: node.locked,
+      style: node.style
+    }
+  }
+
+  return {
+    id: node.id,
+    at: {
+      x: roundGeometry(node.at.x + delta.x),
+      y: roundGeometry(node.at.y + delta.y),
+      w: node.at.w === undefined ? undefined : roundGeometry(node.at.w),
+      h: node.at.h === undefined ? undefined : roundGeometry(node.at.h)
+    },
+    locked: node.locked,
+    style: node.style
+  }
+}
+
+function buildEdgeMetadata(edge: CanvasEdge) {
+  return {
+    id: edge.id,
+    from: edge.from,
+    to: edge.to,
+    z: edge.z,
+    locked: edge.locked,
+    style: edge.style
+  }
+}
+
+function buildClipboardEdgeMetadata(edge: CanvasClipboardEdge) {
+  return {
+    id: edge.id,
+    from: edge.from,
+    to: edge.to,
+    locked: edge.locked,
+    style: edge.style
+  }
+}
+
+function readCurrentMaxZ(record: CanvasDocumentRecord) {
+  return Math.max(
+    0,
+    ...record.ast.groups.map((group) => group.z ?? 0),
+    ...record.ast.nodes.map((node) => node.z ?? 0),
+    ...record.ast.edges.map((edge) => edge.z ?? 0)
+  )
+}
+
+function readPasteDelta(intent: Extract<CanvasDocumentEditIntent, { kind: 'paste-objects' }>) {
+  if (intent.inPlace || !intent.payload.origin) {
+    return { x: 0, y: 0 }
+  }
+
+  return {
+    x: roundGeometry(intent.anchorX - intent.payload.origin.x),
+    y: roundGeometry(intent.anchorY - intent.payload.origin.y)
+  }
+}
+
+function readNextGroupId(existingIds: Set<string>) {
+  let index = 1
+
+  while (existingIds.has(`group-${index}`)) {
+    index += 1
+  }
+
+  return `group-${index}`
+}
+
+function readNextClipboardNodeId(node: CanvasClipboardNode, existingIds: Set<string>) {
+  if (node.component === 'note') {
+    return readNextId('note', existingIds)
+  }
+
+  if (node.component === 'image') {
+    return readNextId('image', existingIds)
+  }
+
+  return readNextId('shape', existingIds)
+}
+
+function serializeGroupMembership(nodeIds: string[]) {
+  if (nodeIds.length === 0) {
+    return '~~~yaml members\nnodes: []\n~~~'
+  }
+
+  return `~~~yaml members\nnodes:\n${nodeIds.map((nodeId) => `  - ${nodeId}`).join('\n')}\n~~~`
+}
+
+function compareByZ(
+  left: Pick<CanvasClipboardGroup | CanvasClipboardNode | CanvasClipboardEdge, 'z'>,
+  right: Pick<CanvasClipboardGroup | CanvasClipboardNode | CanvasClipboardEdge, 'z'>
+) {
+  return (left.z ?? 0) - (right.z ?? 0)
+}
+
+function readGroupIdFromBlock(block: string) {
+  const match = /id:\s*([A-Za-z_][A-Za-z0-9_.-]*)/.exec(block)
+  return match?.[1] ?? null
+}
+
+function readGroupZFromBlock(block: string) {
+  const match = /z:\s*(-?\d+)/.exec(block)
+
+  if (!match) {
+    return null
+  }
+
+  return Number(match[1])
 }
 
 function roundGeometry(value: number) {

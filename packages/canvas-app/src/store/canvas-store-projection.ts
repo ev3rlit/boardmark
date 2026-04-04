@@ -3,7 +3,9 @@ import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import { createCanvasDocumentState, type CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 import { createEmptyCanvasHistoryState } from '@canvas-app/services/canvas-history-service'
 import type {
+  CanvasClipboardState,
   CanvasDropState,
+  CanvasGroupSelectionState,
   CanvasHistoryState,
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
@@ -14,8 +16,11 @@ type CanvasDocumentRecordPatchOptions = {
   lastSavedAt?: number | null
   dropState?: CanvasDropState
   viewport?: CanvasViewport
+  selectedGroupIds?: string[]
   selectedNodeIds?: string[]
   selectedEdgeIds?: string[]
+  clipboardState?: CanvasClipboardState
+  groupSelectionState?: CanvasGroupSelectionState
   history?: CanvasHistoryState
 }
 
@@ -36,9 +41,11 @@ export function createCanvasDocumentRecordPatch(
     document: record,
     lastParsedDocument: record,
     documentState,
+    groups: record.ast.groups,
     nodes: record.ast.nodes,
     edges: record.ast.edges,
     viewport: options?.viewport ?? record.ast.frontmatter.viewport ?? DEFAULT_CANVAS_VIEWPORT,
+    selectedGroupIds: options?.selectedGroupIds ?? [],
     selectedNodeIds: options?.selectedNodeIds ?? [],
     selectedEdgeIds: options?.selectedEdgeIds ?? [],
     parseIssues: record.issues,
@@ -54,6 +61,8 @@ export function createCanvasDocumentRecordPatch(
     conflictState: { status: 'idle' },
     invalidState: { status: 'valid' },
     history: options?.history ?? createEmptyCanvasHistoryState(),
+    clipboardState: options?.clipboardState ?? { status: 'empty' },
+    groupSelectionState: options?.groupSelectionState ?? { status: 'idle' },
     operationError: null
   }
 }
@@ -83,6 +92,9 @@ export function createCanvasInvalidDocumentPatch(
     operationError: message,
     document: state.lastParsedDocument,
     lastParsedDocument: state.lastParsedDocument,
+    clipboardState: state.clipboardState,
+    groupSelectionState: state.groupSelectionState,
+    groups: state.lastParsedDocument?.ast.groups ?? state.groups,
     nodes: state.lastParsedDocument?.ast.nodes ?? state.nodes,
     edges: state.lastParsedDocument?.ast.edges ?? state.edges
   }

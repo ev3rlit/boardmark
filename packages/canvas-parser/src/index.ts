@@ -7,6 +7,7 @@ import {
   type CanvasDirectiveSourceMap,
   type CanvasEdge,
   type CanvasFrontmatter,
+  type CanvasGroup,
   type CanvasNode,
   type CanvasObjectAt,
   type CanvasObjectStyle,
@@ -73,6 +74,7 @@ export function parseCanvasDocument(
   }
 
   const issues: CanvasParseIssue[] = []
+  const groups: CanvasGroup[] = []
   const nodes: CanvasNode[] = []
   const pendingEdges: CanvasEdge[] = []
 
@@ -86,6 +88,18 @@ export function parseCanvasDocument(
       }
 
       pendingEdges.push(edgeResult.value)
+      continue
+    }
+
+    if (block.header.name === 'group') {
+      const groupResult = parseGroupBlock(block)
+
+      if (groupResult.isErr()) {
+        issues.push(groupResult.error)
+        continue
+      }
+
+      groups.push(groupResult.value)
       continue
     }
 
@@ -119,6 +133,7 @@ export function parseCanvasDocument(
   return ok({
     ast: {
       frontmatter: frontmatterResult.value.frontmatter,
+      groups,
       nodes,
       edges
     },
@@ -329,7 +344,7 @@ function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue
   }
 
   const metadata = metadataResult.value
-  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'at', 'style'].includes(key))
+  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'at', 'locked', 'style', 'z'].includes(key))
 
   if (extraKeys.length > 0) {
     return err(
@@ -356,10 +371,24 @@ function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue
     return err(invalidNode(block, styleResult.error, metadata.id))
   }
 
+  const zResult = parseOptionalObjectZ(metadata.id, metadata.z)
+
+  if (zResult.isErr()) {
+    return err(invalidNode(block, zResult.error, metadata.id))
+  }
+
+  const lockedResult = parseOptionalObjectLocked(metadata.id, metadata.locked)
+
+  if (lockedResult.isErr()) {
+    return err(invalidNode(block, lockedResult.error, metadata.id))
+  }
+
   return ok({
     id: metadata.id,
     component: block.header.name,
     at: atResult.value,
+    z: zResult.value,
+    locked: lockedResult.value,
     style: styleResult.value,
     body: readBlockBody(block.rawBody),
     position: block.sourceMap.objectRange,
@@ -376,7 +405,7 @@ function parseImageNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParse
 
   const metadata = metadataResult.value
   const extraKeys = Object.keys(metadata).filter((key) => {
-    return !['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'style'].includes(key)
+    return !['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'locked', 'style', 'z'].includes(key)
   })
 
   if (extraKeys.length > 0) {
@@ -402,6 +431,18 @@ function parseImageNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParse
 
   if (styleResult.isErr()) {
     return err(invalidNode(block, styleResult.error, metadata.id))
+  }
+
+  const zResult = parseOptionalObjectZ(metadata.id, metadata.z)
+
+  if (zResult.isErr()) {
+    return err(invalidNode(block, zResult.error, metadata.id))
+  }
+
+  const lockedResult = parseOptionalObjectLocked(metadata.id, metadata.locked)
+
+  if (lockedResult.isErr()) {
+    return err(invalidNode(block, lockedResult.error, metadata.id))
   }
 
   if (typeof metadata.src !== 'string' || metadata.src.trim().length === 0) {
@@ -437,11 +478,68 @@ function parseImageNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParse
     id: metadata.id,
     component: 'image',
     at: atResult.value,
+    z: zResult.value,
+    locked: lockedResult.value,
     style: styleResult.value,
     src: metadata.src,
     alt: metadata.alt,
     title: typeof metadata.title === 'string' ? metadata.title : undefined,
     lockAspectRatio: metadata.lockAspectRatio ?? true,
+    position: block.sourceMap.objectRange,
+    sourceMap: block.sourceMap
+  })
+}
+
+function parseGroupBlock(block: ObjectBlock): Result<CanvasGroup, CanvasParseIssue> {
+  const metadataResult = parseInlineMetadata(block.header.rawMetadata)
+
+  if (metadataResult.isErr()) {
+    return err(invalidNode(block, metadataResult.error))
+  }
+
+  const metadata = metadataResult.value
+  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'locked', 'z'].includes(key))
+
+  if (extraKeys.length > 0) {
+    return err(
+      invalidNode(
+        block,
+        `Group contains unsupported top-level keys: ${extraKeys.join(', ')}.`,
+        readOptionalId(metadata.id)
+      )
+    )
+  }
+
+  if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
+    return err(invalidNode(block, 'Group is missing a valid id.'))
+  }
+
+  const zResult = parseOptionalObjectZ(metadata.id, metadata.z)
+
+  if (zResult.isErr()) {
+    return err(invalidNode(block, zResult.error, metadata.id))
+  }
+
+  const lockedResult = parseOptionalObjectLocked(metadata.id, metadata.locked)
+
+  if (lockedResult.isErr()) {
+    return err(invalidNode(block, lockedResult.error, metadata.id))
+  }
+
+  const membersResult = parseGroupMembers(metadata.id, block.rawBody)
+
+  if (membersResult.isErr()) {
+    return err(invalidNode(block, membersResult.error, metadata.id))
+  }
+
+  return ok({
+    id: metadata.id,
+    z: zResult.value,
+    locked: lockedResult.value,
+    body: readBlockBody(block.rawBody),
+    members: {
+      nodeIds: membersResult.value
+    },
     position: block.sourceMap.objectRange,
     sourceMap: block.sourceMap
   })
@@ -456,7 +554,7 @@ function parseEdgeBlock(block: ObjectBlock): Result<CanvasEdge, CanvasParseIssue
 
   const metadata = metadataResult.value
   const extraKeys = Object.keys(metadata).filter(
-    (key) => !['id', 'from', 'to', 'style'].includes(key)
+    (key) => !['id', 'from', 'to', 'locked', 'style', 'z'].includes(key)
   )
 
   if (extraKeys.length > 0) {
@@ -494,10 +592,24 @@ function parseEdgeBlock(block: ObjectBlock): Result<CanvasEdge, CanvasParseIssue
     return err(invalidEdge(block, styleResult.error, metadata.id))
   }
 
+  const zResult = parseOptionalObjectZ(metadata.id, metadata.z)
+
+  if (zResult.isErr()) {
+    return err(invalidEdge(block, zResult.error, metadata.id))
+  }
+
+  const lockedResult = parseOptionalObjectLocked(metadata.id, metadata.locked)
+
+  if (lockedResult.isErr()) {
+    return err(invalidEdge(block, lockedResult.error, metadata.id))
+  }
+
   return ok({
     id: metadata.id,
     from: metadata.from,
     to: metadata.to,
+    z: zResult.value,
+    locked: lockedResult.value,
     style: styleResult.value,
     body: readBlockBody(block.rawBody),
     position: block.sourceMap.objectRange,
@@ -680,6 +792,30 @@ function parseOptionalObjectStyle(
   })
 }
 
+function parseOptionalObjectZ(id: string, value: unknown): Result<number | undefined, string> {
+  if (value === undefined) {
+    return ok(undefined)
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return err(`Object "${id}" must define "z" as a finite number.`)
+  }
+
+  return ok(value)
+}
+
+function parseOptionalObjectLocked(id: string, value: unknown): Result<boolean | undefined, string> {
+  if (value === undefined) {
+    return ok(undefined)
+  }
+
+  if (typeof value !== 'boolean') {
+    return err(`Object "${id}" must define "locked" as a boolean when present.`)
+  }
+
+  return ok(value)
+}
+
 function buildSourceMap({
   bodyStartOffset,
   closingLineRange,
@@ -743,6 +879,35 @@ function invalidEdge(block: ObjectBlock, message: string, objectId?: string): Ca
 
 function readBlockBody(rawBody: string): string | undefined {
   return rawBody.length > 0 ? rawBody : undefined
+}
+
+function parseGroupMembers(groupId: string, rawBody: string): Result<string[], string> {
+  const match = /(?:^|\n)(```|~~~)yaml members\n([\s\S]*?)\n\1(?:\n|$)/.exec(rawBody)
+
+  if (!match) {
+    return ok([])
+  }
+
+  const parsedResult = parseYamlMapping(
+    match[2],
+    `Group "${groupId}" members block must be a mapping object.`
+  )
+
+  if (parsedResult.isErr()) {
+    return err(parsedResult.error.message)
+  }
+
+  const nodes = parsedResult.value.nodes
+
+  if (nodes === undefined) {
+    return ok([])
+  }
+
+  if (!Array.isArray(nodes) || !nodes.every((entry) => typeof entry === 'string')) {
+    return err(`Group "${groupId}" must define "nodes" as an array of strings in the members block.`)
+  }
+
+  return ok(nodes)
 }
 
 function readFenceToken(line: string): '```' | '~~~' | null {

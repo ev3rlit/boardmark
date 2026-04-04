@@ -11,14 +11,11 @@ import {
   SelectionMode,
   applyNodeChanges,
   getBezierPath,
-  useOnViewportChange,
   useReactFlow,
   type Connection,
-  type EdgeChange,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
-  type NodeChange,
   type Node,
   type NodeProps,
   type NodeTypes
@@ -26,15 +23,24 @@ import {
 import { useStore } from 'zustand'
 import {
   BUILT_IN_RENDERER_COMPONENTS,
-  toFlowEdge,
-  toFlowNode,
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { BuiltInComponentKey, CanvasNode } from '@boardmark/canvas-domain'
+import type { BuiltInComponentKey } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
-import { readActiveToolMode, type CanvasStore, type CanvasStoreState } from '@canvas-app/store/canvas-store'
+import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
+import {
+  mergeFlowNodes,
+  readFlowEdges,
+  readFlowNodes
+} from '@canvas-app/components/scene/flow/flow-node-adapters'
+import {
+  applyEdgeChangesToStore,
+  applyNodeChangesToStore,
+  filterSelectionChanges
+} from '@canvas-app/components/scene/flow/flow-selection-changes'
+import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 const CANVAS_EDITOR_INTERACTION_CLASS = 'nodrag nopan'
 
@@ -56,11 +62,13 @@ export function CanvasScene({
   store,
   supportsMultiSelect = false
 }: CanvasSceneProps) {
+  const groups = useStore(store, (state) => state.groups)
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
   const defaultStyle = useStore(store, (state) => state.document?.ast.frontmatter.defaultStyle)
   const activeToolMode = useStore(store, readActiveToolMode)
+  const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
@@ -68,8 +76,9 @@ export function CanvasScene({
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const setViewportSize = useStore(store, (state) => state.setViewportSize)
   const clearSelection = useStore(store, (state) => state.clearSelection)
-  const replaceSelectedNodes = useStore(store, (state) => state.replaceSelectedNodes)
-  const replaceSelectedEdges = useStore(store, (state) => state.replaceSelectedEdges)
+  const replaceSelection = useStore(store, (state) => state.replaceSelection)
+  const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
+  const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
   const previewNodeMove = useStore(store, (state) => state.previewNodeMove)
   const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
   const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
@@ -90,14 +99,7 @@ export function CanvasScene({
     [nodes, interactionOverrides, selectedNodeIds, defaultStyle, resolveImageSource]
   )
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
-  const flowEdges = useMemo(
-    () =>
-      edges.map((edge) => ({
-        ...toFlowEdge(edge),
-        selected: selectedEdgeIds.includes(edge.id)
-      })),
-    [edges, selectedEdgeIds]
-  )
+  const flowEdges = useMemo(() => readFlowEdges(edges, selectedEdgeIds), [edges, selectedEdgeIds])
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       'canvas-note': (props) => (
@@ -215,43 +217,57 @@ export function CanvasScene({
           setFlowNodes((currentFlowNodes) => applyNodeChanges(nextChanges, currentFlowNodes))
           applyNodeChangesToStore({
             changes: nextChanges,
+            groups,
             previewNodeMove,
-            replaceSelectedNodes,
+            replaceSelection,
+            selectedEdgeIds,
             selectedNodeIds
           })
         }}
         onEdgesChange={(changes) => {
           applyEdgeChangesToStore({
             changes: filterSelectionChanges(changes, activeToolMode === 'select'),
-            replaceSelectedEdges,
+            replaceSelection,
+            selectedGroupIds,
+            selectedNodeIds,
             selectedEdgeIds
           })
+        }}
+        onNodeClick={(event, node) => {
+          if (activeToolMode !== 'select') {
+            return
+          }
+
+          selectNodeFromCanvas(node.id, event.shiftKey)
+        }}
+        onEdgeClick={(event, edge) => {
+          if (activeToolMode !== 'select') {
+            return
+          }
+
+          selectEdgeFromCanvas(edge.id, event.shiftKey)
         }}
         onNodeDragStop={(_event, node) => {
           void commitNodeMove(node.id, node.position.x, node.position.y)
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()
-
-          const nextNodeIds = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id]
-          replaceSelectedNodes(nextNodeIds)
-          replaceSelectedEdges([])
+          selectNodeFromCanvas(node.id, event.shiftKey)
+          const selection = store.getState()
           onObjectContextMenu?.({
-            edgeIds: [],
-            nodeIds: nextNodeIds,
+            edgeIds: selection.selectedEdgeIds,
+            nodeIds: selection.selectedNodeIds,
             x: event.clientX,
             y: event.clientY
           })
         }}
         onEdgeContextMenu={(event, edge) => {
           event.preventDefault()
-
-          const nextEdgeIds = selectedEdgeIds.includes(edge.id) ? selectedEdgeIds : [edge.id]
-          replaceSelectedNodes([])
-          replaceSelectedEdges(nextEdgeIds)
+          selectEdgeFromCanvas(edge.id, event.shiftKey)
+          const selection = store.getState()
           onObjectContextMenu?.({
-            edgeIds: nextEdgeIds,
-            nodeIds: [],
+            edgeIds: selection.selectedEdgeIds,
+            nodeIds: selection.selectedNodeIds,
             x: event.clientX,
             y: event.clientY
           })
@@ -288,89 +304,6 @@ export function CanvasScene({
   )
 }
 
-export function readFlowNodes(
-  nodes: CanvasNode[],
-  interactionOverrides: CanvasStoreState['interactionOverrides'] = {},
-  selectedNodeIds: string[] = [],
-  options?: {
-    defaultStyle?: string
-    imageResolver?: CanvasFlowNodeData['imageResolver']
-  }
-) {
-  return nodes.map((node) => {
-    const override = interactionOverrides[node.id]
-    const patchedNode = {
-      ...node,
-      at: {
-        ...node.at,
-        x: override?.x ?? node.at.x,
-        y: override?.y ?? node.at.y,
-        w: override?.w ?? node.at.w,
-        h: override?.h ?? node.at.h
-      }
-    }
-
-    return {
-      ...toFlowNode(patchedNode, options),
-      selected: selectedNodeIds.includes(node.id)
-    }
-  })
-}
-
-export function mergeFlowNodes(
-  nextFlowNodes: Node<CanvasFlowNodeData>[],
-  currentFlowNodes: Node<CanvasFlowNodeData>[]
-) {
-  const currentFlowNodesById = new Map(currentFlowNodes.map((node) => [node.id, node]))
-
-  return nextFlowNodes.map((nextFlowNode) => {
-    const currentFlowNode = currentFlowNodesById.get(nextFlowNode.id)
-
-    if (!currentFlowNode) {
-      return nextFlowNode
-    }
-
-    return {
-      ...nextFlowNode,
-      dragging: currentFlowNode.dragging,
-      height: currentFlowNode.height,
-      measured: currentFlowNode.measured,
-      resizing: currentFlowNode.resizing,
-      width: currentFlowNode.width
-    }
-  })
-}
-
-type CanvasFlowViewportSyncProps = {
-  store: CanvasStore
-  viewport: { x: number; y: number; zoom: number }
-}
-
-function CanvasFlowViewportSync({ store, viewport }: CanvasFlowViewportSyncProps) {
-  const reactFlow = useReactFlow()
-  const setViewport = useStore(store, (state) => state.setViewport)
-
-  useOnViewportChange({
-    onEnd: (nextViewport) => {
-      setViewport(nextViewport)
-    }
-  })
-
-  useEffect(() => {
-    const currentViewport = reactFlow.getViewport()
-    const sameViewport =
-      Math.abs(currentViewport.x - viewport.x) < 0.5 &&
-      Math.abs(currentViewport.y - viewport.y) < 0.5 &&
-      Math.abs(currentViewport.zoom - viewport.zoom) < 0.01
-
-    if (!sameViewport) {
-      void reactFlow.setViewport(viewport, { duration: 0 })
-    }
-  }, [reactFlow, viewport])
-
-  return null
-}
-
 function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
@@ -394,36 +327,44 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
   return (
     <div
       className="h-full w-full max-w-none"
-      onDoubleClick={() => startNoteEditing(id)}
+      onDoubleClick={() => {
+        if (!data.locked) {
+          startNoteEditing(id)
+        }
+      }}
     >
       <NodeResizer
-        isVisible={selected && !isEditing}
+        isVisible={selected && !isEditing && !data.locked}
         minWidth={160}
         minHeight={140}
         color="rgba(96, 66, 214, 0.72)"
         handleClassName="boardmark-flow__resize-handle"
         lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
-          previewNodeResize(id, {
-            x: resize.x,
-            y: resize.y,
-            width: resize.width,
-            height: resize.height
-          })
+          if (!data.locked) {
+            previewNodeResize(id, {
+              x: resize.x,
+              y: resize.y,
+              width: resize.width,
+              height: resize.height
+            })
+          }
         }}
         onResizeEnd={(_event, resize) => {
-          void commitNodeResize(id, {
-            x: resize.x,
-            y: resize.y,
-            width: resize.width,
-            height: resize.height
-          })
+          if (!data.locked) {
+            void commitNodeResize(id, {
+              x: resize.x,
+              y: resize.y,
+              width: resize.width,
+              height: resize.height
+            })
+          }
         }}
       />
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={!isEditing}
+        isConnectable={!isEditing && !data.locked}
         className="boardmark-flow__handle"
       />
       <StickyNoteCard
@@ -458,7 +399,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={!isEditing}
+        isConnectable={!isEditing && !data.locked}
         className="boardmark-flow__handle"
       />
     </div>
@@ -491,39 +432,43 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
     <div
       className="max-w-none"
       onDoubleClick={() => {
-        if (!isImageNode) {
+        if (!isImageNode && !data.locked) {
           startShapeEditing(id)
         }
       }}
     >
       <NodeResizer
-        isVisible={selected && !isEditing}
+        isVisible={selected && !isEditing && !data.locked}
         minWidth={isImageNode ? 96 : 120}
         minHeight={isImageNode ? 96 : 120}
         color="rgba(96, 66, 214, 0.72)"
         handleClassName="boardmark-flow__resize-handle"
         lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
-          previewNodeResize(id, {
-            x: resize.x,
-            y: resize.y,
-            width: resize.width,
-            height: resize.height
-          })
+          if (!data.locked) {
+            previewNodeResize(id, {
+              x: resize.x,
+              y: resize.y,
+              width: resize.width,
+              height: resize.height
+            })
+          }
         }}
         onResizeEnd={(_event, resize) => {
-          void commitNodeResize(id, {
-            x: resize.x,
-            y: resize.y,
-            width: resize.width,
-            height: resize.height
-          })
+          if (!data.locked) {
+            void commitNodeResize(id, {
+              x: resize.x,
+              y: resize.y,
+              width: resize.width,
+              height: resize.height
+            })
+          }
         }}
       />
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={!isEditing}
+        isConnectable={!isEditing && !data.locked}
         className="boardmark-flow__handle"
       />
       {isEditing ? (
@@ -568,7 +513,7 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={!isEditing}
+        isConnectable={!isEditing && !data.locked}
         className="boardmark-flow__handle"
       />
     </div>
@@ -632,7 +577,11 @@ function CanvasMarkdownEdge({
         >
           <div
             className={`rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)] ${CANVAS_EDITOR_INTERACTION_CLASS}`}
-            onDoubleClick={() => startEdgeEditing(id)}
+            onDoubleClick={() => {
+              if (!edgeData.locked) {
+                startEdgeEditing(id)
+              }
+            }}
           >
             {isEditing ? (
               <textarea
@@ -721,77 +670,5 @@ function FallbackComponentNode({
   )
 }
 
-function filterSelectionChanges<T extends { type: string }>(changes: T[], allowSelectionChanges: boolean) {
-  if (allowSelectionChanges) {
-    return changes
-  }
-
-  return changes.filter((change) => change.type !== 'select')
-}
-
-export function applyNodeChangesToStore({
-  changes,
-  previewNodeMove,
-  replaceSelectedNodes,
-  selectedNodeIds
-}: {
-  changes: NodeChange<Node<CanvasFlowNodeData>>[]
-  previewNodeMove: (nodeId: string, x: number, y: number) => void
-  replaceSelectedNodes: (nodeIds: string[]) => void
-  selectedNodeIds: string[]
-}) {
-  const nextSelectedNodeIds = new Set(selectedNodeIds)
-  let selectionChanged = false
-
-  for (const change of changes) {
-    if (change.type === 'position' && change.dragging && change.position) {
-      previewNodeMove(change.id, change.position.x, change.position.y)
-      continue
-    }
-
-    if (change.type === 'select') {
-      selectionChanged = true
-
-      if (change.selected) {
-        nextSelectedNodeIds.add(change.id)
-      } else {
-        nextSelectedNodeIds.delete(change.id)
-      }
-    }
-  }
-
-  if (selectionChanged) {
-    replaceSelectedNodes([...nextSelectedNodeIds])
-  }
-}
-
-function applyEdgeChangesToStore({
-  changes,
-  replaceSelectedEdges,
-  selectedEdgeIds
-}: {
-  changes: EdgeChange<Edge<CanvasFlowEdgeData>>[]
-  replaceSelectedEdges: (edgeIds: string[]) => void
-  selectedEdgeIds: string[]
-}) {
-  const nextSelectedEdgeIds = new Set(selectedEdgeIds)
-  let selectionChanged = false
-
-  for (const change of changes) {
-    if (change.type !== 'select') {
-      continue
-    }
-
-    selectionChanged = true
-
-    if (change.selected) {
-      nextSelectedEdgeIds.add(change.id)
-    } else {
-      nextSelectedEdgeIds.delete(change.id)
-    }
-  }
-
-  if (selectionChanged) {
-    replaceSelectedEdges([...nextSelectedEdgeIds])
-  }
-}
+export { mergeFlowNodes, readFlowNodes } from '@canvas-app/components/scene/flow/flow-node-adapters'
+export { applyNodeChangesToStore } from '@canvas-app/components/scene/flow/flow-selection-changes'

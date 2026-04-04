@@ -2,8 +2,12 @@ import type { StoreApi } from 'zustand'
 import type {
   BuiltInImageResolution,
   CanvasEdge,
+  CanvasGroup,
+  CanvasGroupMembership,
   CanvasLoadState,
   CanvasNode,
+  CanvasObjectAt,
+  CanvasObjectStyle,
   CanvasParseIssue,
   CanvasSaveState,
   CanvasViewport
@@ -59,9 +63,58 @@ export type CanvasViewportSize = {
   height: number
 }
 
+export type CanvasClipboardPayload = {
+  edges: CanvasClipboardEdge[]
+  groups: CanvasClipboardGroup[]
+  nodes: CanvasClipboardNode[]
+  origin: CanvasPointer | null
+}
+
+export type CanvasClipboardNode = {
+  id: string
+  component: string
+  at: CanvasObjectAt
+  z?: number
+  locked?: boolean
+  style?: CanvasObjectStyle
+  body?: string
+  src?: string
+  alt?: string
+  title?: string
+  lockAspectRatio?: boolean
+}
+
+export type CanvasClipboardEdge = {
+  id: string
+  from: string
+  to: string
+  z?: number
+  locked?: boolean
+  style?: CanvasObjectStyle
+  body?: string
+}
+
+export type CanvasClipboardGroup = {
+  id: string
+  z?: number
+  locked?: boolean
+  body?: string
+  members: CanvasGroupMembership
+}
+
+export type CanvasClipboardState =
+  | { status: 'empty' }
+  | { status: 'ready'; payload: CanvasClipboardPayload }
+
+export type CanvasGroupSelectionState =
+  | { status: 'idle' }
+  | { status: 'group-selected'; groupId: string }
+  | { status: 'drilldown'; groupId: string; nodeId: string }
+
 export type CanvasHistoryEntry = {
   label: string
   source: string
+  selectedGroupIds: string[]
   selectedNodeIds: string[]
   selectedEdgeIds: string[]
 }
@@ -83,9 +136,11 @@ export type CanvasStoreState = {
   document: CanvasDocumentRecord | null
   lastParsedDocument: CanvasDocumentRecord | null
   documentState: CanvasDocumentState | null
+  groups: CanvasGroup[]
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   viewport: CanvasViewport
+  selectedGroupIds: string[]
   selectedNodeIds: string[]
   selectedEdgeIds: string[]
   toolMode: ToolMode
@@ -105,6 +160,8 @@ export type CanvasStoreState = {
   conflictState: CanvasConflictState
   invalidState: CanvasInvalidState
   history: CanvasHistoryState
+  clipboardState: CanvasClipboardState
+  groupSelectionState: CanvasGroupSelectionState
   operationError: string | null
   hydrateTemplate: () => Promise<void>
   resetToTemplate: () => Promise<void>
@@ -166,6 +223,23 @@ export type CanvasStoreState = {
   resolveImageSource: (src: string) => Promise<BuiltInImageResolution>
   createFrameAtViewport: () => Promise<void>
   deleteSelection: () => Promise<void>
+  selectAllObjects: () => void
+  replaceSelection: (input: {
+    groupIds: string[]
+    nodeIds: string[]
+    edgeIds: string[]
+    groupSelectionState?: CanvasGroupSelectionState
+  }) => void
+  selectNodeFromCanvas: (nodeId: string, additive: boolean) => void
+  selectEdgeFromCanvas: (edgeId: string, additive: boolean) => void
+  copySelection: () => Promise<void>
+  cutSelection: () => Promise<void>
+  pasteClipboard: () => Promise<void>
+  pasteClipboardInPlace: () => Promise<void>
+  duplicateSelection: () => Promise<void>
+  nudgeSelection: (dx: number, dy: number) => Promise<void>
+  groupSelection: () => Promise<void>
+  ungroupSelection: () => Promise<void>
   startNoteEditing: (nodeId: string) => void
   startShapeEditing: (nodeId: string) => void
   startEdgeEditing: (edgeId: string) => void
