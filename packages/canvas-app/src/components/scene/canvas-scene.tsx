@@ -26,7 +26,7 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { BuiltInComponentKey } from '@boardmark/canvas-domain'
+import type { BuiltInComponentKey, CanvasGroup } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
@@ -46,12 +46,13 @@ const CANVAS_EDITOR_INTERACTION_CLASS = 'nodrag nopan'
 
 type CanvasSceneProps = {
   onObjectContextMenu?: (input: {
-    edgeIds: string[]
-    nodeIds: string[]
     x: number
     y: number
   }) => void
-  onPaneContextMenu?: () => void
+  onPaneContextMenu?: (input: {
+    x: number
+    y: number
+  }) => void
   store: CanvasStore
   supportsMultiSelect?: boolean
 }
@@ -209,7 +210,13 @@ export function CanvasScene({
             })
           )
         }}
-        onPaneContextMenu={() => onPaneContextMenu?.()}
+        onPaneContextMenu={(event) => {
+          event.preventDefault()
+          onPaneContextMenu?.({
+            x: event.clientX,
+            y: event.clientY
+          })
+        }}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
           const nextChanges = filterSelectionChanges(changes, activeToolMode === 'select')
@@ -252,22 +259,24 @@ export function CanvasScene({
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()
-          selectNodeFromCanvas(node.id, event.shiftKey)
-          const selection = store.getState()
+
+          if (!isNodeIncludedInCurrentSelection(groups, selectedGroupIds, selectedNodeIds, node.id)) {
+            selectNodeFromCanvas(node.id, event.shiftKey)
+          }
+
           onObjectContextMenu?.({
-            edgeIds: selection.selectedEdgeIds,
-            nodeIds: selection.selectedNodeIds,
             x: event.clientX,
             y: event.clientY
           })
         }}
         onEdgeContextMenu={(event, edge) => {
           event.preventDefault()
-          selectEdgeFromCanvas(edge.id, event.shiftKey)
-          const selection = store.getState()
+
+          if (!selectedEdgeIds.includes(edge.id)) {
+            selectEdgeFromCanvas(edge.id, event.shiftKey)
+          }
+
           onObjectContextMenu?.({
-            edgeIds: selection.selectedEdgeIds,
-            nodeIds: selection.selectedNodeIds,
             x: event.clientX,
             y: event.clientY
           })
@@ -620,6 +629,21 @@ async function handleConnection(
   }
 
   await createEdgeFromConnection(connection.source, connection.target)
+}
+
+function isNodeIncludedInCurrentSelection(
+  groups: CanvasGroup[],
+  selectedGroupIds: string[],
+  selectedNodeIds: string[],
+  nodeId: string
+) {
+  if (selectedNodeIds.includes(nodeId)) {
+    return true
+  }
+
+  const containingGroup = groups.find((group) => group.members.nodeIds.includes(nodeId))
+
+  return containingGroup ? selectedGroupIds.includes(containingGroup.id) : false
 }
 
 function readBuiltInRenderer(component: string) {

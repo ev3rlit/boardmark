@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 export type CanvasObjectContextMenuState = {
-  edgeIds: string[]
-  nodeIds: string[]
+  kind: 'canvas' | 'selection'
   x: number
   y: number
 }

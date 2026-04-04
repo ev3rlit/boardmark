@@ -328,6 +328,29 @@ describe('viewer store', () => {
     expect(store.getState().edges).toHaveLength(0)
   })
 
+  it('pastes a cut clipboard payload back into the document and restores selection', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().cutSelection()
+    store.getState().setLastCanvasPointer({ x: 520, y: 360 })
+    await store.getState().pasteClipboard()
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-1, at: { x: 520, y: 360, w: 320, h: 220 }, z: 1 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: note-2, at: { x: 820, y: 360, w: 320, h: 220 }, z: 2 }'
+    )
+    expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
+    expect(store.getState().selectedEdgeIds).toEqual(['edge-1'])
+  })
+
   it('replaces the current document with a dropped unsaved draft', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

@@ -248,8 +248,10 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const canCopySelection = canExecuteCanvasObjectCommand('copy-selection', objectCommandContext)
   const canCutSelection = canExecuteCanvasObjectCommand('cut-selection', objectCommandContext)
   const canPasteSelection = canExecuteCanvasObjectCommand('paste-selection', objectCommandContext)
+  const canSelectAll = canExecuteCanvasObjectCommand('select-all', objectCommandContext)
   const canGroupSelection = canExecuteCanvasObjectCommand('group-selection', objectCommandContext)
   const canUngroupSelection = canExecuteCanvasObjectCommand('ungroup-selection', objectCommandContext)
+  const hasSelection = selectedGroupIds.length + selectedNodeIds.length + selectedEdgeIds.length > 0
 
   return (
     <ReactFlowProvider>
@@ -261,8 +263,14 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       >
         <input {...getInputProps()} />
         <CanvasScene
-          onObjectContextMenu={(input) => setObjectContextMenu(input)}
-          onPaneContextMenu={() => setObjectContextMenu(null)}
+          onObjectContextMenu={(input) => setObjectContextMenu({
+            kind: 'selection',
+            ...input
+          })}
+          onPaneContextMenu={(input) => setObjectContextMenu({
+            kind: 'canvas',
+            ...input
+          })}
           store={store}
           supportsMultiSelect={capabilities.supportsMultiSelect}
         />
@@ -312,15 +320,18 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
           {alignedObjectContextMenu ? (
             <div className="pointer-events-auto absolute inset-0 z-30">
               <ObjectContextMenu
+                mode={alignedObjectContextMenu.kind}
                 canEdit={canEditSelection}
                 canCopy={canCopySelection}
                 canCut={canCutSelection}
+                canDelete={hasSelection}
                 canDuplicate={canDuplicateSelection}
                 canGroup={canGroupSelection}
                 canPaste={canPasteSelection}
+                canSelectAll={canSelectAll}
                 canUngroup={canUngroupSelection}
                 imageActions={
-                  selectedNode?.component === 'image'
+                  alignedObjectContextMenu.kind === 'selection' && selectedNode?.component === 'image'
                     ? {
                         canReveal: !/^https?:\/\//.test(selectedNode.src ?? ''),
                         lockAspectRatioLabel:
@@ -407,6 +418,10 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                 onPasteInPlace={() => {
                   setObjectContextMenu(null)
                   void pasteClipboardInPlace()
+                }}
+                onSelectAll={() => {
+                  setObjectContextMenu(null)
+                  selectAllObjects()
                 }}
                 onUngroup={() => {
                   setObjectContextMenu(null)

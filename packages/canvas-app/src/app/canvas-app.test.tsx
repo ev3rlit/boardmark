@@ -240,6 +240,92 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Ungroup' })).toBeDisabled()
   })
 
+  it('opens the canvas context menu on empty canvas right-click', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: EMPTY_CANVAS_SOURCE
+    })
+    const { container } = render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: false,
+          canPersist: false,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
+    act(() => {
+      store.setState({
+        clipboardState: {
+          status: 'ready',
+          payload: {
+            groups: [],
+            nodes: [
+              {
+                id: 'note-clipboard',
+                component: 'note',
+                at: { x: 0, y: 0, w: 320, h: 220 }
+              }
+            ],
+            edges: [],
+            origin: { x: 0, y: 0 }
+          }
+        }
+      })
+    })
+
+    fireEvent.contextMenu(readFlowPane(container))
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Paste in place' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Select all' })).toBeEnabled()
+    expect(screen.queryByRole('menuitem', { name: /Edit / })).not.toBeInTheDocument()
+  })
+
+  it('preserves multi-selection when opening the context menu from a selected object', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const welcome = await screen.findByText('Boardmark Viewer')
+    fireEvent.contextMenu(welcome)
+
+    expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
+    expect(screen.getByRole('menuitem', { name: 'Delete 2 items' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Group' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Align' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Arrange' })).toBeDisabled()
+  })
+
   it('opens the shape menu and dispatches the selected shape preset', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -705,4 +791,14 @@ function toGateway(repository: ReturnType<typeof createCanvasMarkdownDocumentRep
         (error) => ({ ok: false as const, error })
       )
   }
+}
+
+function readFlowPane(container: HTMLElement) {
+  const pane = container.querySelector('.react-flow__pane')
+
+  if (!(pane instanceof HTMLElement)) {
+    throw new Error('React Flow pane not found.')
+  }
+
+  return pane
 }

@@ -1,6 +1,7 @@
 import {
   AlignLeft,
   BetweenHorizontalStart,
+  CheckCheck,
   Copy,
   Group,
   Layers,
@@ -12,15 +13,18 @@ import {
 } from 'lucide-react'
 
 type ObjectContextMenuProps = {
+  mode: 'canvas' | 'selection'
   selectionLabel: string
   x: number
   y: number
   canEdit: boolean
   canCopy: boolean
   canCut: boolean
+  canDelete: boolean
   canDuplicate: boolean
   canGroup: boolean
   canPaste: boolean
+  canSelectAll: boolean
   canUngroup: boolean
   imageActions?: {
     canReveal: boolean
@@ -39,19 +43,23 @@ type ObjectContextMenuProps = {
   onGroup: () => void
   onPaste: () => void
   onPasteInPlace: () => void
+  onSelectAll: () => void
   onUngroup: () => void
 }
 
 export function ObjectContextMenu({
+  mode,
   selectionLabel,
   x,
   y,
   canEdit,
   canCopy,
   canCut,
+  canDelete,
   canDuplicate,
   canGroup,
   canPaste,
+  canSelectAll,
   canUngroup,
   imageActions,
   onCopy,
@@ -62,8 +70,43 @@ export function ObjectContextMenu({
   onGroup,
   onPaste,
   onPasteInPlace,
+  onSelectAll,
   onUngroup
 }: ObjectContextMenuProps) {
+  if (mode === 'canvas') {
+    return (
+      <div
+        className="viewer-context-menu"
+        role="menu"
+        style={{
+          left: x,
+          top: y
+        }}
+      >
+        <div className="viewer-context-menu-section">
+          <ContextMenuItem
+            disabled={!canPaste}
+            icon={BetweenHorizontalStart}
+            label="Paste"
+            onClick={onPaste}
+          />
+          <ContextMenuItem
+            disabled={!canPaste}
+            icon={BetweenHorizontalStart}
+            label="Paste in place"
+            onClick={onPasteInPlace}
+          />
+          <ContextMenuItem
+            disabled={!canSelectAll}
+            icon={CheckCheck}
+            label="Select all"
+            onClick={onSelectAll}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className="viewer-context-menu"
@@ -81,6 +124,7 @@ export function ObjectContextMenu({
           onClick={onEdit}
         />
         <ContextMenuItem
+          disabled={!canDelete}
           icon={Trash2}
           label={`Delete ${selectionLabel}`}
           onClick={onDelete}
