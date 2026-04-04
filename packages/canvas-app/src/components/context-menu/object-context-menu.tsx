@@ -23,7 +23,12 @@ type ObjectContextMenuProps = {
   canDelete: boolean
   canDuplicate: boolean
   canGroup: boolean
+  canBringForward: boolean
+  canBringToFront: boolean
+  canLock: boolean
   canPaste: boolean
+  canSendBackward: boolean
+  canSendToBack: boolean
   canSelectAll: boolean
   canUngroup: boolean
   imageActions?: {
@@ -35,14 +40,20 @@ type ObjectContextMenuProps = {
     onRevealFile: () => void
     onToggleLockAspectRatio: () => void
   } | null
+  lockLabel: string
+  onBringForward: () => void
+  onBringToFront: () => void
   onCopy: () => void
   onCut: () => void
   onDelete: () => void
   onDuplicate: () => void
   onEdit: () => void
   onGroup: () => void
+  onLock: () => void
   onPaste: () => void
   onPasteInPlace: () => void
+  onSendBackward: () => void
+  onSendToBack: () => void
   onSelectAll: () => void
   onUngroup: () => void
 }
@@ -58,18 +69,29 @@ export function ObjectContextMenu({
   canDelete,
   canDuplicate,
   canGroup,
+  canBringForward,
+  canBringToFront,
+  canLock,
   canPaste,
+  canSendBackward,
+  canSendToBack,
   canSelectAll,
   canUngroup,
   imageActions,
+  lockLabel,
+  onBringForward,
+  onBringToFront,
   onCopy,
   onCut,
   onDelete,
   onDuplicate,
   onEdit,
   onGroup,
+  onLock,
   onPaste,
   onPasteInPlace,
+  onSendBackward,
+  onSendToBack,
   onSelectAll,
   onUngroup
 }: ObjectContextMenuProps) {
@@ -220,10 +242,28 @@ export function ObjectContextMenu({
           onClick={onPasteInPlace}
         />
         <ContextMenuItem
-          disabled
+          disabled={!canBringForward}
           icon={Layers}
-          label="Arrange"
-          onClick={() => undefined}
+          label="Bring forward"
+          onClick={onBringForward}
+        />
+        <ContextMenuItem
+          disabled={!canSendBackward}
+          icon={Layers}
+          label="Send backward"
+          onClick={onSendBackward}
+        />
+        <ContextMenuItem
+          disabled={!canBringToFront}
+          icon={Layers}
+          label="Bring to front"
+          onClick={onBringToFront}
+        />
+        <ContextMenuItem
+          disabled={!canSendToBack}
+          icon={Layers}
+          label="Send to back"
+          onClick={onSendToBack}
         />
         <ContextMenuItem
           disabled
@@ -232,10 +272,10 @@ export function ObjectContextMenu({
           onClick={() => undefined}
         />
         <ContextMenuItem
-          disabled
+          disabled={!canLock}
           icon={Lock}
-          label="Lock"
-          onClick={() => undefined}
+          label={lockLabel}
+          onClick={onLock}
         />
       </div>
     </div>

@@ -15,6 +15,7 @@ import type {
   CanvasClipboardNode,
   CanvasClipboardPayload
 } from '@canvas-app/store/canvas-store-types'
+import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
 
 export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
@@ -23,6 +24,8 @@ export type CanvasDocumentEditIntent =
   | { kind: 'duplicate-objects'; nodeIds: string[]; edgeIds: string[]; offsetX: number; offsetY: number }
   | { kind: 'paste-objects'; payload: CanvasClipboardPayload; anchorX: number; anchorY: number; inPlace: boolean }
   | { kind: 'nudge-objects'; nodeIds: string[]; dx: number; dy: number }
+  | { kind: 'arrange-objects'; groupIds?: string[]; nodeIds: string[]; edgeIds: string[]; mode: CanvasObjectArrangeMode }
+  | { kind: 'set-objects-locked'; groupIds?: string[]; nodeIds: string[]; edgeIds: string[]; locked: boolean }
   | {
       kind: 'create-note'
       anchorNodeId?: string
@@ -140,6 +143,10 @@ export function createCanvasDocumentEditService(): CanvasDocumentEditService {
           return pasteObjects(source, record, intent)
         case 'nudge-objects':
           return nudgeObjects(source, record, intent)
+        case 'arrange-objects':
+          return arrangeObjects(source, record, intent)
+        case 'set-objects-locked':
+          return setObjectsLocked(source, record, intent)
         case 'update-edge-endpoints':
           return patchEdgeMetadata(source, record, intent.edgeId, (metadata) => ({
             ...metadata,
@@ -852,6 +859,250 @@ function nudgeObjects(
   })
 }
 
+function arrangeObjects(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'arrange-objects' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const selectedIds = new Set([
+    ...(intent.groupIds ?? []).map((groupId) => `group:${groupId}`),
+    ...intent.nodeIds.map((nodeId) => `node:${nodeId}`),
+    ...intent.edgeIds.map((edgeId) => `edge:${edgeId}`)
+  ])
+  const objects = [
+    ...record.ast.groups.map((group, index) => ({
+      headerName: 'group',
+      id: group.id,
+      index,
+      kind: 'group' as const,
+      object: group,
+      offset: group.sourceMap.objectRange.start.offset,
+      z: group.z ?? 0
+    })),
+    ...record.ast.nodes.map((node, index) => ({
+      headerName: node.component,
+      id: node.id,
+      index,
+      kind: 'node' as const,
+      object: node,
+      offset: node.sourceMap.objectRange.start.offset,
+      z: node.z ?? 0
+    })),
+    ...record.ast.edges.map((edge, index) => ({
+      headerName: 'edge',
+      id: edge.id,
+      index,
+      kind: 'edge' as const,
+      object: edge,
+      offset: edge.sourceMap.objectRange.start.offset,
+      z: edge.z ?? 0
+    }))
+  ].sort((left, right) => {
+    if (left.z !== right.z) {
+      return left.z - right.z
+    }
+
+    if (left.offset !== right.offset) {
+      return left.offset - right.offset
+    }
+
+    return left.index - right.index
+  })
+
+  for (const groupId of [...new Set(intent.groupIds ?? [])]) {
+    if (!record.ast.groups.some((group) => group.id === groupId)) {
+      return err({
+        kind: 'object-not-found',
+        message: `Group "${groupId}" was not found in the current document.`
+      })
+    }
+  }
+
+  for (const nodeId of [...new Set(intent.nodeIds)]) {
+    if (!record.ast.nodes.some((node) => node.id === nodeId)) {
+      return err({
+        kind: 'object-not-found',
+        message: `Node "${nodeId}" was not found in the current document.`
+      })
+    }
+  }
+
+  for (const edgeId of [...new Set(intent.edgeIds)]) {
+    if (!record.ast.edges.some((edge) => edge.id === edgeId)) {
+      return err({
+        kind: 'object-not-found',
+        message: `Edge "${edgeId}" was not found in the current document.`
+      })
+    }
+  }
+
+  const arranged = reorderArrangeObjects(objects, selectedIds, intent.mode)
+
+  if (!arranged.changed) {
+    return ok({
+      source,
+      dirty: false
+    })
+  }
+
+  const replacements: Array<{ range: CanvasSourceRange; replacement: string }> = []
+  const maxZ = Math.max(...objects.map((entry) => entry.z))
+  const minZ = Math.min(...objects.map((entry) => entry.z))
+  const nextZById = new Map<string, number>()
+
+  if (intent.mode === 'bring-to-front') {
+    let nextZ = maxZ + 1
+
+    for (const entry of arranged.objects) {
+      if (!selectedIds.has(`${entry.kind}:${entry.id}`)) {
+        continue
+      }
+
+      nextZById.set(`${entry.kind}:${entry.id}`, nextZ)
+      nextZ += 1
+    }
+  } else if (intent.mode === 'send-to-back') {
+    let nextZ = minZ - selectedIds.size
+
+    for (const entry of arranged.objects) {
+      if (!selectedIds.has(`${entry.kind}:${entry.id}`)) {
+        continue
+      }
+
+      nextZById.set(`${entry.kind}:${entry.id}`, nextZ)
+      nextZ += 1
+    }
+  } else {
+    for (const [index, entry] of arranged.objects.entries()) {
+      nextZById.set(`${entry.kind}:${entry.id}`, index + 1)
+    }
+  }
+
+  for (const entry of arranged.objects) {
+    const nextZ = nextZById.get(`${entry.kind}:${entry.id}`)
+
+    if (nextZ === undefined || nextZ === entry.z) {
+      continue
+    }
+
+    const replacement = buildPatchedDirectiveHeaderLine(
+      source,
+      entry.object.sourceMap.headerLineRange,
+      entry.headerName,
+      (metadata) => ({
+        ...metadata,
+        z: nextZ
+      })
+    )
+
+    if (replacement.isErr()) {
+      return err(replacement.error)
+    }
+
+    replacements.push({
+      range: entry.object.sourceMap.headerLineRange,
+      replacement: replacement.value
+    })
+  }
+
+  return ok({
+    source: replaceRanges(source, replacements),
+    dirty: true
+  })
+}
+
+function setObjectsLocked(
+  source: string,
+  record: CanvasDocumentRecord,
+  intent: Extract<CanvasDocumentEditIntent, { kind: 'set-objects-locked' }>
+): Result<CanvasDocumentEditResult, CanvasDocumentEditError> {
+  const replacements: Array<{ range: CanvasSourceRange; replacement: string }> = []
+
+  for (const groupId of [...new Set(intent.groupIds ?? [])]) {
+    const group = record.ast.groups.find((entry) => entry.id === groupId)
+
+    if (!group) {
+      return err({
+        kind: 'object-not-found',
+        message: `Group "${groupId}" was not found in the current document.`
+      })
+    }
+
+    const replacement = buildPatchedDirectiveHeaderLine(source, group.sourceMap.headerLineRange, 'group', (metadata) => {
+      return patchLockedMetadata(metadata, intent.locked)
+    })
+
+    if (replacement.isErr()) {
+      return err(replacement.error)
+    }
+
+    replacements.push({
+      range: group.sourceMap.headerLineRange,
+      replacement: replacement.value
+    })
+  }
+
+  for (const nodeId of [...new Set(intent.nodeIds)]) {
+    const node = record.ast.nodes.find((entry) => entry.id === nodeId)
+
+    if (!node) {
+      return err({
+        kind: 'object-not-found',
+        message: `Node "${nodeId}" was not found in the current document.`
+      })
+    }
+
+    const replacement = buildPatchedDirectiveHeaderLine(source, node.sourceMap.headerLineRange, node.component, (metadata) => {
+      return patchLockedMetadata(metadata, intent.locked)
+    })
+
+    if (replacement.isErr()) {
+      return err(replacement.error)
+    }
+
+    replacements.push({
+      range: node.sourceMap.headerLineRange,
+      replacement: replacement.value
+    })
+  }
+
+  for (const edgeId of [...new Set(intent.edgeIds)]) {
+    const edge = record.ast.edges.find((entry) => entry.id === edgeId)
+
+    if (!edge) {
+      return err({
+        kind: 'object-not-found',
+        message: `Edge "${edgeId}" was not found in the current document.`
+      })
+    }
+
+    const replacement = buildPatchedDirectiveHeaderLine(source, edge.sourceMap.headerLineRange, 'edge', (metadata) => {
+      return patchLockedMetadata(metadata, intent.locked)
+    })
+
+    if (replacement.isErr()) {
+      return err(replacement.error)
+    }
+
+    replacements.push({
+      range: edge.sourceMap.headerLineRange,
+      replacement: replacement.value
+    })
+  }
+
+  if (replacements.length === 0) {
+    return ok({
+      source,
+      dirty: false
+    })
+  }
+
+  return ok({
+    source: replaceRanges(source, replacements),
+    dirty: true
+  })
+}
+
 function parseDirectiveHeader(openingLine: string): Result<ParsedDirectiveHeader, CanvasDocumentEditError> {
   const match = /^(:::\s+)([A-Za-z][\w.-]*)(?:\s+(.*))?$/.exec(openingLine)
 
@@ -900,6 +1151,29 @@ function stringifyDirectiveHeader(name: string, metadata: Record<string, unknown
   }
 
   return `::: ${name} ${serializeInlineObject(orderedMetadata)}`
+}
+
+function buildPatchedDirectiveHeaderLine(
+  source: string,
+  range: CanvasSourceRange,
+  expectedName: string,
+  patch: (metadata: Record<string, unknown>) => Record<string, unknown>
+): Result<string, CanvasDocumentEditError> {
+  const openingLine = readRangeText(source, range)
+  const parseResult = parseDirectiveHeader(openingLine)
+
+  if (parseResult.isErr()) {
+    return err(parseResult.error)
+  }
+
+  if (parseResult.value.name !== expectedName) {
+    return err({
+      kind: 'invalid-object',
+      message: `Cannot patch "${expectedName}" metadata on a "${parseResult.value.name}" directive.`
+    })
+  }
+
+  return ok(stringifyDirectiveHeader(parseResult.value.name, patch(parseResult.value.metadata)))
 }
 
 function orderMetadata(name: string, metadata: Record<string, unknown>) {
@@ -1257,6 +1531,164 @@ function readGroupZFromBlock(block: string) {
   }
 
   return Number(match[1])
+}
+
+function patchLockedMetadata(metadata: Record<string, unknown>, locked: boolean) {
+  if (locked) {
+    return {
+      ...metadata,
+      locked: true
+    }
+  }
+
+  const nextMetadata = {
+    ...metadata
+  }
+
+  delete nextMetadata.locked
+  return nextMetadata
+}
+
+function reorderArrangeObjects(
+  objects: Array<{
+    id: string
+    kind: 'edge' | 'group' | 'node'
+    object: CanvasEdge | CanvasGroup | CanvasNode
+    z: number
+  }>,
+  selectedIds: Set<string>,
+  mode: CanvasObjectArrangeMode
+) {
+  const selectedIndexes = objects
+    .map((entry, index) => selectedIds.has(`${entry.kind}:${entry.id}`) ? index : -1)
+    .filter((index) => index >= 0)
+
+  if (selectedIndexes.length === 0) {
+    return { changed: false, objects }
+  }
+
+  switch (mode) {
+    case 'bring-to-front': {
+      const selected = objects.filter((entry) => selectedIds.has(`${entry.kind}:${entry.id}`))
+      const unselected = objects.filter((entry) => !selectedIds.has(`${entry.kind}:${entry.id}`))
+      const nextObjects = [...unselected, ...selected]
+      return {
+        changed: !areOrderedObjectsEqual(objects, nextObjects),
+        objects: nextObjects
+      }
+    }
+    case 'send-to-back': {
+      const selected = objects.filter((entry) => selectedIds.has(`${entry.kind}:${entry.id}`))
+      const unselected = objects.filter((entry) => !selectedIds.has(`${entry.kind}:${entry.id}`))
+      const nextObjects = [...selected, ...unselected]
+      return {
+        changed: !areOrderedObjectsEqual(objects, nextObjects),
+        objects: nextObjects
+      }
+    }
+    case 'bring-forward':
+      return reorderArrangeObjectsByStep(objects, selectedIds, 'forward')
+    case 'send-backward':
+      return reorderArrangeObjectsByStep(objects, selectedIds, 'backward')
+    default:
+      return {
+        changed: false,
+        objects
+      }
+  }
+}
+
+function reorderArrangeObjectsByStep(
+  objects: Array<{
+    id: string
+    kind: 'edge' | 'group' | 'node'
+    object: CanvasEdge | CanvasGroup | CanvasNode
+    z: number
+  }>,
+  selectedIds: Set<string>,
+  direction: 'backward' | 'forward'
+) {
+  const nextObjects = [...objects]
+
+  if (direction === 'forward') {
+    for (let index = nextObjects.length - 2; index >= 0; index -= 1) {
+      if (!selectedIds.has(`${nextObjects[index].kind}:${nextObjects[index].id}`)) {
+        continue
+      }
+
+      let end = index
+
+      while (
+        end + 1 < nextObjects.length &&
+        selectedIds.has(`${nextObjects[end + 1].kind}:${nextObjects[end + 1].id}`)
+      ) {
+        end += 1
+      }
+
+      if (end + 1 >= nextObjects.length) {
+        index = index - 1
+        continue
+      }
+
+      const nextEntry = nextObjects[end + 1]
+
+      if (selectedIds.has(`${nextEntry.kind}:${nextEntry.id}`)) {
+        continue
+      }
+
+      const block = nextObjects.slice(index, end + 1)
+      nextObjects.splice(index, end - index + 2, nextEntry, ...block)
+      index -= 1
+    }
+  } else {
+    for (let index = 1; index < nextObjects.length; index += 1) {
+      if (!selectedIds.has(`${nextObjects[index].kind}:${nextObjects[index].id}`)) {
+        continue
+      }
+
+      let start = index
+
+      while (
+        start - 1 >= 0 &&
+        selectedIds.has(`${nextObjects[start - 1].kind}:${nextObjects[start - 1].id}`)
+      ) {
+        start -= 1
+      }
+
+      if (start === 0) {
+        index += 1
+        continue
+      }
+
+      const previousEntry = nextObjects[start - 1]
+
+      if (selectedIds.has(`${previousEntry.kind}:${previousEntry.id}`)) {
+        continue
+      }
+
+      const block = nextObjects.slice(start, index + 1)
+      nextObjects.splice(start - 1, index - start + 2, ...block, previousEntry)
+    }
+  }
+
+  return {
+    changed: !areOrderedObjectsEqual(objects, nextObjects),
+    objects: nextObjects
+  }
+}
+
+function areOrderedObjectsEqual(
+  left: Array<{ id: string; kind: 'edge' | 'group' | 'node' }>,
+  right: Array<{ id: string; kind: 'edge' | 'group' | 'node' }>
+) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((entry, index) => {
+    const other = right[index]
+    return other !== undefined && entry.id === other.id && entry.kind === other.kind
+  })
 }
 
 function roundGeometry(value: number) {

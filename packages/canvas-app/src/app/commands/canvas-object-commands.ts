@@ -2,12 +2,27 @@ import type {
   CanvasClipboardState,
   CanvasEditingState
 } from '@canvas-app/store/canvas-store-types'
+import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
+import {
+  hasAnySelection,
+  hasArrangeableSelection,
+  hasDuplicableSelection,
+  hasGroupableSelection,
+  hasLockableSelection,
+  hasNudgeableSelection,
+  hasUngroupableSelection,
+  hasUnlockableSelection,
+  type CanvasSelectionSnapshot
+} from '@canvas-app/store/canvas-object-selection'
 
 export type CanvasObjectCommandId =
+  | 'bring-forward'
+  | 'bring-to-front'
   | 'copy-selection'
   | 'cut-selection'
   | 'duplicate-selection'
   | 'group-selection'
+  | 'lock-selection'
   | 'nudge-down'
   | 'nudge-down-large'
   | 'nudge-left'
@@ -18,24 +33,25 @@ export type CanvasObjectCommandId =
   | 'nudge-up-large'
   | 'paste-in-place'
   | 'paste-selection'
+  | 'send-backward'
+  | 'send-to-back'
   | 'select-all'
+  | 'unlock-selection'
   | 'ungroup-selection'
 
-export type CanvasObjectCommandContext = {
+export type CanvasObjectCommandContext = CanvasSelectionSnapshot & {
   clipboardState: CanvasClipboardState
   copySelection: () => Promise<void>
   cutSelection: () => Promise<void>
   duplicateSelection: () => Promise<void>
   editingState: CanvasEditingState
   groupSelection: () => Promise<void>
-  groupSelectionState: { status: 'idle' | 'group-selected' | 'drilldown'; groupId?: string; nodeId?: string }
   nudgeSelection: (dx: number, dy: number) => Promise<void>
   pasteClipboard: () => Promise<void>
   pasteClipboardInPlace: () => Promise<void>
+  arrangeSelection: (mode: CanvasObjectArrangeMode) => Promise<void>
   selectAllObjects: () => void
-  selectedEdgeIds: string[]
-  selectedGroupIds: string[]
-  selectedNodeIds: string[]
+  setSelectionLocked: (locked: boolean) => Promise<void>
   ungroupSelection: () => Promise<void>
 }
 
@@ -45,6 +61,22 @@ type CanvasObjectCommand = {
 }
 
 const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand> = {
+  'bring-forward': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasArrangeableSelection(context)
+    },
+    execute(context) {
+      void context.arrangeSelection('bring-forward')
+    }
+  },
+  'bring-to-front': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasArrangeableSelection(context)
+    },
+    execute(context) {
+      void context.arrangeSelection('bring-to-front')
+    }
+  },
   'select-all': {
     canExecute(context) {
       return context.editingState.status === 'idle'
@@ -55,7 +87,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'copy-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && hasAnySelection(context)
+      return canMutateSelection(context) && hasAnySelection(context)
     },
     execute(context) {
       void context.copySelection()
@@ -63,7 +95,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'cut-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && hasAnySelection(context)
+      return canMutateSelection(context) && hasDuplicableSelection(context)
     },
     execute(context) {
       void context.cutSelection()
@@ -87,7 +119,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'duplicate-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && hasAnySelection(context)
+      return canMutateSelection(context) && hasDuplicableSelection(context)
     },
     execute(context) {
       void context.duplicateSelection()
@@ -95,12 +127,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'group-selection': {
     canExecute(context) {
-      return (
-        context.editingState.status === 'idle' &&
-        context.selectedGroupIds.length === 0 &&
-        context.selectedEdgeIds.length === 0 &&
-        context.selectedNodeIds.length >= 2
-      )
+      return canMutateSelection(context) && hasGroupableSelection(context)
     },
     execute(context) {
       void context.groupSelection()
@@ -108,14 +135,18 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'ungroup-selection': {
     canExecute(context) {
-      return (
-        context.editingState.status === 'idle' &&
-        context.selectedGroupIds.length > 0 &&
-        context.groupSelectionState.status !== 'drilldown'
-      )
+      return canMutateSelection(context) && hasUngroupableSelection(context)
     },
     execute(context) {
       void context.ungroupSelection()
+    }
+  },
+  'lock-selection': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasLockableSelection(context)
+    },
+    execute(context) {
+      void context.setSelectionLocked(true)
     }
   },
   'nudge-left': {
@@ -165,6 +196,30 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
     execute(context) {
       void context.nudgeSelection(0, 10)
     }
+  },
+  'send-backward': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasArrangeableSelection(context)
+    },
+    execute(context) {
+      void context.arrangeSelection('send-backward')
+    }
+  },
+  'send-to-back': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasArrangeableSelection(context)
+    },
+    execute(context) {
+      void context.arrangeSelection('send-to-back')
+    }
+  },
+  'unlock-selection': {
+    canExecute(context) {
+      return canMutateSelection(context) && hasUnlockableSelection(context)
+    },
+    execute(context) {
+      void context.setSelectionLocked(false)
+    }
   }
 }
 
@@ -188,9 +243,9 @@ export function executeCanvasObjectCommand(
 }
 
 function canNudgeSelection(context: CanvasObjectCommandContext) {
-  return context.editingState.status === 'idle' && context.selectedNodeIds.length > 0
+  return canMutateSelection(context) && hasNudgeableSelection(context)
 }
 
-function hasAnySelection(context: CanvasObjectCommandContext) {
-  return context.selectedGroupIds.length + context.selectedNodeIds.length + context.selectedEdgeIds.length > 0
+function canMutateSelection(context: CanvasObjectCommandContext) {
+  return context.editingState.status === 'idle'
 }

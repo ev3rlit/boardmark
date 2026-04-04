@@ -20,6 +20,7 @@ import type {
 import type { CanvasDocumentPersistenceBridge } from '@canvas-app/document/canvas-document-persistence'
 import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-asset-bridge'
 import type { CanvasDocumentState } from '@canvas-app/document/canvas-document-state'
+import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
 
 export type ToolMode = 'select' | 'pan'
 
@@ -238,6 +239,8 @@ export type CanvasStoreState = {
   pasteClipboardInPlace: () => Promise<void>
   duplicateSelection: () => Promise<void>
   nudgeSelection: (dx: number, dy: number) => Promise<void>
+  arrangeSelection: (mode: CanvasObjectArrangeMode) => Promise<void>
+  setSelectionLocked: (locked: boolean) => Promise<void>
   groupSelection: () => Promise<void>
   ungroupSelection: () => Promise<void>
   startNoteEditing: (nodeId: string) => void

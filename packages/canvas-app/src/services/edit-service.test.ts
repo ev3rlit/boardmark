@@ -649,4 +649,182 @@ nodes:
     expect(reparsedResult.isOk()).toBe(true)
     expect(reparsedResult._unsafeUnwrap().ast.groups).toHaveLength(1)
   })
+
+  it('arranges selected top-level objects with z-only header patches and reparses the result', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const layeredSource = `---
+type: canvas
+version: 2
+---
+
+::: group { id: ideation-group, z: 1 }
+~~~yaml members
+nodes:
+  - nested
+~~~
+:::
+
+::: note { id: nested, at: { x: 40, y: 40, w: 240, h: 180 }, z: 2 }
+Nested
+:::
+
+::: note { id: welcome, at: { x: 320, y: 72, w: 320, h: 220 }, z: 3 }
+Boardmark Viewer
+:::
+
+::: edge { id: welcome-nested, from: welcome, to: nested, z: 4 }
+main thread
+:::`
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'arrange-test',
+        name: 'arrange.canvas.md'
+      },
+      source: layeredSource,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const bringToFront = editService.apply(layeredSource, recordResult.value, {
+      kind: 'arrange-objects',
+      groupIds: ['ideation-group'],
+      nodeIds: [],
+      edgeIds: ['welcome-nested'],
+      mode: 'bring-to-front'
+    })
+
+    expect(bringToFront.isOk()).toBe(true)
+    expect(bringToFront._unsafeUnwrap().source).toContain(
+      '::: group { id: ideation-group, z: 5 }'
+    )
+    expect(bringToFront._unsafeUnwrap().source).toContain(
+      '::: edge { id: welcome-nested, from: welcome, to: nested, z: 6 }'
+    )
+
+    const bringToFrontRecord = repository.readSource({
+      locator: recordResult.value.locator,
+      source: bringToFront._unsafeUnwrap().source,
+      isTemplate: false
+    })
+
+    expect(bringToFrontRecord.isOk()).toBe(true)
+
+    const sendBackward = editService.apply(bringToFront._unsafeUnwrap().source, bringToFrontRecord._unsafeUnwrap(), {
+      kind: 'arrange-objects',
+      nodeIds: ['welcome'],
+      edgeIds: [],
+      mode: 'send-backward'
+    })
+
+    expect(sendBackward.isOk()).toBe(true)
+    expect(sendBackward._unsafeUnwrap().source).toContain(
+      '::: note { id: welcome, at: { x: 320, y: 72, w: 320, h: 220 }, z: 1 }'
+    )
+
+    const reparsedResult = repository.readSource({
+      locator: recordResult.value.locator,
+      source: sendBackward._unsafeUnwrap().source,
+      isTemplate: false
+    })
+
+    expect(reparsedResult.isOk()).toBe(true)
+    expect(reparsedResult._unsafeUnwrap().ast.groups[0]).toEqual(
+      expect.objectContaining({
+        id: 'ideation-group',
+        z: 3
+      })
+    )
+    expect(reparsedResult._unsafeUnwrap().ast.nodes.find((node) => node.id === 'welcome')).toEqual(
+      expect.objectContaining({
+        z: 1
+      })
+    )
+  })
+
+  it('sets and clears locked metadata on groups, nodes, and edges without writing locked false', () => {
+    const editService = createCanvasDocumentEditService()
+    const repository = createCanvasMarkdownDocumentRepository()
+    const groupSource = `---
+type: canvas
+version: 2
+---
+
+::: group { id: ideation-group, z: 10 }
+~~~yaml members
+nodes:
+  - welcome
+~~~
+:::
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 11 }
+Boardmark Viewer
+:::
+
+::: edge { id: welcome-self, from: welcome, to: welcome, z: 12 }
+main thread
+:::`
+    const recordResult = repository.readSource({
+      locator: {
+        kind: 'memory',
+        key: 'lock-test',
+        name: 'lock.canvas.md'
+      },
+      source: groupSource,
+      isTemplate: false
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    const locked = editService.apply(groupSource, recordResult.value, {
+      kind: 'set-objects-locked',
+      groupIds: ['ideation-group'],
+      nodeIds: ['welcome'],
+      edgeIds: ['welcome-self'],
+      locked: true
+    })
+
+    expect(locked.isOk()).toBe(true)
+    expect(locked._unsafeUnwrap().source).toContain(
+      '::: group { id: ideation-group, z: 10, locked: true }'
+    )
+    expect(locked._unsafeUnwrap().source).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 11, locked: true }'
+    )
+    expect(locked._unsafeUnwrap().source).toContain(
+      '::: edge { id: welcome-self, from: welcome, to: welcome, z: 12, locked: true }'
+    )
+
+    const lockedRecord = repository.readSource({
+      locator: recordResult.value.locator,
+      source: locked._unsafeUnwrap().source,
+      isTemplate: false
+    })
+
+    const unlocked = editService.apply(locked._unsafeUnwrap().source, lockedRecord._unsafeUnwrap(), {
+      kind: 'set-objects-locked',
+      groupIds: ['ideation-group'],
+      nodeIds: ['welcome'],
+      edgeIds: ['welcome-self'],
+      locked: false
+    })
+
+    expect(unlocked.isOk()).toBe(true)
+    expect(unlocked._unsafeUnwrap().source).toContain(
+      '::: group { id: ideation-group, z: 10 }'
+    )
+    expect(unlocked._unsafeUnwrap().source).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 11 }'
+    )
+    expect(unlocked._unsafeUnwrap().source).toContain(
+      '::: edge { id: welcome-self, from: welcome, to: welcome, z: 12 }'
+    )
+    expect(unlocked._unsafeUnwrap().source).not.toContain('locked: false')
+  })
 })

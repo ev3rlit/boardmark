@@ -3,6 +3,9 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
 import {
+  canExecuteCanvasAppCommand
+} from '@canvas-app/app/commands/canvas-app-commands'
+import {
   canExecuteCanvasObjectCommand
 } from '@canvas-app/app/commands/canvas-object-commands'
 import { createCanvasAppCommandContext, createCanvasObjectCommandContext } from '@canvas-app/app/context/canvas-command-context'
@@ -22,6 +25,10 @@ import {
   selectCanvasEditingState,
   selectCanvasIsDropActive
 } from '@canvas-app/store/canvas-selectors'
+import {
+  isEdgeLocked,
+  isNodeLocked
+} from '@canvas-app/store/canvas-object-selection'
 import { CanvasScene } from '@canvas-app/components/scene/canvas-scene'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
 import { HistoryControls } from '@canvas-app/components/controls/history-controls'
@@ -68,13 +75,17 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const pasteClipboardInPlace = useStore(store, (state) => state.pasteClipboardInPlace)
   const selectAllObjects = useStore(store, (state) => state.selectAllObjects)
   const duplicateSelection = useStore(store, (state) => state.duplicateSelection)
+  const arrangeSelection = useStore(store, (state) => state.arrangeSelection)
   const groupSelection = useStore(store, (state) => state.groupSelection)
+  const setSelectionLocked = useStore(store, (state) => state.setSelectionLocked)
   const ungroupSelection = useStore(store, (state) => state.ungroupSelection)
   const nudgeSelection = useStore(store, (state) => state.nudgeSelection)
   const undo = useStore(store, (state) => state.undo)
   const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
   const editingState = useStore(store, selectCanvasEditingState)
+  const groups = useStore(store, (state) => state.groups)
+  const edges = useStore(store, (state) => state.edges)
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
@@ -95,8 +106,15 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     () => createCanvasAppCommandContext({
       deleteSelection,
       editingState,
+      edges,
+      groupSelectionState,
+      groups,
+      nodes,
       objectContextMenuOpen: objectContextMenu !== null,
       redo,
+      selectedEdgeIds,
+      selectedGroupIds,
+      selectedNodeIds,
       setObjectContextMenu,
       setPanShortcutActive,
       setViewport,
@@ -105,9 +123,16 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     }),
     [
       deleteSelection,
+      edges,
       editingState,
+      groupSelectionState,
+      groups,
+      nodes,
       objectContextMenu,
       redo,
+      selectedEdgeIds,
+      selectedGroupIds,
+      selectedNodeIds,
       setObjectContextMenu,
       setPanShortcutActive,
       setViewport,
@@ -121,33 +146,43 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       copySelection,
       cutSelection,
       duplicateSelection,
+      arrangeSelection,
+      edges,
       editingState,
       groupSelection,
       groupSelectionState,
+      groups,
       nudgeSelection,
+      nodes,
       pasteClipboard,
       pasteClipboardInPlace,
       selectAllObjects,
       selectedEdgeIds,
       selectedGroupIds,
       selectedNodeIds,
+      setSelectionLocked,
       ungroupSelection
     }),
     [
+      arrangeSelection,
       clipboardState,
       copySelection,
       cutSelection,
       duplicateSelection,
+      edges,
       editingState,
       groupSelection,
       groupSelectionState,
+      groups,
       nudgeSelection,
+      nodes,
       pasteClipboard,
       pasteClipboardInPlace,
       selectAllObjects,
       selectedEdgeIds,
       selectedGroupIds,
       selectedNodeIds,
+      setSelectionLocked,
       ungroupSelection
     ]
   )
@@ -237,21 +272,40 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     selectedNodeIds.length,
     selectedEdgeIds.length
   )
-  const canEditSelection = selectedGroupIds.length === 0 && selectedNodeIds.length + selectedEdgeIds.length === 1
   const selectedNode = selectedNodeIds[0]
     ? nodes.find((node) => node.id === selectedNodeIds[0])
     : undefined
+  const selectedEdge = selectedEdgeIds[0]
+    ? edges.find((edge) => edge.id === selectedEdgeIds[0])
+    : undefined
+  const canEditSelection =
+    editingState.status === 'idle' &&
+    selectedGroupIds.length === 0 &&
+    selectedNodeIds.length + selectedEdgeIds.length === 1 &&
+    (selectedNode
+      ? !isNodeLocked({ groups, nodes }, selectedNode.id)
+      : selectedEdge
+        ? !isEdgeLocked({ edges, groups, nodes }, selectedEdge.id)
+        : false)
+  const canDeleteSelection = canExecuteCanvasAppCommand('delete-selection', appCommandContext)
   const canDuplicateSelection = canExecuteCanvasObjectCommand(
     'duplicate-selection',
     objectCommandContext
   )
+  const canBringForward = canExecuteCanvasObjectCommand('bring-forward', objectCommandContext)
+  const canBringToFront = canExecuteCanvasObjectCommand('bring-to-front', objectCommandContext)
   const canCopySelection = canExecuteCanvasObjectCommand('copy-selection', objectCommandContext)
   const canCutSelection = canExecuteCanvasObjectCommand('cut-selection', objectCommandContext)
+  const canLockSelection = canExecuteCanvasObjectCommand('lock-selection', objectCommandContext)
   const canPasteSelection = canExecuteCanvasObjectCommand('paste-selection', objectCommandContext)
+  const canSendBackward = canExecuteCanvasObjectCommand('send-backward', objectCommandContext)
+  const canSendToBack = canExecuteCanvasObjectCommand('send-to-back', objectCommandContext)
   const canSelectAll = canExecuteCanvasObjectCommand('select-all', objectCommandContext)
   const canGroupSelection = canExecuteCanvasObjectCommand('group-selection', objectCommandContext)
   const canUngroupSelection = canExecuteCanvasObjectCommand('ungroup-selection', objectCommandContext)
-  const hasSelection = selectedGroupIds.length + selectedNodeIds.length + selectedEdgeIds.length > 0
+  const canUnlockSelection = canExecuteCanvasObjectCommand('unlock-selection', objectCommandContext)
+  const lockSelectionLabel = canUnlockSelection ? 'Unlock selection' : 'Lock selection'
+  const canToggleSelectionLock = canUnlockSelection || canLockSelection
 
   return (
     <ReactFlowProvider>
@@ -324,12 +378,18 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                 canEdit={canEditSelection}
                 canCopy={canCopySelection}
                 canCut={canCutSelection}
-                canDelete={hasSelection}
+                canDelete={canDeleteSelection}
                 canDuplicate={canDuplicateSelection}
                 canGroup={canGroupSelection}
+                canBringForward={canBringForward}
+                canBringToFront={canBringToFront}
+                canLock={canToggleSelectionLock}
                 canPaste={canPasteSelection}
+                canSendBackward={canSendBackward}
+                canSendToBack={canSendToBack}
                 canSelectAll={canSelectAll}
                 canUngroup={canUngroupSelection}
+                lockLabel={lockSelectionLabel}
                 imageActions={
                   alignedObjectContextMenu.kind === 'selection' && selectedNode?.component === 'image'
                     ? {
@@ -411,6 +471,18 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                   setObjectContextMenu(null)
                   void groupSelection()
                 }}
+                onBringForward={() => {
+                  setObjectContextMenu(null)
+                  void arrangeSelection('bring-forward')
+                }}
+                onBringToFront={() => {
+                  setObjectContextMenu(null)
+                  void arrangeSelection('bring-to-front')
+                }}
+                onLock={() => {
+                  setObjectContextMenu(null)
+                  void setSelectionLocked(!canUnlockSelection)
+                }}
                 onPaste={() => {
                   setObjectContextMenu(null)
                   void pasteClipboard()
@@ -418,6 +490,14 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                 onPasteInPlace={() => {
                   setObjectContextMenu(null)
                   void pasteClipboardInPlace()
+                }}
+                onSendBackward={() => {
+                  setObjectContextMenu(null)
+                  void arrangeSelection('send-backward')
+                }}
+                onSendToBack={() => {
+                  setObjectContextMenu(null)
+                  void arrangeSelection('send-to-back')
                 }}
                 onSelectAll={() => {
                   setObjectContextMenu(null)

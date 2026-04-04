@@ -9,6 +9,7 @@ import {
   type CanvasNode,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
+import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
 import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-asset-bridge'
 import {
@@ -33,6 +34,17 @@ import type {
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
 import type { CanvasDocumentEditIntent } from '@canvas-app/services/edit-service'
+import {
+  isEdgeLocked,
+  isNodeLocked,
+  isTopLevelNode,
+  readArrangeableSelection,
+  readContainingGroup,
+  readLockSelectionTargetIds,
+  readSelectedGroups,
+  readUnlockedDocumentSelection,
+  readUnlockedNodeSelection
+} from '@canvas-app/store/canvas-object-selection'
 
 type CanvasStoreSliceServices = {
   conflictService: CanvasConflictService
@@ -461,6 +473,8 @@ export function createCanvasCommandSlice(
   | 'pasteClipboardInPlace'
   | 'duplicateSelection'
   | 'nudgeSelection'
+  | 'arrangeSelection'
+  | 'setSelectionLocked'
   | 'groupSelection'
   | 'ungroupSelection'
   | 'startNoteEditing'
@@ -1420,6 +1434,64 @@ export function createCanvasCommandSlice(
       })
     },
 
+    async arrangeSelection(mode: CanvasObjectArrangeMode) {
+      const state = get()
+      const selection = readArrangeableSelection(state)
+
+      if (
+        selection.groupIds.length === 0 &&
+        selection.nodeIds.length === 0 &&
+        selection.edgeIds.length === 0
+      ) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'arrange-objects',
+          groupIds: selection.groupIds,
+          nodeIds: selection.nodeIds,
+          edgeIds: selection.edgeIds,
+          mode
+        },
+        set
+      })
+    },
+
+    async setSelectionLocked(locked) {
+      const state = get()
+      const selection = readLockSelectionTargetIds(state)
+
+      if (
+        selection.groupIds.length === 0 &&
+        selection.nodeIds.length === 0 &&
+        selection.edgeIds.length === 0
+      ) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'set-objects-locked',
+          groupIds: selection.groupIds,
+          nodeIds: selection.nodeIds,
+          edgeIds: selection.edgeIds,
+          locked
+        },
+        set
+      })
+    },
+
     async groupSelection() {
       const state = get()
       const topLevelNodeIds = state.selectedNodeIds.filter((nodeId) => isTopLevelNode(state, nodeId))
@@ -1841,6 +1913,8 @@ function readHistoryLabel(intent: CanvasDocumentEditIntent) {
     case 'move-node':
     case 'nudge-objects':
       return 'Move node'
+    case 'arrange-objects':
+      return 'Arrange selection'
     case 'resize-node':
       return 'Resize node'
     case 'replace-object-body':
@@ -1861,6 +1935,8 @@ function readHistoryLabel(intent: CanvasDocumentEditIntent) {
       return 'Replace image'
     case 'update-image-metadata':
       return 'Update image'
+    case 'set-objects-locked':
+      return intent.locked ? 'Lock selection' : 'Unlock selection'
     case 'delete-node':
     case 'delete-edge':
     case 'delete-objects':
@@ -2267,63 +2343,6 @@ function readTopLevelSelection(state: CanvasStoreState) {
   }
 }
 
-function readUnlockedDocumentSelection(state: CanvasStoreState) {
-  const groupIds = readSelectedGroups(state)
-    .filter((group) => !group.locked)
-    .map((group) => group.id)
-  const nodeIds = readUnlockedNodeSelection(state)
-  const selectedNodeIds = new Set(nodeIds)
-  const explicitlySelectedEdgeIds = state.selectedEdgeIds.filter((edgeId) => !isEdgeLocked(state, edgeId))
-  const relatedEdgeIds = state.edges
-    .filter((edge) => selectedNodeIds.has(edge.from) && selectedNodeIds.has(edge.to) && !isEdgeLocked(state, edge.id))
-    .map((edge) => edge.id)
-
-  return {
-    groupIds,
-    nodeIds,
-    edgeIds: [...new Set([...explicitlySelectedEdgeIds, ...relatedEdgeIds])]
-  }
-}
-
-function readUnlockedNodeSelection(state: CanvasStoreState) {
-  const nodeIds = [
-    ...state.selectedNodeIds,
-    ...readSelectedGroups(state).flatMap((group) => group.members.nodeIds)
-  ]
-
-  return [...new Set(nodeIds)].filter((nodeId) => !isNodeLocked(state, nodeId))
-}
-
-function isNodeLocked(state: Pick<CanvasStoreState, 'groups' | 'nodes'>, nodeId: string) {
-  const node = state.nodes.find((entry) => entry.id === nodeId)
-
-  if (!node) {
-    return false
-  }
-
-  if (node.locked) {
-    return true
-  }
-
-  return state.groups.some((group) => {
-    return group.locked && group.members.nodeIds.includes(nodeId)
-  })
-}
-
-function isEdgeLocked(state: Pick<CanvasStoreState, 'edges' | 'groups' | 'nodes'>, edgeId: string) {
-  const edge = state.edges.find((entry) => entry.id === edgeId)
-
-  if (!edge) {
-    return false
-  }
-
-  if (edge.locked) {
-    return true
-  }
-
-  return isNodeLocked(state, edge.from) || isNodeLocked(state, edge.to)
-}
-
 function readCurrentMaxZFromState(state: CanvasStoreState) {
   return Math.max(
     0,
@@ -2497,18 +2516,6 @@ function isSameGroupSelectionState(
   }
 
   return false
-}
-
-function readSelectedGroups(state: CanvasStoreState) {
-  return state.groups.filter((group) => state.selectedGroupIds.includes(group.id))
-}
-
-function readContainingGroup(state: Pick<CanvasStoreState, 'groups'>, nodeId: string) {
-  return state.groups.find((group) => group.members.nodeIds.includes(nodeId)) ?? null
-}
-
-function isTopLevelNode(state: Pick<CanvasStoreState, 'groups'>, nodeId: string) {
-  return readContainingGroup(state, nodeId) === null
 }
 
 function readClipboardPayload(

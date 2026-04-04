@@ -53,6 +53,38 @@ Next
 broken flow
 :::`
 
+const arrangeLockSource = `---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: group { id: ideation-group, z: 1 }
+~~~yaml members
+nodes:
+  - welcome
+~~~
+:::
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 2 }
+Boardmark Viewer
+:::
+
+::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 3 }
+Overview
+:::
+
+::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4 }
+Solo
+:::
+
+::: edge { id: overview-solo, from: overview, to: solo, z: 5 }
+main thread
+:::`
+
 describe('viewer store', () => {
   it('hydrates the empty startup canvas as an unsaved draft session', async () => {
     const store = createCanvasStore({
@@ -748,6 +780,99 @@ describe('viewer store', () => {
     await store.getState().nudgeSelection(1, 0)
 
     expect(store.getState().draftSource).toBe(sourceBeforeEdgeNudge)
+  })
+
+  it('arranges explicit top-level selections and preserves the active selection', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['overview'],
+      edgeIds: ['overview-solo']
+    })
+    await store.getState().arrangeSelection('bring-to-front')
+
+    expect(store.getState().draftSource).toContain(
+      '::: group { id: ideation-group, z: 6 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 7 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: edge { id: overview-solo, from: overview, to: solo, z: 8 }'
+    )
+    expect(store.getState().selectedGroupIds).toEqual(['ideation-group'])
+    expect(store.getState().selectedNodeIds).toEqual(['overview'])
+    expect(store.getState().selectedEdgeIds).toEqual(['overview-solo'])
+  })
+
+  it('locks explicit targets and excludes locked selections from mutation paths', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['solo'],
+      edgeIds: ['overview-solo']
+    })
+    await store.getState().setSelectionLocked(true)
+
+    expect(store.getState().draftSource).toContain(
+      '::: group { id: ideation-group, z: 1, locked: true }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4, locked: true }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: edge { id: overview-solo, from: overview, to: solo, z: 5, locked: true }'
+    )
+
+    const lockedSource = store.getState().draftSource
+
+    await store.getState().arrangeSelection('send-to-back')
+    await store.getState().duplicateSelection()
+    store.getState().replaceSelection({
+      groupIds: [],
+      nodeIds: ['solo'],
+      edgeIds: []
+    })
+    await store.getState().nudgeSelection(10, 0)
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: [],
+      edgeIds: []
+    })
+    await store.getState().deleteSelection()
+    await store.getState().commitNodeMove('welcome', 160, 160)
+
+    expect(store.getState().draftSource).toBe(lockedSource)
+
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['solo'],
+      edgeIds: ['overview-solo']
+    })
+    await store.getState().setSelectionLocked(false)
+
+    expect(store.getState().draftSource).toContain(
+      '::: group { id: ideation-group, z: 1 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: edge { id: overview-solo, from: overview, to: solo, z: 5 }'
+    )
+    expect(store.getState().draftSource).not.toContain('locked: false')
   })
 
   it('blocks undo and redo while conflict or invalid states are active', async () => {

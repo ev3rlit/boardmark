@@ -1,6 +1,10 @@
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
 import type { CanvasEditingState } from '@canvas-app/store/canvas-store'
 import type { CanvasViewport } from '@boardmark/canvas-domain'
+import {
+  hasDeletableSelection,
+  type CanvasSelectionSnapshot
+} from '@canvas-app/store/canvas-object-selection'
 
 export type CanvasAppCommandId =
   | 'activate-pan-shortcut'
@@ -12,7 +16,7 @@ export type CanvasAppCommandId =
   | 'zoom-in'
   | 'zoom-out'
 
-export type CanvasAppCommandContext = {
+export type CanvasAppCommandContext = CanvasSelectionSnapshot & {
   deleteSelection: () => Promise<void>
   editingState: CanvasEditingState
   objectContextMenuOpen: boolean
@@ -48,7 +52,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   'delete-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return context.editingState.status === 'idle' && hasDeletableSelection(context)
     },
     execute(context) {
       void context.deleteSelection()

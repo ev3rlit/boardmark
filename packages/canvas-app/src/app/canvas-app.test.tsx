@@ -5,6 +5,13 @@ import type {
   CanvasDocumentRepositoryGateway
 } from '@boardmark/canvas-repository'
 import { createCanvasMarkdownDocumentRepository } from '@boardmark/canvas-repository'
+import {
+  canExecuteCanvasAppCommand
+} from '@canvas-app/app/commands/canvas-app-commands'
+import {
+  canExecuteCanvasObjectCommand
+} from '@canvas-app/app/commands/canvas-object-commands'
+import { createCanvasAppCommandContext, createCanvasObjectCommandContext } from '@canvas-app/app/context/canvas-command-context'
 import { CanvasApp } from '@canvas-app/app/canvas-app'
 import {
   EMPTY_CANVAS_DOCUMENT_NAME,
@@ -323,7 +330,124 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete 2 items' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Group' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Align' })).toBeDisabled()
-    expect(screen.getByRole('menuitem', { name: 'Arrange' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Bring forward' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Send backward' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Bring to front' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Send to back' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Lock selection' })).toBeEnabled()
+  })
+
+  it('matches context menu disabled state with command enablement for locked selections', async () => {
+    const lockedSource = `---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, locked: true }
+Boardmark Viewer
+:::
+
+::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
+Overview
+:::
+
+::: edge { id: welcome-overview, from: welcome, to: overview }
+main thread
+:::`
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: lockedSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome'])
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const welcome = await screen.findByText('Boardmark Viewer')
+    fireEvent.contextMenu(welcome)
+
+    const state = store.getState()
+    const appContext = createCanvasAppCommandContext({
+      deleteSelection: state.deleteSelection,
+      editingState: state.editingState,
+      edges: state.edges,
+      groupSelectionState: state.groupSelectionState,
+      groups: state.groups,
+      nodes: state.nodes,
+      objectContextMenuOpen: true,
+      redo: state.redo,
+      selectedEdgeIds: state.selectedEdgeIds,
+      selectedGroupIds: state.selectedGroupIds,
+      selectedNodeIds: state.selectedNodeIds,
+      setObjectContextMenu: () => undefined,
+      setPanShortcutActive: state.setPanShortcutActive,
+      setViewport: state.setViewport,
+      undo: state.undo,
+      viewport: state.viewport
+    })
+    const objectContext = createCanvasObjectCommandContext({
+      arrangeSelection: state.arrangeSelection,
+      clipboardState: state.clipboardState,
+      copySelection: state.copySelection,
+      cutSelection: state.cutSelection,
+      duplicateSelection: state.duplicateSelection,
+      edges: state.edges,
+      editingState: state.editingState,
+      groupSelection: state.groupSelection,
+      groupSelectionState: state.groupSelectionState,
+      groups: state.groups,
+      nodes: state.nodes,
+      nudgeSelection: state.nudgeSelection,
+      pasteClipboard: state.pasteClipboard,
+      pasteClipboardInPlace: state.pasteClipboardInPlace,
+      selectAllObjects: state.selectAllObjects,
+      selectedEdgeIds: state.selectedEdgeIds,
+      selectedGroupIds: state.selectedGroupIds,
+      selectedNodeIds: state.selectedNodeIds,
+      setSelectionLocked: state.setSelectionLocked,
+      ungroupSelection: state.ungroupSelection
+    })
+
+    expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Delete object' })).toHaveProperty(
+      'disabled',
+      !canExecuteCanvasAppCommand('delete-selection', appContext)
+    )
+    expect(screen.getByRole('menuitem', { name: 'Cut' })).toHaveProperty(
+      'disabled',
+      !canExecuteCanvasObjectCommand('cut-selection', objectContext)
+    )
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toHaveProperty(
+      'disabled',
+      !canExecuteCanvasObjectCommand('duplicate-selection', objectContext)
+    )
+    expect(screen.getByRole('menuitem', { name: 'Bring forward' })).toHaveProperty(
+      'disabled',
+      !canExecuteCanvasObjectCommand('bring-forward', objectContext)
+    )
+    expect(screen.getByRole('menuitem', { name: 'Unlock selection' })).toHaveProperty(
+      'disabled',
+      !canExecuteCanvasObjectCommand('unlock-selection', objectContext)
+    )
   })
 
   it('opens the shape menu and dispatches the selected shape preset', async () => {
