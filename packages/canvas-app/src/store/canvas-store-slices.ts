@@ -488,8 +488,6 @@ export function createCanvasCommandSlice(
   | 'groupSelection'
   | 'ungroupSelection'
   | 'startObjectEditing'
-  | 'startNoteEditing'
-  | 'startShapeEditing'
   | 'startEdgeEditing'
   | 'updateEditingMarkdown'
   | 'setEditingBlockMode'
@@ -1714,27 +1712,7 @@ export function createCanvasCommandSlice(
       })
     },
 
-    startNoteEditing(nodeId) {
-      const node = get().nodes.find((entry) => entry.id === nodeId)
-
-      if (!node || node.component !== 'note' || isNodeLocked(get(), node.id)) {
-        return
-      }
-
-      startObjectBodyEditing(nodeId)
-    },
-
     startObjectEditing(nodeId) {
-      startObjectBodyEditing(nodeId)
-    },
-
-    startShapeEditing(nodeId) {
-      const node = get().nodes.find((entry) => entry.id === nodeId)
-
-      if (!node || node.component === 'note' || isNodeLocked(get(), node.id)) {
-        return
-      }
-
       startObjectBodyEditing(nodeId)
     },
 

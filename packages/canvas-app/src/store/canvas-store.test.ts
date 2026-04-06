@@ -231,7 +231,7 @@ describe('viewer store', () => {
 
     await store.getState().hydrateTemplate()
 
-    store.getState().startNoteEditing('welcome')
+    store.getState().startObjectEditing('welcome')
 
     expect(store.getState().editingState).toMatchObject({
       status: 'active',
@@ -317,7 +317,7 @@ Shape body
     })
 
     await store.getState().hydrateTemplate()
-    store.getState().startShapeEditing('shape-1')
+    store.getState().startObjectEditing('shape-1')
 
     expect(store.getState().editingState).toMatchObject({
       status: 'active',
