@@ -31,8 +31,7 @@ export type CanvasDropState =
   | { status: 'error'; message: string }
 
 export type CanvasEditingTarget =
-  | { kind: 'note-body'; objectId: string }
-  | { kind: 'shape-body'; component: string; objectId: string }
+  | { kind: 'object-body'; component: string; objectId: string }
   | { kind: 'edge-label'; edgeId: string }
 
 export type CanvasEditingSurface = 'textarea' | 'wysiwyg'
@@ -283,6 +282,7 @@ export type CanvasStoreState = {
   setSelectionLocked: (locked: boolean) => Promise<void>
   groupSelection: () => Promise<void>
   ungroupSelection: () => Promise<void>
+  startObjectEditing: (nodeId: string) => void
   startNoteEditing: (nodeId: string) => void
   startShapeEditing: (nodeId: string) => void
   startEdgeEditing: (edgeId: string) => void

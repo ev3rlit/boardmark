@@ -554,7 +554,8 @@ main thread
       status: 'active',
       surface: 'wysiwyg',
       target: {
-        kind: 'note-body',
+        kind: 'object-body',
+        component: 'note',
         objectId: 'welcome'
       }
     })

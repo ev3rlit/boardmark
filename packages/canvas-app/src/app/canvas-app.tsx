@@ -94,8 +94,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const groupSelectionState = useStore(store, (state) => state.groupSelectionState)
   const nodes = useStore(store, (state) => state.nodes)
   const viewport = useStore(store, (state) => state.viewport)
-  const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
-  const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
+  const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
   const {
@@ -455,12 +454,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                       return
                     }
 
-                    if (selectedNode && selectedNode.component !== 'note') {
-                      startShapeEditing(selectedNode.id)
-                      return
-                    }
-
-                    startNoteEditing(selectedNodeIds[0])
+                    startObjectEditing(selectedNodeIds[0])
                     return
                   }
 

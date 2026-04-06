@@ -237,7 +237,8 @@ describe('viewer store', () => {
       status: 'active',
       surface: 'wysiwyg',
       target: {
-        kind: 'note-body',
+        kind: 'object-body',
+        component: 'note',
         objectId: 'welcome'
       }
     })
@@ -297,7 +298,7 @@ describe('viewer store', () => {
     expect(store.getState().draftSource).not.toContain('Changed connector')
   })
 
-  it('opens shape sessions behind the shared host contract with textarea fallback', async () => {
+  it('opens shape sessions behind the shared object-body host contract', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: createRepository(),
@@ -320,9 +321,10 @@ Shape body
 
     expect(store.getState().editingState).toMatchObject({
       status: 'active',
-      surface: 'textarea',
+      surface: 'wysiwyg',
       target: {
-        kind: 'shape-body',
+        kind: 'object-body',
+        component: 'boardmark.shape.roundRect',
         objectId: 'shape-1'
       }
     })

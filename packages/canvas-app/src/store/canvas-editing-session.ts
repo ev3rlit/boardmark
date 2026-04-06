@@ -22,20 +22,21 @@ export function readEditingTarget(editingState: CanvasEditingState): CanvasEditi
 
 export function isEditingNodeBody(
   editingState: CanvasEditingState,
-  input: {
-    nodeId: string
-    targetKind?: Extract<CanvasEditingTarget, { objectId: string }>['kind']
-  }
+  nodeId: string
 ) {
   if (editingState.status !== 'active') {
     return false
   }
 
-  if (!('objectId' in editingState.target) || editingState.target.objectId !== input.nodeId) {
+  if (editingState.target.kind !== 'object-body') {
     return false
   }
 
-  return input.targetKind ? editingState.target.kind === input.targetKind : true
+  if (editingState.target.objectId !== nodeId) {
+    return false
+  }
+
+  return true
 }
 
 export function isEditingEdgeLabel(editingState: CanvasEditingState, edgeId: string) {

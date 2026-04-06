@@ -447,16 +447,13 @@ function CanvasNoteNode({
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
-  const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
+  const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
-  const isEditing = isEditingNodeBody(editingState, {
-    nodeId: id,
-    targetKind: 'note-body'
-  })
+  const isEditing = isEditingNodeBody(editingState, id)
   const activeSession = isEditing && editingState.status === 'active' ? editingState : null
 
   return (
@@ -464,7 +461,7 @@ function CanvasNoteNode({
       className="h-full w-full max-w-none"
       onDoubleClick={() => {
         if (!data.locked) {
-          startNoteEditing(id)
+          startObjectEditing(id)
         }
       }}
     >
@@ -548,17 +545,14 @@ function CanvasComponentNode({
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const editingState = useStore(store, (state) => state.editingState)
-  const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
+  const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isImageNode = data.component === 'image'
-  const isEditing = !isImageNode && isEditingNodeBody(editingState, {
-    nodeId: id,
-    targetKind: 'shape-body'
-  })
+  const isEditing = !isImageNode && isEditingNodeBody(editingState, id)
   const activeSession = isEditing && editingState.status === 'active' ? editingState : null
 
   const Renderer = readBuiltInRenderer(data.component)
@@ -568,7 +562,7 @@ function CanvasComponentNode({
       className="max-w-none"
       onDoubleClick={() => {
         if (!isImageNode && !data.locked) {
-          startShapeEditing(id)
+          startObjectEditing(id)
         }
       }}
     >

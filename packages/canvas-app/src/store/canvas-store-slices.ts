@@ -487,6 +487,7 @@ export function createCanvasCommandSlice(
   | 'setSelectionLocked'
   | 'groupSelection'
   | 'ungroupSelection'
+  | 'startObjectEditing'
   | 'startNoteEditing'
   | 'startShapeEditing'
   | 'startEdgeEditing'
@@ -534,6 +535,24 @@ export function createCanvasCommandSlice(
         error: null
       },
       operationError: null
+    })
+  }
+
+  const startObjectBodyEditing = (nodeId: string) => {
+    const node = get().nodes.find((entry) => entry.id === nodeId)
+
+    if (!node || node.component === 'image' || isNodeLocked(get(), node.id)) {
+      return
+    }
+
+    startEditingSession({
+      markdown: node.body ?? '',
+      surface: 'wysiwyg',
+      target: {
+        kind: 'object-body',
+        component: node.component,
+        objectId: nodeId
+      }
     })
   }
 
@@ -1702,14 +1721,11 @@ export function createCanvasCommandSlice(
         return
       }
 
-      startEditingSession({
-        markdown: node.body ?? '',
-        surface: 'wysiwyg',
-        target: {
-          kind: 'note-body',
-          objectId: nodeId
-        }
-      })
+      startObjectBodyEditing(nodeId)
+    },
+
+    startObjectEditing(nodeId) {
+      startObjectBodyEditing(nodeId)
     },
 
     startShapeEditing(nodeId) {
@@ -1719,15 +1735,7 @@ export function createCanvasCommandSlice(
         return
       }
 
-      startEditingSession({
-        markdown: node.body ?? '',
-        surface: 'textarea',
-        target: {
-          kind: 'shape-body',
-          component: node.component,
-          objectId: nodeId
-        }
-      })
+      startObjectBodyEditing(nodeId)
     },
 
     startEdgeEditing(edgeId) {
