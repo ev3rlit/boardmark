@@ -4,6 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
+    "@tiptap/core": "^3.22.2",
+    "@tiptap/extension-link": "^3.22.2",
+    "@tiptap/extension-table": "^3.22.2",
+    "@tiptap/markdown": "^3.22.2",
+    "@tiptap/pm": "^3.22.2",
+    "@tiptap/react": "^3.22.2",
+    "@tiptap/starter-kit": "^3.22.2",
     "lucide-react": "^1.7.0"
   }
 }

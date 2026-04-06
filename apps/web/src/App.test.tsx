@@ -205,6 +205,20 @@ Dropped Board
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
   })
+
+  it('renders the isolated WYSIWYG spike when the query param is present', () => {
+    const previousUrl = window.location.href
+    window.history.pushState({}, '', '/?spike=wysiwyg-phase0')
+
+    try {
+      render(<App store={createWebStore(async () => EMPTY_CANVAS_SOURCE)} />)
+
+      expect(screen.getByRole('heading', { level: 1, name: /Tiptap markdown spike for Boardmark/i })).toBeInTheDocument()
+      expect(screen.getByRole('combobox', { name: 'Sample document' })).toBeInTheDocument()
+    } finally {
+      window.history.pushState({}, '', previousUrl)
+    }
+  })
 })
 
 function createWebStore(readFileText: (file: File) => Promise<string>) {
