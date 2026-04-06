@@ -31,6 +31,29 @@ Overview
 main thread
 :::`
 
+const relativeArrangeSource = `---
+type: canvas
+version: 2
+---
+
+::: group { id: cluster, z: 100 }
+~~~yaml members
+nodes: []
+~~~
+:::
+
+::: note { id: card, at: { x: 80, y: 72, w: 240, h: 160 }, z: 200 }
+Card
+:::
+
+::: edge { id: card-link, from: card, to: after, z: 300 }
+Link
+:::
+
+::: note { id: after, at: { x: 360, y: 72, w: 240, h: 160 }, z: 301 }
+After
+:::`
+
 describe('canvas editing service', () => {
   it('routes nudge, arrange, lock, and delete through compile resolve apply reparse', async () => {
     const repository = createRepository()
@@ -59,8 +82,8 @@ describe('canvas editing service', () => {
     })
     expect(outcome.status).toBe('updated')
     context = updateContext(context, outcome)
-    expect(context.draftSource).toContain('::: group { id: ideation-group, z: 5 }')
-    expect(context.draftSource).toContain('::: edge { id: welcome-overview, from: welcome, to: overview, z: 6 }')
+    expect(context.draftSource).toContain('::: group { id: ideation-group, z: 104 }')
+    expect(context.draftSource).toContain('::: edge { id: welcome-overview, from: welcome, to: overview, z: 204 }')
 
     outcome = await editingService.applyIntent(context, {
       kind: 'set-objects-locked',
@@ -218,6 +241,36 @@ describe('canvas editing service', () => {
 
     expect(outcome.documentState.currentSource).toContain('BROKEN-PAYLOAD')
   })
+
+  it('applies bring-forward through reparse while preserving mixed-kind one-slot ordering', async () => {
+    const repository = createRepository()
+    const editingService = createCanvasEditingService({
+      documentRepository: repository
+    })
+
+    const outcome = await editingService.applyIntent(createContext(relativeArrangeSource), {
+      kind: 'arrange-objects',
+      groupIds: [],
+      nodeIds: ['card'],
+      edgeIds: [],
+      mode: 'bring-forward'
+    })
+
+    expect(outcome.status).toBe('updated')
+
+    if (outcome.status !== 'updated') {
+      return
+    }
+
+    expect(outcome.documentState.currentSource).toContain('::: group { id: cluster, z: 100 }')
+    expect(outcome.documentState.currentSource).toContain('::: note { id: after, at: { x: 360, y: 72, w: 240, h: 160 }, z: 301 }')
+    expect(readTopLevelOrder(outcome.record)).toEqual([
+      'group:cluster',
+      'edge:card-link',
+      'node:card',
+      'node:after'
+    ])
+  })
 })
 
 function createContext(inputSource: string) {
@@ -325,4 +378,32 @@ function readRecord(inputSource: string): CanvasDocumentRecord {
   }
 
   return result.value
+}
+
+function readTopLevelOrder(record: CanvasDocumentRecord) {
+  return [
+    ...record.ast.groups.map((group) => ({
+      key: `group:${group.id}`,
+      offset: group.sourceMap.objectRange.start.offset,
+      z: group.z ?? 0
+    })),
+    ...record.ast.nodes.map((node) => ({
+      key: `node:${node.id}`,
+      offset: node.sourceMap.objectRange.start.offset,
+      z: node.z ?? 0
+    })),
+    ...record.ast.edges.map((edge) => ({
+      key: `edge:${edge.id}`,
+      offset: edge.sourceMap.objectRange.start.offset,
+      z: edge.z ?? 0
+    }))
+  ]
+    .sort((left, right) => {
+      if (left.z !== right.z) {
+        return left.z - right.z
+      }
+
+      return left.offset - right.offset
+    })
+    .map((entry) => entry.key)
 }

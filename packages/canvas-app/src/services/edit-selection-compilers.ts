@@ -28,6 +28,18 @@ import {
 } from '@canvas-app/services/edit-compiler-helpers'
 import type { CanvasEditUnit } from '@canvas-app/services/edit-transaction'
 
+const ARRANGE_Z_STEP = 100
+
+type ArrangeObjectEntry = {
+  id: string
+  index: number
+  key: string
+  kind: 'edge' | 'group' | 'node'
+  object: import('@boardmark/canvas-domain').CanvasEdge | import('@boardmark/canvas-domain').CanvasGroup | import('@boardmark/canvas-domain').CanvasNode
+  offset: number
+  z: number
+}
+
 const compileDuplicateObjects: IntentCompiler<'duplicate-objects'> = (context, intent) => {
   const requestedNodeIds = [...new Set(intent.nodeIds)]
   const requestedEdgeIds = [...new Set(intent.edgeIds)]
@@ -270,42 +282,7 @@ const compileArrangeObjects: IntentCompiler<'arrange-objects'> = (context, inten
     ...intent.nodeIds.map((nodeId) => `node:${nodeId}`),
     ...intent.edgeIds.map((edgeId) => `edge:${edgeId}`)
   ])
-  const objects = [
-    ...context.record.ast.groups.map((group, index) => ({
-      id: group.id,
-      index,
-      kind: 'group' as const,
-      object: group,
-      offset: group.sourceMap.objectRange.start.offset,
-      z: group.z ?? 0
-    })),
-    ...context.record.ast.nodes.map((node, index) => ({
-      id: node.id,
-      index,
-      kind: 'node' as const,
-      object: node,
-      offset: node.sourceMap.objectRange.start.offset,
-      z: node.z ?? 0
-    })),
-    ...context.record.ast.edges.map((edge, index) => ({
-      id: edge.id,
-      index,
-      kind: 'edge' as const,
-      object: edge,
-      offset: edge.sourceMap.objectRange.start.offset,
-      z: edge.z ?? 0
-    }))
-  ].sort((left, right) => {
-    if (left.z !== right.z) {
-      return left.z - right.z
-    }
-
-    if (left.offset !== right.offset) {
-      return left.offset - right.offset
-    }
-
-    return left.index - right.index
-  })
+  const objects = readArrangeObjects(context.record)
 
   for (const groupId of [...new Set(intent.groupIds ?? [])]) {
     if (!context.record.ast.groups.some((group) => group.id === groupId)) {
@@ -341,42 +318,19 @@ const compileArrangeObjects: IntentCompiler<'arrange-objects'> = (context, inten
   }
 
   const edits: CanvasEditUnit[] = []
-  const maxZ = Math.max(...objects.map((entry) => entry.z))
-  const minZ = Math.min(...objects.map((entry) => entry.z))
-  const nextZById = new Map<string, number>()
+  const originalZById = new Map(objects.map((entry) => [entry.key, entry.z]))
+  const nextZById =
+    intent.mode === 'bring-to-front' || intent.mode === 'send-to-back'
+      ? buildAbsoluteArrangeZAssignments(objects, arranged.objects, selectedIds, intent.mode)
+      : buildRelativeArrangeZAssignments(objects, arranged.objects, selectedIds, intent.mode)
+  const nextObjects = intent.mode === 'bring-to-front' || intent.mode === 'send-to-back'
+    ? arranged.objects
+    : applyArrangeAssignments(objects, nextZById, selectedIds, intent.mode)
 
-  if (intent.mode === 'bring-to-front') {
-    let nextZ = maxZ + 1
+  for (const entry of nextObjects) {
+    const nextZ = nextZById.get(entry.key)
 
-    for (const entry of arranged.objects) {
-      if (!selectedIds.has(`${entry.kind}:${entry.id}`)) {
-        continue
-      }
-
-      nextZById.set(`${entry.kind}:${entry.id}`, nextZ)
-      nextZ += 1
-    }
-  } else if (intent.mode === 'send-to-back') {
-    let nextZ = minZ - selectedIds.size
-
-    for (const entry of arranged.objects) {
-      if (!selectedIds.has(`${entry.kind}:${entry.id}`)) {
-        continue
-      }
-
-      nextZById.set(`${entry.kind}:${entry.id}`, nextZ)
-      nextZ += 1
-    }
-  } else {
-    for (const [index, entry] of arranged.objects.entries()) {
-      nextZById.set(`${entry.kind}:${entry.id}`, index + 1)
-    }
-  }
-
-  for (const entry of arranged.objects) {
-    const nextZ = nextZById.get(`${entry.kind}:${entry.id}`)
-
-    if (nextZ === undefined || nextZ === entry.z) {
+    if (nextZ === undefined || nextZ === originalZById.get(entry.key)) {
       continue
     }
 
@@ -408,6 +362,382 @@ const compileArrangeObjects: IntentCompiler<'arrange-objects'> = (context, inten
   }
 
   return ok(createTransaction(intent, edits))
+}
+
+function readArrangeObjects(record: import('@boardmark/canvas-repository').CanvasDocumentRecord): ArrangeObjectEntry[] {
+  return [
+    ...record.ast.groups.map((group, index) => ({
+      id: group.id,
+      index,
+      key: `group:${group.id}`,
+      kind: 'group' as const,
+      object: group,
+      offset: group.sourceMap.objectRange.start.offset,
+      z: group.z ?? 0
+    })),
+    ...record.ast.nodes.map((node, index) => ({
+      id: node.id,
+      index,
+      key: `node:${node.id}`,
+      kind: 'node' as const,
+      object: node,
+      offset: node.sourceMap.objectRange.start.offset,
+      z: node.z ?? 0
+    })),
+    ...record.ast.edges.map((edge, index) => ({
+      id: edge.id,
+      index,
+      key: `edge:${edge.id}`,
+      kind: 'edge' as const,
+      object: edge,
+      offset: edge.sourceMap.objectRange.start.offset,
+      z: edge.z ?? 0
+    }))
+  ].sort(compareArrangeObjects)
+}
+
+function buildAbsoluteArrangeZAssignments(
+  objects: ArrangeObjectEntry[],
+  arrangedObjects: ArrangeObjectEntry[],
+  selectedIds: Set<string>,
+  mode: 'bring-to-front' | 'send-to-back'
+) {
+  const nextZById = new Map<string, number>()
+  const maxZ = Math.max(...objects.map((entry) => entry.z))
+  const minZ = Math.min(...objects.map((entry) => entry.z))
+
+  if (mode === 'bring-to-front') {
+    let nextZ = maxZ + ARRANGE_Z_STEP
+
+    for (const entry of arrangedObjects) {
+      if (!selectedIds.has(entry.key)) {
+        continue
+      }
+
+      nextZById.set(entry.key, nextZ)
+      nextZ += ARRANGE_Z_STEP
+    }
+
+    return nextZById
+  }
+
+  let nextZ = minZ - (ARRANGE_Z_STEP * selectedIds.size)
+
+  for (const entry of arrangedObjects) {
+    if (!selectedIds.has(entry.key)) {
+      continue
+    }
+
+    nextZById.set(entry.key, nextZ)
+    nextZ += ARRANGE_Z_STEP
+  }
+
+  return nextZById
+}
+
+function buildRelativeArrangeZAssignments(
+  objects: ArrangeObjectEntry[],
+  arrangedObjects: ArrangeObjectEntry[],
+  selectedIds: Set<string>,
+  mode: 'bring-forward' | 'send-backward'
+) {
+  const runtimeObjects = objects.map((entry) => ({
+    ...entry,
+    currentZ: entry.z
+  }))
+  const nextZById = new Map<string, number>()
+
+  if (mode === 'bring-forward') {
+    for (let index = runtimeObjects.length - 2; index >= 0;) {
+      if (!selectedIds.has(runtimeObjects[index]!.key)) {
+        index -= 1
+        continue
+      }
+
+      let start = index
+      let end = index
+
+      while (start - 1 >= 0 && selectedIds.has(runtimeObjects[start - 1]!.key)) {
+        start -= 1
+      }
+
+      while (end + 1 < runtimeObjects.length && selectedIds.has(runtimeObjects[end + 1]!.key)) {
+        end += 1
+      }
+
+      if (end + 1 < runtimeObjects.length) {
+        const assignment = resolveForwardArrangeMove(runtimeObjects, start, end)
+
+        if (assignment === null) {
+          return buildGlobalArrangeFallback(arrangedObjects)
+        }
+
+        const block = runtimeObjects.slice(start, end + 1)
+        const nextEntry = runtimeObjects[end + 1]!
+
+        applyRuntimeArrangeAssignments(runtimeObjects, nextZById, assignment)
+        runtimeObjects.splice(start, end - start + 2, nextEntry, ...block)
+      }
+
+      index = start - 1
+    }
+  } else {
+    for (let index = 1; index < runtimeObjects.length;) {
+      if (!selectedIds.has(runtimeObjects[index]!.key)) {
+        index += 1
+        continue
+      }
+
+      let start = index
+      let end = index
+
+      while (end + 1 < runtimeObjects.length && selectedIds.has(runtimeObjects[end + 1]!.key)) {
+        end += 1
+      }
+
+      while (start - 1 >= 0 && selectedIds.has(runtimeObjects[start - 1]!.key)) {
+        start -= 1
+      }
+
+      if (start > 0) {
+        const assignment = resolveBackwardArrangeMove(runtimeObjects, start, end)
+
+        if (assignment === null) {
+          return buildGlobalArrangeFallback(arrangedObjects)
+        }
+
+        const previousEntry = runtimeObjects[start - 1]!
+        const block = runtimeObjects.slice(start, end + 1)
+
+        applyRuntimeArrangeAssignments(runtimeObjects, nextZById, assignment)
+        runtimeObjects.splice(start - 1, end - start + 2, ...block, previousEntry)
+      }
+
+      index = end + 1
+    }
+  }
+
+  return nextZById
+}
+
+function applyArrangeAssignments(
+  objects: ArrangeObjectEntry[],
+  nextZById: Map<string, number>,
+  selectedIds: Set<string>,
+  mode: 'bring-forward' | 'send-backward'
+) {
+  const nextObjects = objects.map((entry) => ({
+    ...entry,
+    z: nextZById.get(entry.key) ?? entry.z
+  }))
+  return reorderArrangeObjects(nextObjects, selectedIds, mode).objects
+}
+
+function resolveForwardArrangeMove(
+  objects: Array<ArrangeObjectEntry & { currentZ: number }>,
+  start: number,
+  end: number
+) {
+  const selectedBlock = objects.slice(start, end + 1)
+  const boundary = objects[end + 1]!
+  const upperBound = objects[end + 2]?.currentZ
+
+  if (canAllocateArrangeWindow(boundary.currentZ, upperBound, selectedBlock.length)) {
+    return new Map(
+      selectedBlock.map((entry, index) => [
+        entry.key,
+        readArrangeZValues(boundary.currentZ, upperBound, selectedBlock.length)[index]!
+      ])
+    )
+  }
+
+  const window = findArrangeRepairWindow(objects, start, end + 1, 'forward')
+
+  if (!window) {
+    return null
+  }
+
+  return buildWindowArrangeAssignments(
+    objects,
+    window.start,
+    window.end,
+    [...objects.slice(window.start, start), boundary, ...selectedBlock, ...objects.slice(end + 2, window.end + 1)]
+  )
+}
+
+function resolveBackwardArrangeMove(
+  objects: Array<ArrangeObjectEntry & { currentZ: number }>,
+  start: number,
+  end: number
+) {
+  const boundary = objects[start - 1]!
+  const selectedBlock = objects.slice(start, end + 1)
+  const lowerBound = objects[start - 2]?.currentZ
+
+  if (canAllocateArrangeWindow(lowerBound, boundary.currentZ, selectedBlock.length)) {
+    return new Map(
+      selectedBlock.map((entry, index) => [
+        entry.key,
+        readArrangeZValues(lowerBound, boundary.currentZ, selectedBlock.length)[index]!
+      ])
+    )
+  }
+
+  const window = findArrangeRepairWindow(objects, start - 1, end, 'backward')
+
+  if (!window) {
+    return null
+  }
+
+  return buildWindowArrangeAssignments(
+    objects,
+    window.start,
+    window.end,
+    [...objects.slice(window.start, start - 1), ...selectedBlock, boundary, ...objects.slice(end + 1, window.end + 1)]
+  )
+}
+
+function findArrangeRepairWindow(
+  objects: Array<ArrangeObjectEntry & { currentZ: number }>,
+  start: number,
+  end: number,
+  direction: 'backward' | 'forward'
+) {
+  const minimumLength = end - start + 1
+
+  for (let extra = 0; extra <= objects.length - minimumLength; extra += 1) {
+    const leftExpansions = direction === 'forward'
+      ? Array.from({ length: extra + 1 }, (_, index) => index)
+      : Array.from({ length: extra + 1 }, (_, index) => extra - index)
+
+    for (const leftExtra of leftExpansions) {
+      const rightExtra = extra - leftExtra
+      const windowStart = start - leftExtra
+      const windowEnd = end + rightExtra
+
+      if (windowStart < 0 || windowEnd >= objects.length) {
+        continue
+      }
+
+      if (
+        canAllocateArrangeWindow(
+          objects[windowStart - 1]?.currentZ,
+          objects[windowEnd + 1]?.currentZ,
+          windowEnd - windowStart + 1
+        )
+      ) {
+        if (windowStart === 0 && windowEnd === objects.length - 1) {
+          return null
+        }
+
+        return {
+          end: windowEnd,
+          start: windowStart
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+function buildWindowArrangeAssignments(
+  objects: Array<ArrangeObjectEntry & { currentZ: number }>,
+  start: number,
+  end: number,
+  orderedWindowObjects: Array<ArrangeObjectEntry & { currentZ: number }>
+) {
+  const zValues = readArrangeZValues(
+    objects[start - 1]?.currentZ,
+    objects[end + 1]?.currentZ,
+    orderedWindowObjects.length
+  )
+
+  return new Map(orderedWindowObjects.map((entry, index) => [entry.key, zValues[index]!]))
+}
+
+function buildGlobalArrangeFallback(
+  objects: ArrangeObjectEntry[]
+) {
+  const nextZById = new Map<string, number>()
+  let nextZ = ARRANGE_Z_STEP
+
+  for (const entry of objects) {
+    nextZById.set(entry.key, nextZ)
+    nextZ += ARRANGE_Z_STEP
+  }
+
+  return nextZById
+}
+
+function applyRuntimeArrangeAssignments(
+  objects: Array<ArrangeObjectEntry & { currentZ: number }>,
+  nextZById: Map<string, number>,
+  assignments: Map<string, number>
+) {
+  for (const entry of objects) {
+    const nextZ = assignments.get(entry.key)
+
+    if (nextZ === undefined) {
+      continue
+    }
+
+    entry.currentZ = nextZ
+    nextZById.set(entry.key, nextZ)
+  }
+}
+
+function canAllocateArrangeWindow(
+  lowerExclusive: number | undefined,
+  upperExclusive: number | undefined,
+  count: number
+) {
+  if (count <= 0) {
+    return true
+  }
+
+  if (lowerExclusive === undefined || upperExclusive === undefined) {
+    return true
+  }
+
+  return upperExclusive - lowerExclusive - 1 >= count
+}
+
+function readArrangeZValues(
+  lowerExclusive: number | undefined,
+  upperExclusive: number | undefined,
+  count: number
+) {
+  if (count <= 0) {
+    return []
+  }
+
+  if (lowerExclusive === undefined && upperExclusive === undefined) {
+    return Array.from({ length: count }, (_, index) => index + 1)
+  }
+
+  if (lowerExclusive === undefined) {
+    return Array.from({ length: count }, (_, index) => (upperExclusive as number) - count + index)
+  }
+
+  if (upperExclusive === undefined) {
+    return Array.from({ length: count }, (_, index) => lowerExclusive + index + 1)
+  }
+
+  const step = Math.floor((upperExclusive - lowerExclusive) / (count + 1))
+  return Array.from({ length: count }, (_, index) => lowerExclusive + (step * (index + 1)))
+}
+
+function compareArrangeObjects(left: ArrangeObjectEntry, right: ArrangeObjectEntry) {
+  if (left.z !== right.z) {
+    return left.z - right.z
+  }
+
+  if (left.offset !== right.offset) {
+    return left.offset - right.offset
+  }
+
+  return left.index - right.index
 }
 
 const compileSetObjectsLocked: IntentCompiler<'set-objects-locked'> = (context, intent) => {

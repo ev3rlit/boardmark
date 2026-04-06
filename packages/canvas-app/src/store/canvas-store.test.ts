@@ -848,13 +848,13 @@ describe('viewer store', () => {
     await store.getState().arrangeSelection('bring-to-front')
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: ideation-group, z: 6 }'
+      '::: group { id: ideation-group, z: 105 }'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 7 }'
+      '::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 205 }'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: overview-solo, from: overview, to: solo, z: 8 }'
+      '::: edge { id: overview-solo, from: overview, to: solo, z: 305 }'
     )
     expect(store.getState().selectedGroupIds).toEqual(['ideation-group'])
     expect(store.getState().selectedNodeIds).toEqual(['overview'])
