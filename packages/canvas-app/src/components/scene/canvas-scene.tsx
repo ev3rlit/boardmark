@@ -26,7 +26,7 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { BuiltInComponentKey, CanvasGroup } from '@boardmark/canvas-domain'
+import type { BuiltInComponentKey, CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
@@ -40,9 +40,9 @@ import {
 import {
   applyEdgeChangesToStore,
   applyNodeChangesToStore,
-  filterSelectionChanges,
-  readCommittedNodeMovesFromDraggedNodes
+  filterSelectionChanges
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
+import { readUnlockedNodeSelection } from '@canvas-app/store/canvas-object-selection'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 const CANVAS_EDITOR_INTERACTION_CLASS = 'nodrag nopan'
@@ -63,6 +63,54 @@ type CanvasSceneProps = {
 type ResizeCallbacks = {
   onResizeCommit: (nodeId: string, geometry: CanvasNodeGeometryDraft) => Promise<void>
   onResizePreview: (nodeId: string, geometry: CanvasNodeGeometryDraft) => void
+}
+
+type DragCommitAction =
+  | { kind: 'none' }
+  | { kind: 'selection-nudge'; dx: number; dy: number }
+  | { kind: 'single-move'; nodeId: string; x: number; y: number }
+
+export function readDragCommitAction(input: {
+  draggedNodeId: string
+  draggedPosition: {
+    x: number
+    y: number
+  }
+  nodes: CanvasNode[]
+  unlockedSelectionNodeIds: string[]
+}): DragCommitAction {
+  const draggedNode = input.nodes.find((node) => node.id === input.draggedNodeId)
+
+  if (!draggedNode) {
+    return { kind: 'none' }
+  }
+
+  const x = Math.round(input.draggedPosition.x)
+  const y = Math.round(input.draggedPosition.y)
+  const dx = x - draggedNode.at.x
+  const dy = y - draggedNode.at.y
+
+  if (dx === 0 && dy === 0) {
+    return { kind: 'none' }
+  }
+
+  if (
+    input.unlockedSelectionNodeIds.length > 1 &&
+    input.unlockedSelectionNodeIds.includes(input.draggedNodeId)
+  ) {
+    return {
+      kind: 'selection-nudge',
+      dx,
+      dy
+    }
+  }
+
+  return {
+    kind: 'single-move',
+    nodeId: input.draggedNodeId,
+    x,
+    y
+  }
 }
 
 export function CanvasScene({
@@ -87,7 +135,8 @@ export function CanvasScene({
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
   const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
   const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
-  const commitNodeMoves = useStore(store, (state) => state.commitNodeMoves)
+  const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
+  const nudgeSelection = useStore(store, (state) => state.nudgeSelection)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
@@ -307,18 +356,22 @@ export function CanvasScene({
 
           selectEdgeFromCanvas(edge.id, event.shiftKey)
         }}
-        onNodeDragStop={(_event, node, draggedNodes) => {
+        onNodeDragStop={(_event, node) => {
           void (async () => {
             const state = store.getState()
-            const committedMoves = readCommittedNodeMovesFromDraggedNodes({
-              draggedNodes: draggedNodes.length > 0 ? draggedNodes : [node],
-              groupSelectionState: state.groupSelectionState,
-              groups: state.groups,
-              nodes: state.nodes
+            const action = readDragCommitAction({
+              draggedNodeId: node.id,
+              draggedPosition: node.position,
+              nodes: state.nodes,
+              unlockedSelectionNodeIds: readUnlockedNodeSelection(state)
             })
 
             try {
-              await commitNodeMoves(committedMoves)
+              if (action.kind === 'selection-nudge') {
+                await nudgeSelection(action.dx, action.dy)
+              } else if (action.kind === 'single-move') {
+                await commitNodeMove(action.nodeId, action.x, action.y)
+              }
             } finally {
               syncFlowNodesFromStore({})
             }

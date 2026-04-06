@@ -1445,7 +1445,7 @@ export function createCanvasCommandSlice(
       const state = get()
       const nodeIds = readUnlockedNodeSelection(state)
 
-      if (nodeIds.length === 0) {
+      if (nodeIds.length === 0 || (dx === 0 && dy === 0)) {
         return
       }
 

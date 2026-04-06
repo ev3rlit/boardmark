@@ -5,6 +5,7 @@ import {
   applyFlowNodeGeometryDrafts,
   applyNodeChangesToStore,
   mergeFlowNodes,
+  readDragCommitAction,
   readFlowNodes
 } from '@canvas-app/components/scene/canvas-scene'
 import {
@@ -338,6 +339,160 @@ describe('CanvasScene', () => {
     expect(normalizeTopLevelNodeSelection(['welcome', 'overview', 'solo'], groups)).toEqual({
       groupIds: ['ideation-group'],
       nodeIds: ['solo']
+    })
+  })
+
+  it('reads a single-node drag as a direct move commit', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ]
+
+    expect(readDragCommitAction({
+      draggedNodeId: 'welcome',
+      draggedPosition: {
+        x: 144.2,
+        y: 168.7
+      },
+      nodes,
+      unlockedSelectionNodeIds: ['welcome']
+    })).toEqual({
+      kind: 'single-move',
+      nodeId: 'welcome',
+      x: 144,
+      y: 169
+    })
+  })
+
+  it('reads a multi-selection drag as a selection nudge', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      },
+      {
+        id: 'overview',
+        component: 'note',
+        at: { x: 380, y: 72, w: 320, h: 220 },
+        body: 'Overview\n',
+        position: {
+          start: { line: 5, offset: 0 },
+          end: { line: 7, offset: 12 }
+        },
+        sourceMap: {
+          ...sourceMap,
+          objectRange: {
+            start: { line: 5, offset: 0 },
+            end: { line: 7, offset: 12 }
+          }
+        }
+      }
+    ]
+
+    expect(readDragCommitAction({
+      draggedNodeId: 'welcome',
+      draggedPosition: {
+        x: 120.4,
+        y: 82.2
+      },
+      nodes,
+      unlockedSelectionNodeIds: ['welcome', 'overview']
+    })).toEqual({
+      kind: 'selection-nudge',
+      dx: 40,
+      dy: 10
+    })
+  })
+
+  it('skips drag commits when the rounded position does not change', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ]
+
+    expect(readDragCommitAction({
+      draggedNodeId: 'welcome',
+      draggedPosition: {
+        x: 80.4,
+        y: 72.4
+      },
+      nodes,
+      unlockedSelectionNodeIds: ['welcome']
+    })).toEqual({
+      kind: 'none'
+    })
+  })
+
+  it('falls back to a single-node commit when the dragged node is outside the unlocked selection', () => {
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      },
+      {
+        id: 'overview',
+        component: 'note',
+        at: { x: 380, y: 72, w: 320, h: 220 },
+        body: 'Overview\n',
+        position: {
+          start: { line: 5, offset: 0 },
+          end: { line: 7, offset: 12 }
+        },
+        sourceMap: {
+          ...sourceMap,
+          objectRange: {
+            start: { line: 5, offset: 0 },
+            end: { line: 7, offset: 12 }
+          }
+        }
+      }
+    ]
+
+    expect(readDragCommitAction({
+      draggedNodeId: 'welcome',
+      draggedPosition: {
+        x: 110.1,
+        y: 90.2
+      },
+      nodes,
+      unlockedSelectionNodeIds: ['overview', 'solo']
+    })).toEqual({
+      kind: 'single-move',
+      nodeId: 'welcome',
+      x: 110,
+      y: 90
     })
   })
 

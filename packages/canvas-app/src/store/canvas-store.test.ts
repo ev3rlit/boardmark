@@ -943,6 +943,23 @@ describe('viewer store', () => {
     expect(store.getState().draftSource).toBe(sourceBeforeEdgeNudge)
   })
 
+  it('ignores zero-delta nudges without changing source or history', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    const sourceBeforeNudge = store.getState().draftSource
+
+    await store.getState().nudgeSelection(0, 0)
+
+    expect(store.getState().draftSource).toBe(sourceBeforeNudge)
+    expect(store.getState().history.past).toHaveLength(0)
+  })
+
   it('arranges explicit top-level selections and preserves the active selection', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

@@ -593,13 +593,15 @@ export function patchLockedMetadata(metadata: Record<string, unknown>, locked: b
   return nextMetadata
 }
 
-export function reorderArrangeObjects(
-  objects: Array<{
+export function reorderArrangeObjects<
+  T extends {
     id: string
     kind: 'edge' | 'group' | 'node'
     object: CanvasEdge | CanvasGroup | CanvasNode
     z: number
-  }>,
+  }
+>(
+  objects: T[],
   selectedIds: Set<string>,
   mode: CanvasObjectArrangeMode
 ) {
@@ -735,13 +737,15 @@ function serializeBodyFragment(markdown: string) {
   return `${normalized}\n`
 }
 
-function reorderArrangeObjectsByStep(
-  objects: Array<{
+function reorderArrangeObjectsByStep<
+  T extends {
     id: string
     kind: 'edge' | 'group' | 'node'
     object: CanvasEdge | CanvasGroup | CanvasNode
     z: number
-  }>,
+  }
+>(
+  objects: T[],
   selectedIds: Set<string>,
   direction: 'backward' | 'forward'
 ) {
