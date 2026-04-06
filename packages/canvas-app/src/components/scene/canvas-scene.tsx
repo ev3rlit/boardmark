@@ -80,7 +80,6 @@ export function CanvasScene({
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
   const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
   const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
-  const previewNodeMove = useStore(store, (state) => state.previewNodeMove)
   const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
   const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
@@ -133,6 +132,16 @@ export function CanvasScene({
   useEffect(() => {
     setFlowNodes((currentFlowNodes) => mergeFlowNodes(baseFlowNodes, currentFlowNodes))
   }, [baseFlowNodes])
+
+  const syncFlowNodesFromStore = () => {
+    const state = store.getState()
+    const nextFlowNodes = readFlowNodes(state.nodes, state.interactionOverrides, state.selectedNodeIds, {
+      defaultStyle: state.document?.ast.frontmatter.defaultStyle,
+      imageResolver: state.resolveImageSource
+    })
+
+    setFlowNodes((currentFlowNodes) => mergeFlowNodes(nextFlowNodes, currentFlowNodes))
+  }
 
   useEffect(() => {
     const element = viewportRef.current
@@ -225,7 +234,6 @@ export function CanvasScene({
           applyNodeChangesToStore({
             changes: nextChanges,
             groups,
-            previewNodeMove,
             replaceSelection,
             selectedEdgeIds,
             selectedNodeIds
@@ -255,7 +263,10 @@ export function CanvasScene({
           selectEdgeFromCanvas(edge.id, event.shiftKey)
         }}
         onNodeDragStop={(_event, node) => {
-          void commitNodeMove(node.id, node.position.x, node.position.y)
+          void (async () => {
+            await commitNodeMove(node.id, node.position.x, node.position.y)
+            syncFlowNodesFromStore()
+          })()
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()

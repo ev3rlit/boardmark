@@ -16,14 +16,12 @@ export function filterSelectionChanges<T extends { type: string }>(
 export function applyNodeChangesToStore({
   changes,
   groups,
-  previewNodeMove,
   replaceSelection,
   selectedEdgeIds,
   selectedNodeIds
 }: {
   changes: NodeChange<Node<CanvasFlowNodeData>>[]
   groups: CanvasGroup[]
-  previewNodeMove: (nodeId: string, x: number, y: number) => void
   replaceSelection: (input: {
     groupIds: string[]
     nodeIds: string[]
@@ -36,11 +34,6 @@ export function applyNodeChangesToStore({
   let selectionChanged = false
 
   for (const change of changes) {
-    if (change.type === 'position' && change.dragging && change.position) {
-      previewNodeMove(change.id, change.position.x, change.position.y)
-      continue
-    }
-
     if (change.type === 'select') {
       selectionChanged = true
 

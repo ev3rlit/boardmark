@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Node } from '@xyflow/react'
+import { applyNodeChanges, type Node } from '@xyflow/react'
 import type { CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import {
   applyNodeChangesToStore,
@@ -122,8 +122,7 @@ describe('CanvasScene', () => {
     expect(flowNodes[0]?.selected).toBe(true)
   })
 
-  it('uses onNodesChange position updates for drag preview state', () => {
-    const previewNodeMove = vi.fn()
+  it('keeps drag preview position changes out of store selection writes', () => {
     const replaceSelection = vi.fn()
 
     applyNodeChangesToStore({
@@ -136,13 +135,11 @@ describe('CanvasScene', () => {
         }
       ],
       groups: [],
-      previewNodeMove,
       replaceSelection,
       selectedEdgeIds: [],
       selectedNodeIds: []
     })
 
-    expect(previewNodeMove).toHaveBeenCalledWith('welcome', 144, 168)
     expect(replaceSelection).not.toHaveBeenCalled()
   })
 
@@ -180,6 +177,38 @@ describe('CanvasScene', () => {
     expect(mergedFlowNodes[0]?.dragging).toBe(true)
     expect(mergedFlowNodes[0]?.width).toBe(320)
     expect(mergedFlowNodes[0]?.height).toBe(160)
+  })
+
+  it('reconciles local drag preview nodes back to store-backed geometry', () => {
+    const storeBackedFlowNodes = readFlowNodes([
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ])
+    const localPreviewFlowNodes = applyNodeChanges(
+      [
+        {
+          id: 'welcome',
+          type: 'position',
+          position: { x: 144, y: 168 },
+          dragging: true
+        }
+      ],
+      storeBackedFlowNodes
+    )
+
+    const mergedFlowNodes = mergeFlowNodes(storeBackedFlowNodes, localPreviewFlowNodes)
+
+    expect(mergedFlowNodes[0]?.position).toEqual({ x: 80, y: 72 })
+    expect(mergedFlowNodes[0]?.dragging).toBe(true)
   })
 
   it('maps component nodes into generic flow nodes with width, height, and raw body', () => {
