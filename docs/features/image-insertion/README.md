@@ -3,7 +3,7 @@
 
 | 항목 | 내용 |
 |------|------|
-| 문서 버전 | v0.3 (Draft) |
+| 문서 버전 | v0.5 (Draft) |
 | 작성일 | 2026-04-02 |
 | 상태 | 초안 |
 | 작성자 | Codex |
@@ -25,6 +25,7 @@ Boardmark에서 이미지를 텍스트와 동일한 수준의 1급 캔버스 요
 - 사용자는 붙여넣기, 툴바, 마크다운 문법으로 이미지를 삽입할 수 있어야 한다.
 - 사용자는 드래그 앤 드롭으로도 이미지를 삽입할 수 있어야 한다.
 - 로컬 이미지는 워크스페이스 안에 저장되고, 문서에는 상대 경로로 참조되어야 한다.
+- 로컬 자산 저장 정책은 frontmatter optional field로 선택 가능해야 하며, 기본값은 문서 옆 고정 자산 폴더여야 한다.
 - 이미지는 캔버스 위에서 이동, 리사이즈, 비율 유지 조작이 가능해야 한다.
 - 이미지 표현은 인라인 마크다운과 독립 `::: image` 블록을 모두 지원해야 한다.
 - 삽입 직후부터 선택, 교체, 삭제, 복제, 실행 취소 같은 기본 편집 UX가 일관되게 동작해야 한다.
@@ -71,6 +72,7 @@ Boardmark에서 이미지를 텍스트와 동일한 수준의 1급 캔버스 요
 - 이미지 자르기 이후의 고급 편집 UI
 - 이미지 주석 레이어 및 협업 코멘트
 - 더블클릭 기반 고급 편집 모드
+- 정렬 스냅과 가이드의 신규 구현
 
 ---
 
@@ -144,6 +146,81 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - 어떤 표현을 쓸지는 사용자가 결정한다.
 - 더 자유로운 캔버스 편집이 필요할 때 `::: image`를 사용하는 것을 권장한다.
 
+### 4.6 frontmatter 기반 자산 정책
+
+- 문서 frontmatter는 optional field로 이미지 자산 저장 정책을 지정할 수 있다.
+- 필드 이름은 `assetPolicy`로 정의한다.
+- 현재 버전의 기본값과 기본 정책은 `document-adjacent`다.
+- `assetPolicy`가 생략되면 `document-adjacent`를 적용한다.
+- 자산 정책은 붙여넣기, 파일 삽입, 드롭 삽입처럼 로컬 자산 파일을 새로 생성하는 흐름에만 적용한다.
+- `Image > Link`로 입력한 로컬 경로/URL 참조에는 자산 정책을 적용하지 않는다.
+
+### 4.7 Codebase Impact Map
+
+- 파란색: 현재 코드베이스에서 직접 영향 받는 기존 컴포넌트
+- 주황색: 이번 기능에서 새롭게 추가되는 컴포넌트 또는 서브시스템
+- 회색: 주변 맥락을 보여주는 기존 레이어
+
+```mermaid
+flowchart TD
+    subgraph APPS["Applications"]
+        WEB["apps/web<br/>document-bridge.ts"]
+        DESKTOP["apps/desktop<br/>main/document-service.ts"]
+    end
+
+    subgraph APP["Application Layer: @boardmark/canvas-app"]
+        ROOT["app/canvas-app.tsx"]
+        TOOL["components/controls/tool-menu.tsx"]
+        SCENE["components/scene/canvas-scene.tsx"]
+        STATUS["components/controls/status-panels.tsx"]
+        STORE["store/canvas-store-slices.ts<br/>store/canvas-store-types.ts"]
+        EDIT["services/edit-service.ts"]
+        IMAGE_FLOW["NEW image insertion flow<br/>paste / file / link / drop"]
+    end
+
+    subgraph RUNTIME["Runtime Layer"]
+        REPO["canvas-repository"]
+        PARSER["canvas-parser/src/index.ts"]
+        DOMAIN["canvas-domain<br/>frontmatter / node contracts"]
+        RENDERER["canvas-renderer"]
+        IMAGE_RENDERER["NEW builtins/image/*<br/>image renderer contract"]
+        UI["ui/markdown-content.tsx"]
+    end
+
+    WEB --> ROOT
+    DESKTOP --> ROOT
+
+    ROOT --> TOOL
+    ROOT --> SCENE
+    ROOT --> STATUS
+    ROOT --> STORE
+    ROOT --> EDIT
+
+    TOOL --> IMAGE_FLOW
+    SCENE --> IMAGE_FLOW
+    STATUS --> IMAGE_FLOW
+    STORE --> IMAGE_FLOW
+    EDIT --> IMAGE_FLOW
+
+    IMAGE_FLOW --> PARSER
+    IMAGE_FLOW --> DOMAIN
+    IMAGE_FLOW --> REPO
+    IMAGE_FLOW --> RENDERER
+    IMAGE_FLOW --> UI
+    RENDERER --> IMAGE_RENDERER
+    PARSER --> DOMAIN
+    REPO --> PARSER
+    REPO --> DOMAIN
+
+    classDef mono fill:#f3f4f6,stroke:#9ca3af,color:#374151,stroke-width:1px;
+    classDef affected fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef newNode fill:#ffedd5,stroke:#ea580c,color:#9a3412,stroke-width:2px;
+
+    class WEB,DESKTOP,ROOT,REPO,UI mono;
+    class TOOL,SCENE,STATUS,STORE,EDIT,PARSER,DOMAIN,RENDERER affected;
+    class IMAGE_FLOW,IMAGE_RENDERER newNode;
+```
+
 ---
 
 ## 5. Functional Requirements
@@ -154,8 +231,9 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - 마크다운 편집 상태에서 클립보드에 이미지 데이터가 있으면 앱은 이미지를 로컬 파일로 저장하고 `![]()` 마크다운 링크를 자동 삽입한다.
 - 새 문서가 아직 저장되지 않은 상태에서는 먼저 문서 저장을 유도한 뒤 이미지 추가를 진행한다.
 - 앱은 클립보드 이미지 데이터를 로컬 파일로 생성한다.
-- 생성된 파일은 현재 캔버스 문서 기준의 상대 경로로 참조한다.
+- 생성된 파일은 frontmatter `assetPolicy`를 적용해 저장하고, 현재 캔버스 문서 기준의 상대 경로로 참조한다.
 - 캔버스 붙여넣기의 기본 결과는 `::: image` 블록 생성이다.
+- 클립보드 이미지가 런타임에서 디코딩 불가능한 형식이면 붙여넣기를 무시한다.
 
 ### 5.2 삽입 방식 B: 툴바 Image 버튼
 
@@ -169,22 +247,25 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - 사용자는 URL 또는 로컬 이미지 경로를 입력할 수 있다.
 - 유효한 참조이면 이미지 노드를 생성한다.
 - URL은 원문 그대로 유지한다.
-- 수동 입력한 로컬 경로는 사용자가 입력한 경로를 유지하되, 문서 기준 상대 경로이면 그대로 저장한다.
+- 로컬 경로는 상대 경로와 절대 경로 모두 허용한다.
+- `Link` 방식은 로컬 경로를 자산 폴더로 복사하지 않고 사용자가 입력한 경로를 그대로 참조한다.
 
 #### File 방식
 
 - 사용자가 로컬 파일을 선택하면 앱은 해당 파일을 문서 자산 위치로 복사한 뒤 `::: image` 블록을 생성한다.
-- 저장되는 `src`는 현재 문서 기준 상대 경로여야 한다.
+- 저장되는 `src`는 frontmatter `assetPolicy`를 적용한 현재 문서 기준 상대 경로여야 한다.
 - 새 문서가 아직 저장되지 않은 상태에서는 먼저 문서 저장을 유도한 뒤 이미지 추가를 진행한다.
+- 런타임에서 디코딩 불가능한 형식이면 명시적 에러를 표시하고 삽입을 중단한다.
 
 ### 5.3 삽입 방식 C: 드래그 앤 드롭
 
 - 사용자는 로컬 이미지 파일을 캔버스 위로 드래그 앤 드롭할 수 있다.
 - 드롭은 항상 캔버스에 독립 이미지 객체를 생성한다.
-- 드롭 시 앱은 `File` 삽입 방식과 동일한 저장 규칙을 적용한다.
+- 드롭 시 앱은 `File` 삽입 방식과 동일한 저장 규칙과 frontmatter `assetPolicy`를 적용한다.
 - 드롭 위치가 유효하면 해당 지점 또는 가장 가까운 캔버스 좌표에 이미지가 생성된다.
 - 드롭 직후 이미지는 선택 상태가 되며 바로 이동/리사이즈 가능해야 한다.
 - 새 문서가 아직 저장되지 않은 상태에서는 먼저 문서 저장을 유도한 뒤 이미지 추가를 진행한다.
+- 런타임에서 디코딩 불가능한 형식이면 명시적 에러를 표시하고 삽입을 중단한다.
 
 ### 5.4 삽입 방식 D: 마크다운 이미지 링크
 
@@ -204,24 +285,34 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - 이미지 전용 블록 타입 `image`를 추가한다.
 - `::: image`는 캔버스 상의 독립 객체로 취급한다.
 - 이번 버전의 `::: image`는 본문 없는 단일 헤더 문법으로 고정한다.
-- 캡션은 본문이 아니라 선택적 메타데이터 필드 `title`로만 표현한다.
+- `title`은 metadata-only 필드이며 기본 렌더에서 캡션으로 항상 표시하지 않는다.
 
 확정 문법:
 
 ```md
-::: image { id: hero-shot, src: "./board.assets/hero-shot.png", alt: "메인 화면 캡처", title: "메인 화면", lockAspectRatio: true, at: { x: 240, y: 160, w: 420, h: 280 } }
+::: image { id: hero-shot, src: "./hero-board.assets/hero-shot.png", alt: "메인 화면 캡처", title: "메인 화면", lockAspectRatio: true, at: { x: 240, y: 160, w: 420, h: 280 } }
 :::
 ```
 
 필드 규칙:
 
 - `id`: 문서 내 고유 식별자
-- `src`: 상대 로컬 경로 또는 URL
+- `src`: 상대 로컬 경로, 절대 로컬 경로, 또는 URL
 - `alt`: 접근성 및 문서 가독성을 위한 대체 텍스트
-- `title`: 선택적 표시용 제목
+- `title`: 선택적 표시용 제목 메타데이터
 - `lockAspectRatio`: 비율 유지 여부
 - `at.x`, `at.y`: 캔버스 위치
 - `at.w`, `at.h`: 캔버스 크기
+
+frontmatter 예시:
+
+```yaml
+---
+type: canvas
+version: 2
+assetPolicy: document-adjacent
+---
+```
 
 ### 5.6 편집 액션
 
@@ -253,7 +344,7 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - 그렇지 않으면 현재 뷰포트 중심
 - 선택된 프레임 또는 그룹 내부 삽입 규칙이 이후 추가되면 그 규칙이 우선한다.
 - 초기 크기는 원본 크기를 읽어 설정하되, 화면을 과도하게 가리지 않도록 안전한 최대 표시 크기를 둔다.
-- 대용량 이미지는 원본을 그대로 저장하지 않고 비율을 유지한 채 최대 해상도 제한 안으로 축소해 저장한다.
+- 대용량 이미지는 원본을 그대로 저장하지 않고 비율을 유지한 채 긴 변 4096px 제한 안으로 축소해 저장한다.
 
 ### 6.3 리사이즈
 
@@ -266,7 +357,7 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 
 - 사용자는 이미지를 드래그해 캔버스 상 위치를 변경할 수 있다.
 - 조작 결과는 문서의 `at.x`, `at.y`에 반영된다.
-- 이동 중 현재 좌표 또는 정렬 가이드를 표시해 배치를 돕는다.
+- 정렬 스냅과 가이드 표시는 이미지 MVP 범위에 포함하지 않는다.
 
 ### 6.5 선택 시 퀵 액션
 
@@ -277,6 +368,9 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 - `Reset size`
 - `Lock aspect ratio`
 - `Alt text` 편집
+- `Open source`는 플랫폼별로 제한한다.
+- 데스크톱에서는 로컬 파일 열기와 URL 브라우저 열기를 지원한다.
+- 브라우저 환경의 로컬 파일 열기는 범위 밖이다.
 - 더블클릭은 이번 기능 범위에서 아무 동작도 하지 않는다.
 
 ### 6.6 로딩 및 오류 상태
@@ -311,21 +405,25 @@ SO THAT 편집 흐름을 끊지 않고 반복 수정할 수 있다
 ### 7.1 로컬 자산 저장 규칙
 
 - 붙여넣기 또는 파일 방식으로 추가된 이미지는 현재 문서 옆의 전용 자산 디렉터리에 저장한다.
-- 자산 디렉터리 이름은 문서와 연관성을 알 수 있어야 한다.
-- 예시: `untitled.canvas.md`를 편집 중이면 `untitled.assets/` 또는 `untitled.canvas.assets/` 아래에 이미지 저장
+- 자산 저장 정책은 frontmatter optional field `assetPolicy`로 선택할 수 있다.
+- 현재 버전의 기본값은 `document-adjacent`다.
+- `document-adjacent` 정책의 자산 디렉터리 이름은 `문서명.assets/`로 고정한다.
+- `assetPolicy`가 생략되면 `document-adjacent`를 적용한다.
+- 예시: `untitled.canvas.md`를 편집 중이면 `untitled.canvas.assets/`가 아니라 `untitled.assets/`에 이미지 저장
 - 문서 내부의 `src`는 항상 자산 디렉터리를 기준으로 한 상대 경로를 사용한다.
 
 예시:
 
 ```md
-src: ./untitled.canvas.assets/pasted-image-001.png
-src: ./untitled.canvas.assets/pasted-image-002.png
+src: ./untitled.assets/pasted-image-001.png
+src: ./untitled.assets/pasted-image-002.png
 ```
 
 ### 7.2 경로 해석 규칙
 
 - `::: image`의 `src`는 URL 또는 로컬 경로를 허용한다.
 - 상대 로컬 경로는 현재 `.canvas.md` 파일 위치를 기준으로 해석한다.
+- 절대 로컬 경로는 사용자가 입력한 경로 그대로 해석한다.
 - URL은 원격 자원으로 처리한다.
 - 제품이 생성하는 로컬 경로는 상대 경로를 우선한다.
 - 경로 복구는 별도 수행하지 않는다.
@@ -334,7 +432,8 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 
 - 제품 목표는 가능한 한 모든 이미지 포맷을 폭넓게 지원하는 것이다.
 - 붙여넣기, 파일 삽입, 드롭 삽입은 현재 런타임에서 읽고 디코딩 가능한 모든 이미지 포맷을 대상으로 시도한다.
-- 형식 미지원이 확인되면 붙여넣기 또는 삽입을 무시한다.
+- 형식 미지원이 확인되면 붙여넣기는 무시한다.
+- 형식 미지원이 확인되면 파일 삽입과 드롭 삽입은 명시적 에러를 표시한다.
 
 ### 7.4 EXIF 정책
 
@@ -404,6 +503,9 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 - 캔버스 편집 상태의 클립보드 붙여넣기는 로컬 파일 생성 후 `::: image` 블록을 생성한다.
 - 로컬 이미지 파일을 드래그 앤 드롭으로 삽입할 수 있다.
 - 툴바 `Image` 버튼이 더 이상 비활성 상태가 아니며 `Link`, `File` 두 방식으로 동작한다.
+- frontmatter optional field `assetPolicy`를 인식한다.
+- `assetPolicy`가 생략되면 `document-adjacent`를 기본값으로 사용한다.
+- `Link` 방식의 로컬 경로는 상대 경로와 절대 경로 모두 허용하며 입력값을 그대로 유지한다.
 - 마크다운 이미지 링크가 로컬 파일과 URL 모두 렌더링된다.
 - `::: image` 블록을 파서와 렌더러가 인식한다.
 - 이미지 선택 후 비율 유지 필드를 조작할 수 있다.
@@ -411,10 +513,12 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 - 이미지 교체, 삭제, 복제, Undo/Redo가 정상 동작한다.
 - `alt` 필드를 생성/수정할 수 있다.
 - 새 문서가 저장되지 않았다면 이미지 삽입 전에 저장이 선행된다.
+- `document-adjacent` 정책에서는 `문서명.assets/` 폴더가 자동 생성되고 상대 경로가 기록된다.
 - 파일명 충돌 시 숫자 증가 규칙으로 새 파일명이 생성된다.
 - 이미지 복제와 복사-붙여넣기는 동일 자산 `src`를 재사용한다.
 - 이미지 삭제 시 실제 에셋 파일은 유지된다.
 - `::: image` 문법은 본문 없는 단일 헤더 구조로 동작한다.
+- 긴 변 4096px를 초과하는 이미지는 import 시 비율을 유지한 채 축소 저장된다.
 
 ### UX
 
@@ -422,18 +526,27 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 - 드롭 또는 파일 선택 직후 이미지가 선택 상태로 표시된다.
 - 기본 상태에서 사용자는 별도 설정 없이 이미지를 이동하고 리사이즈할 수 있다.
 - 비율 유지가 켜진 상태에서 리사이즈 시 이미지가 찌그러지지 않는다.
+- `title`은 기본 렌더에서 항상 캡션으로 표시되지 않는다.
 - 로딩 중 상태와 깨진 경로 상태가 시각적으로 구분된다.
 - 파일 누락 시 썸네일 영역에 못 찾는다는 메시지가 표시된다.
 - 권한 오류 시 명시적 에러 메시지가 표시된다.
 - 오류 상태에서 사용자는 이미지 교체 또는 경로 확인 액션을 찾을 수 있다.
+- 파일/드롭 삽입에서 형식 미지원이면 명시적 에러가 표시된다.
 - 선택 상태에서 핵심 액션이 1회 클릭 이내로 접근 가능하다.
 - 더블클릭은 아무 동작도 하지 않는다.
 - 멀티 선택 환경에서 이미지도 다른 오브젝트와 동일한 편집 경험을 가진다.
+- 정렬 스냅과 가이드는 이미지 MVP에 포함되지 않는다.
 
 ### Persistence
 
 - 저장 후 문서를 다시 열어도 로컬 이미지 경로가 깨지지 않는다.
 - 상대 경로 기반 로컬 이미지는 현재 문서 위치 기준에서만 해석하며 경로 복구는 별도 수행하지 않는다.
+- frontmatter `assetPolicy`는 문서와 함께 저장되어 이후 동일한 자산 저장 정책을 재적용할 수 있다.
+
+### Platform
+
+- 데스크톱에서는 로컬 파일 `Open source`와 URL 브라우저 열기가 동작한다.
+- 브라우저에서는 URL `Open source`만 지원하며 로컬 파일 열기는 범위 밖이다.
 
 ---
 
@@ -448,10 +561,7 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 
 ## 11. Open Decisions
 
-- 자산 디렉터리 이름을 `*.assets`로 할지 `*.canvas.assets`로 할지 최종 확정 필요
-- 마크다운 이미지의 클릭 확대나 원본 열기 같은 부가 상호작용은 후속 범위로 분리할지 결정 필요
-- 정렬 스냅과 가이드 표시를 이미지 MVP에 포함할지 전체 캔버스 공통 기능로 분리할지 결정 필요
-- 최대 해상도 제한의 기본값을 얼마로 둘지 최종 확정 필요
+- 마크다운 이미지의 클릭 확대 같은 부가 상호작용을 후속 범위로 둘지 결정 필요
 
 ---
 
@@ -473,7 +583,7 @@ src: ./untitled.canvas.assets/pasted-image-002.png
 - 드래그 앤 드롭 지원
 - 로컬 자산 저장 및 상대 경로 생성
 - 저장 전 문서 처리, 파일명 충돌 회피, EXIF 정규화
-- 대용량 이미지 최대 해상도 제한 적용
+- 긴 변 4096px 최대 해상도 제한 적용
 
 ### Phase 3
 

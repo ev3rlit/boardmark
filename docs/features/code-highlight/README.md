@@ -1,58 +1,81 @@
-# Code Highlight PRD
+# Shiki Code Highlight PRD
 
 ## 1. 목적
 
-이 문서는 Boardmark의 markdown code block 렌더링을 현재의 기본 하이라이트 수준에서, **다양한 언어와 여러 내장 테마를 안정적으로 지원하는 제품 기능**으로 끌어올리기 위한 요구사항을 정리한다.
+이 문서는 Boardmark의 markdown code block 하이라이팅을 현재의 `highlight.js` 기반 구현에서 `Shiki` 기반 구현으로 전환하기 위한 제품 요구사항과 구현 계획을 하나의 문서로 고정한다.
 
-이번 문서에서 확정하려는 핵심 방향은 아래와 같다.
+이번 문서에서 확정하는 범위는 아래와 같다.
 
-- fenced code block은 더 넓은 언어 집합을 안정적으로 지원해야 한다.
-- 프로그래밍 언어뿐 아니라 `json`, `yaml`, `bash`, `shell`, `console`, `terminal`, `diff`, `sql` 같은 문서형/도구형 언어도 지원해야 한다.
-- 코드 하이라이트 테마는 note body 안의 일부 스타일이 아니라, **명시적인 viewer 기능**으로 다뤄야 한다.
-- 첫 버전은 **내장 테마 세트**를 제공하고, 기본값은 `VSCode Dark Modern`으로 둔다.
-- web / desktop에서 같은 markdown source를 주면 code highlight 결과가 실질적으로 같아야 한다.
+- fenced code block 하이라이터를 `rehype-highlight`에서 `Shiki`로 교체한다.
+- `packages/ui` 안에 공용 `code-highlight` 경계를 도입한다.
+- 내장 theme 세트와 language alias 정책을 명시적 registry로 고정한다.
+- 이번 구현은 기본 theme `vscode-dark-modern` 적용에 집중한다.
+- note preview와 edge preview는 같은 adapter와 같은 기본 theme를 사용한다.
 
-이 기능의 목표는 “코드 색칠이 대충 되는 것”이 아니다.  
-목표는 **Boardmark 안에서 코드 예제, 설정 파일, 터미널 출력, 데이터 스니펫을 일관된 품질로 읽고 공유할 수 있게 만드는 것**이다.
+이번 문서에서 제외하는 범위는 아래와 같다.
 
----
+- theme picker UI
+- 문서 frontmatter 기반 `codeTheme` 저장/복원
+- rich code editing
+- line number, copy button, folding, execution
 
-## 2. 현재 상태
-
-현재 Boardmark의 markdown renderer는 `react-markdown + remark-gfm + rehype-highlight` 조합으로 동작한다.
-
-- syntax highlight 엔진은 `rehype-highlight` 기반이다.
-- theme CSS는 `highlight.js/styles/github.css`를 전역 import 한다.
-- 코드블럭 컨테이너의 배경, radius, padding은 app CSS에서 별도로 덮어쓴다.
-- 편집 모드에서는 `textarea`를 사용하므로 preview 상태에서만 syntax highlight가 보인다.
-- 즉 편집 진입 시 rendered markdown surface 자체가 사라진다.
-
-이 구조는 간단하고 동작하지만, 아래 한계가 있다.
-
-- 지원 언어 범위와 alias 정책이 제품 수준에서 명시돼 있지 않다.
-- theme가 사실상 `github.css`에 고정되어 있다.
-- code token 색상과 block container 스타일의 책임이 분리돼 있어 theme 전환 모델이 없다.
-- web / desktop / future shell에서 동일한 theme contract를 공유한다는 보장이 약하다.
-- rendered code block 위에서 직접 선택, 복사, drag interaction을 다룰 수 없다.
+목표는 단순히 “색이 바뀌는 것”이 아니다.  
+목표는 **Boardmark 안에서 코드 예제, 설정 파일, 터미널 출력, diff를 읽기 좋고 일관된 품질로 보여 주는 렌더링 계약**을 확정하는 것이다.
 
 ---
 
-## 3. 문제 정의
+## 2. 결정 요약
 
-Boardmark는 markdown-native canvas system을 지향한다.  
-따라서 note body 안의 code block은 단순 부가 요소가 아니라, 문서 전달력에 직접 영향을 주는 핵심 surface다.
+이번 문서의 결정은 아래로 고정한다.
 
-현재 상태로는 아래 요구를 충분히 만족하지 못한다.
+- 하이라이트 엔진은 `Shiki`를 사용한다.
+- 공용 경계는 `packages/ui/src/code-highlight/`에 둔다.
+- `MarkdownContent`는 하이라이터 구현을 직접 알지 않고 `highlightCodeBlock()` 결과만 소비한다.
+- 기본 theme는 `vscode-dark-modern`이다.
+- 내장 theme는 아래 다섯 개만 v1에서 지원한다.
+  - `vscode-dark-modern`
+  - `vscode-light`
+  - `one-dark`
+  - `one-light`
+  - `github-dark`
+- 미지정 언어와 미지원 언어는 모두 plain code fallback으로 렌더한다.
+- custom fenced renderer가 등록된 언어는 기존 registry 경로를 계속 우선한다.
+- block chrome과 background는 app CSS가 담당하고, token color만 Shiki 결과가 담당한다.
+- code block loading은 block 단위로만 지연되고, `MarkdownContent` 전체 렌더는 지연시키지 않는다.
 
-- 사용자가 여러 프로그래밍 언어 예제를 같은 보드에서 읽고 비교하고 싶다.
-- 사용자가 `json`, `yaml`, `toml`, `bash`, `terminal`, `diff` 같은 운영 문맥의 블럭도 자연스럽게 보길 원한다.
-- 사용자가 다크/라이트 계열 code theme를 문서나 viewer 취향에 맞춰 바꾸고 싶다.
-- 제품이 “코드 예제를 보기 좋은 도구”라는 인상을 주려면 VSCode 계열의 익숙한 테마 품질이 필요하다.
+---
 
-즉 이번 기능은 단순 CSS 교체가 아니라, **코드블럭 렌더링 계약을 제품 기능으로 승격하는 작업**이다.
+## 3. 현재 상태
 
-또한 code block interaction을 진짜 제품 경험으로 만들려면, 현재의 preview/edit 분리 UI를 유지한 채로는 충분하지 않다.  
-심리스한 markdown editing surface 없이 code block drag, copy, selection과 canvas pan 충돌을 제대로 해결하기 어렵다.
+현재 구현은 아래 구조로 동작한다.
+
+- `packages/ui/src/components/markdown-content.tsx`
+  - `react-markdown`
+  - `remark-gfm`
+  - `rehype-highlight`
+  조합으로 markdown를 렌더한다.
+- 일반 fenced code block은 `rehype-highlight`가 처리한다.
+- custom fenced renderer는 `extractFencedBlock()`와 `getFencedBlockRenderer()` 경로를 통해 분기된다.
+- `packages/canvas-app/src/styles/canvas-app.css`는 `highlight.js/styles/github.css`를 전역 import 한다.
+- code block 배경, padding, radius, overflow는 app CSS가 별도로 덮어쓴다.
+
+preview surface 공유 현황은 아래와 같다.
+
+- `packages/canvas-app/src/components/scene/canvas-scene.tsx`의 note preview는 `MarkdownContent`를 사용한다.
+- 같은 파일의 edge label preview도 `MarkdownContent`를 사용한다.
+- `packages/canvas-renderer/src/builtins/note/sticky-note-renderer.tsx`
+  와 `packages/canvas-renderer/src/builtins/note/notebook-note-renderer.tsx`도 `MarkdownContent`를 사용한다.
+
+즉 현재도 note/edge/code block 렌더링의 핵심 경계는 이미 `MarkdownContent` 하나로 모여 있다.  
+문제는 이 경계 안에서 하이라이트 엔진, theme, language alias, fallback 정책이 제품 계약으로 드러나지 않는다는 점이다.
+
+현재 구조의 한계는 아래와 같다.
+
+- theme가 `highlight.js` CSS import 한 줄에 사실상 고정되어 있다.
+- VS Code 계열 테마를 제품의 1급 개념으로 다루기 어렵다.
+- language alias와 fallback 정책이 중앙 registry 없이 암묵적으로 흩어진다.
+- note preview와 edge preview가 같은 컴포넌트를 써도, theme contract는 명시되어 있지 않다.
+- `MarkdownContent`가 `rehype-highlight`에 직접 결합되어 있어 하이라이터 교체 경계가 없다.
 
 ---
 
@@ -60,217 +83,48 @@ Boardmark는 markdown-native canvas system을 지향한다.
 
 ### 4.1 핵심 목표
 
-- Boardmark는 fenced code block에 대해 더 넓은 언어 집합을 지원해야 한다.
-- Boardmark는 기본 내장 code highlight theme를 여러 개 제공해야 한다.
-- 기본 theme는 `VSCode Dark Modern`이어야 한다.
-- 사용자는 web / desktop에서 같은 문서에 대해 일관된 하이라이트 결과를 봐야 한다.
-- theme 선택은 현재 전역 CSS import 한 줄에 숨지 않고, 명시적인 renderer 설정으로 관리돼야 한다.
+- Boardmark는 fenced code block을 현재보다 더 읽기 좋은 품질로 렌더해야 한다.
+- VS Code 계열의 익숙한 theme 품질을 기본 제공해야 한다.
+- web과 desktop에서 같은 markdown source에 대해 실질적으로 같은 결과를 보여야 한다.
+- 언어 alias, theme id, fallback 정책을 테스트 가능한 공용 계약으로 올려야 한다.
+- custom fenced renderer와 일반 code highlight 경계를 명확히 분리해야 한다.
 
 ### 4.2 UX 목표
 
-- 대부분의 코드블럭은 info string만으로 예상 가능한 highlighting을 얻어야 한다.
-- 언어가 지정되지 않은 code block도 읽기 가능한 fallback style을 유지해야 한다.
-- 긴 코드블럭, 터미널 출력, 설정 파일, diff block이 note 안에서 과도하게 튀지 않아야 한다.
-- edge label처럼 좁은 surface에서는 code block이 레이아웃을 깨지 않도록 동작해야 한다.
-- code theme는 문서의 다른 style 선택과 독립적으로 동작해야 한다.
+- 대부분의 fenced code block은 info string만으로 예상 가능한 highlighting을 얻는다.
+- 언어가 없거나 틀려도 깨진 UI 대신 읽기 가능한 plain code block으로 보인다.
+- 긴 코드 블럭은 가로 스크롤로 읽을 수 있어야 한다.
+- inline code는 기존 typography 규칙을 유지하고 code theme의 영향을 받지 않는다.
+- note와 edge label에서 같은 코드가 보이면 같은 theme와 같은 token 분류를 가져야 한다.
 
-### 4.3 호환성 목표
+### 4.3 기술 목표
 
-- 기존 markdown 문법과 GFM 렌더링은 유지해야 한다.
-- 기존 `.canvas.md` source는 migration 없이 계속 열려야 한다.
-- code highlight 기능 추가가 parser contract나 body raw text 보존 규칙을 바꾸면 안 된다.
+- 하이라이터는 하나의 module boundary 뒤에서 초기화되고 재사용되어야 한다.
+- theme id 정규화와 language alias 정규화는 중앙 registry만 담당해야 한다.
+- Shiki 초기화 비용은 반복 렌더마다 다시 발생하지 않아야 한다.
+- block chrome과 token color의 책임을 분리해 이후 theme 확장에 막힘이 없어야 한다.
 
 ---
 
 ## 5. 비목표
 
-- 이번 단계에서 in-editor rich code editing을 도입하는 것
-- note별 custom theme picker UI를 바로 추가하는 것
-- arbitrary remote theme CSS를 markdown body 안에서 허용하는 것
-- raw HTML 기반 임의 코드 렌더러를 note body에 주입하는 것
-- line number, code folding, execution, copy button까지 한 번에 넣는 것
+- theme picker UI 추가
+- app preference 저장
+- 문서 frontmatter 기반 `codeTheme` 저장/복원
+- note별 또는 block별 theme override
+- editor 안에서 live syntax highlighting 제공
+- line number, copy button, code folding
+- remote theme 또는 arbitrary theme import 허용
 
-즉 이번 문서는 **preview surface의 code highlight 품질과 설정 모델**에 집중한다.
-
-단, code block 상호작용 UX는 별개로 미뤄둘 수 있는 부가 항목이 아니라 WYSIWYG editing surface와 직접 연결된 문제다.  
-따라서 이 문서는 visual highlight 요구사항을 다루고, seamless editing requirement는 `docs/features/wysiwyg/README.md`를 선행 문서로 둔다.
-
----
-
-## 6. 사용자 시나리오
-
-### 6.1 개발 문서 노트
-
-사용자는 하나의 보드 안에 TypeScript, SQL, Bash 예제를 함께 적고, 각 블럭이 언어에 맞는 syntax color를 보여주길 원한다.
-
-### 6.2 설정 파일 비교
-
-사용자는 `json`, `yaml`, `toml` 설정 예제를 note에 넣고, 키/값/문자열/숫자가 구분되어 읽히길 원한다.
-
-### 6.3 터미널 출력 공유
-
-사용자는 설치 명령, REPL 예시, 로그 스니펫을 `bash`, `shell`, `terminal`, `console` block으로 적고 싶다.
-
-### 6.4 디자인/리서치 보드
-
-사용자는 다크 보드에서 `VSCode Dark Modern` 같은 익숙한 코드 테마를 보고, 밝은 문서 surface에서는 `One Light` 또는 `VSCode Light` 계열을 선택하고 싶다.
+v1은 **내부 renderer 계약과 기본 가독성 품질 확보**에만 집중한다.
 
 ---
 
-## 7. 제품 요구사항
+## 6. 제품 요구사항
 
-### 7.1 언어 지원
+### 6.1 Theme 모델
 
-첫 버전은 아래 범주의 언어를 지원해야 한다.
-
-- 프로그래밍 언어: `ts`, `tsx`, `js`, `jsx`, `python`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `cpp`
-- 웹/마크업 언어: `html`, `css`, `scss`, `md`, `xml`
-- 설정/데이터 언어: `json`, `jsonc`, `yaml`, `yml`, `toml`, `ini`
-- 쉘/도구 언어: `bash`, `sh`, `zsh`, `shell`, `console`, `terminal`, `powershell`
-- 문서/변경 표현: `diff`, `patch`, `sql`, `graphql`, `dockerfile`
-
-첫 버전의 정책은 아래와 같다.
-
-- 제품은 “지원 언어 canonical list”를 코드로 가져야 한다.
-- alias는 renderer 내부에서 canonical language id로 정규화해야 한다.
-- 미지원 언어가 들어오면 에러를 숨기지 말고, **plain code fallback**으로 렌더해야 한다.
-- 언어 미지정 fenced block도 plain code block으로 안정적으로 렌더해야 한다.
-
-### 7.2 내장 theme 지원
-
-첫 버전 내장 theme 세트는 아래를 포함해야 한다.
-
-- `vscode-dark-modern` 기본값
-- `vscode-light`
-- `one-dark`
-- `one-light`
-- `github-dark`
-
-제품 요구사항은 아래와 같다.
-
-- theme는 문자열 id로 명시할 수 있어야 한다.
-- 기본 theme는 app startup 시 명확히 결정되어야 한다.
-- web / desktop은 같은 theme id에 대해 같은 시각 결과를 가져야 한다.
-- theme 변경이 block container와 token color를 함께 바꿀 수 있어야 한다.
-
-### 7.3 theme 적용 범위
-
-첫 버전에서 theme 적용 범위는 아래 우선순위를 따른다.
-
-1. document frontmatter 전역 code theme
-2. app-level default code theme
-3. note-level per-block theme override는 비포함
-
-이 결정은 code theme를 문서 source에 저장하고, 같은 `.md` 파일을 다시 열었을 때도 같은 결과를 재현하기 위함이다.
-
-### 7.4 persistence
-
-- code theme 선택 결과는 `.md` 문서의 frontmatter에 저장되어야 한다.
-- 사용자가 문서를 다시 열면 마지막으로 저장된 theme가 그대로 복원되어야 한다.
-- app-level default theme는 frontmatter에 code theme가 없을 때만 fallback으로 사용한다.
-
-초기 문서 계약 예시:
-
-```yaml
-codeTheme: vscode-dark-modern
-```
-
-### 7.5 렌더링 일관성
-
-- note markdown preview와 edge markdown preview는 같은 code highlight renderer를 사용해야 한다.
-- desktop shell과 web shell은 같은 theme asset과 같은 language mapping을 사용해야 한다.
-- screenshot 비교 시 코드 토큰 분류와 block 배경이 눈에 띄게 다르지 않아야 한다.
-
-### 7.6 편집 surface 의존성
-
-- code block drag selection, copy, caret interaction 같은 편집 상호작용은 현재 `textarea` 교체형 편집 UI 위에서 완결할 수 없다고 본다.
-- 이 상호작용 요구사항은 seamless WYSIWYG editing surface를 선행 조건으로 둔다.
-- 따라서 첫 단계의 code highlight 구현은 preview 품질과 theme/language contract를 우선하고, interaction UX는 WYSIWYG surface 확정 이후 같은 surface에서 다뤄야 한다.
-
-### 7.7 코드블럭 레이아웃
-
-- 코드블럭 최대 높이 제한은 두지 않는다.
-- 가로 스크롤은 지원해야 한다.
-- 줄바꿈과 내용 표시 방식은 현재 오브젝트 크기 기반 동작을 유지한다.
-- 사용자가 의도한 object size 안에서 현재 preview 규칙대로 코드가 보여야 한다.
-
-### 7.8 언어 fallback 정책
-
-- 미지원 언어 또는 오타는 언어 미지정 코드블럭과 동일하게 취급한다.
-- 즉 하이라이트 실패를 에러 UI로 노출하지 않고 plain code block fallback으로 렌더한다.
-
-### 7.9 inline code 정책
-
-- inline code는 code theme를 적용하지 않는다.
-- inline code는 현재의 문서 typography 규칙 안에서만 스타일링한다.
-
-### 7.10 terminal 계열 정책
-
-- `bash`, `shell`, `console`, `terminal` 계열은 첫 버전에서 같은 스타일 계열로 취급한다.
-- terminal 전용 prompt decoration이나 output/command 구분은 첫 버전 범위에 포함하지 않는다.
-
-### 7.11 성능
-
-- 일반 note preview 렌더링에서 code highlight가 눈에 띄는 입력 지연을 만들면 안 된다.
-- 같은 문서에서 반복되는 언어/테마 조합은 불필요하게 다시 초기화하지 않아야 한다.
-- 큰 보드에서 code block이 많아져도 스크롤과 pan/zoom 체감이 과도하게 나빠지면 안 된다.
-
-### 7.12 접근성과 가독성
-
-- 모든 내장 theme는 일반 텍스트와 키 토큰 간 명도 대비를 확보해야 한다.
-- inline code와 fenced block은 서로 다른 역할이 분명해야 한다.
-- 선택 상태, 포커스 상태, 스크롤 영역, 링크 텍스트와 code token이 시각적으로 충돌하지 않아야 한다.
-
----
-
-## 8. 기술 방향
-
-### 8.1 현재 엔진 한계
-
-현재 `rehype-highlight + highlight.js` 조합은 빠르게 붙이기에는 적합하지만, 이번 요구사항에는 아래 한계가 있다.
-
-- theme가 CSS 파일 import 중심이라 제품 수준의 theme registry를 만들기 불편하다.
-- VSCode Dark Modern 같은 theme를 1급 개념으로 다루기 어렵다.
-- language alias와 theme asset 관리가 renderer contract에 잘 드러나지 않는다.
-
-### 8.2 제안 방향
-
-첫 구현은 **theme와 language를 명시적으로 로드할 수 있는 하이라이트 엔진**으로 정리하는 편이 맞다.
-
-현재 요구사항 기준의 권장안:
-
-- `shiki` 계열 엔진을 검토한다.
-- renderer는 `language id`, `theme id`, `highlighted html/token result`를 명시적으로 다룬다.
-- `MarkdownContent` 내부에 하이라이트 엔진을 직접 숨기기보다, 공용 `code-highlight` 경계 모듈을 둔다.
-
-이 방향을 택하는 이유는 아래와 같다.
-
-- VSCode 계열 theme와 언어 정의를 더 자연스럽게 다룰 수 있다.
-- theme registry, language registry, fallback policy를 제품 계약으로 드러낼 수 있다.
-- 이후 document-level theme override나 custom pack 확장으로 갈 때 구조가 덜 막힌다.
-
-### 8.3 권장 모듈 경계
-
-초기 구조 예시는 아래와 같다.
-
-- `packages/ui` 또는 별도 공용 모듈에 code highlight adapter를 둔다.
-- adapter는 아래 책임만 가진다.
-  - theme id 정규화
-  - language id 정규화
-  - fallback policy
-  - highlighted output 생성
-- `MarkdownContent`는 markdown tree에서 fenced code block 렌더 시 adapter 결과를 소비한다.
-- app CSS는 theme별 token 색상 정의를 직접 들지 않고, block spacing / radius / overflow 같은 shell 스타일만 담당한다.
-
-핵심은 **theme token과 block chrome 책임을 분리하되, theme 선택은 한 군데서 결정**하는 것이다.
-
----
-
-## 9. 설정 모델 제안
-
-### 9.1 Theme ID
-
-첫 버전은 아래 theme id를 canonical id로 사용한다.
+v1의 canonical theme id는 아래 다섯 개다.
 
 - `vscode-dark-modern`
 - `vscode-light`
@@ -278,134 +132,452 @@ codeTheme: vscode-dark-modern
 - `one-light`
 - `github-dark`
 
-### 9.2 기본 설정
+정책은 아래와 같다.
 
-앱 기본값:
+- app 기본 theme는 `vscode-dark-modern`으로 고정한다.
+- 사용자가 theme를 선택하는 UI는 없다.
+- 문서 source에 theme를 저장하지 않는다.
+- resolver는 미지원 theme 입력을 받아도 조용히 실패하지 않고 `vscode-dark-modern`으로 정규화한다.
+- 이번 구현 범위는 기본 theme 적용에 집중하지만, 내부 registry는 light/dark theme 모두를 수용할 수 있게 설계한다.
 
-- `defaultCodeTheme = vscode-dark-modern`
+### 6.2 Language 모델
 
-향후 확장 가능성:
+v1 canonical language id는 아래 범위를 지원한다.
 
-- app preference 저장
-- style pack과의 연결
+- 프로그래밍 언어
+  - `typescript`
+  - `tsx`
+  - `javascript`
+  - `jsx`
+  - `python`
+  - `go`
+  - `rust`
+  - `java`
+  - `kotlin`
+  - `swift`
+  - `c`
+  - `cpp`
+- 웹/마크업 언어
+  - `html`
+  - `css`
+  - `scss`
+  - `markdown`
+  - `xml`
+- 설정/데이터 언어
+  - `json`
+  - `jsonc`
+  - `yaml`
+  - `toml`
+  - `ini`
+- 쉘/도구 언어
+  - `bash`
+  - `shellsession`
+  - `powershell`
+- 문서/변경 표현
+  - `diff`
+  - `sql`
+  - `graphql`
+  - `dockerfile`
 
-단, 첫 버전에서는 document frontmatter가 우선이고, app-level default는 fallback 역할만 가진다.
-
-### 9.3 Language Alias 예시
+v1 alias 정책은 아래로 고정한다.
 
 - `ts` -> `typescript`
-- `tsx` -> `tsx`
 - `js` -> `javascript`
-- `sh` -> `bash`
-- `shell` -> `bash`
-- `terminal` -> `shellsession` 또는 제품이 정한 terminal canonical id
+- `md` -> `markdown`
 - `yml` -> `yaml`
+- `sh` -> `bash`
+- `zsh` -> `bash`
+- `shell` -> `bash`
+- `console` -> `shellsession`
+- `terminal` -> `shellsession`
+- `patch` -> `diff`
 
-중요한 점은 alias를 문서 곳곳에서 암묵 처리하지 않고, 한 registry에서 관리하는 것이다.
+정책은 아래와 같다.
+
+- language alias는 중앙 registry에서만 해석한다.
+- 언어 미지정 fenced block은 plain code fallback으로 렌더한다.
+- 미지원 언어 또는 오타는 plain code fallback으로 렌더한다.
+- custom fenced renderer 등록 대상은 language resolver보다 renderer registry가 먼저 처리한다.
+
+### 6.3 렌더링 계약
+
+- note preview와 edge preview는 동일한 `highlightCodeBlock()` 결과를 사용해야 한다.
+- `MarkdownContent`는 일반 fenced code block 렌더링에서만 code highlight adapter를 호출한다.
+- inline code는 Shiki를 거치지 않는다.
+- block container의 배경, radius, padding, overflow는 app CSS가 유지한다.
+- code theme는 token color와 token-level markup만 담당하고, block background/chrome에는 관여하지 않는다.
+- light theme를 포함한 모든 theme는 원본 token palette를 그대로 사용하며, Boardmark가 대비 보정을 추가하지 않는다.
+- 각 code block은 독립적으로 loading state를 표시한 뒤 highlighted 결과로 전환된다.
+- code block loading은 해당 block에만 영향을 주고, `MarkdownContent` 전체 렌더와 주변 markdown layout은 지연시키지 않는다.
+
+### 6.4 성능과 일관성
+
+- highlighter 인스턴스는 module-level lazy singleton으로 초기화한다.
+- theme와 language는 v1 지원 집합만 선로딩한다.
+- 같은 session에서 반복 렌더 시 highlighter를 재생성하지 않는다.
+- web과 desktop은 동일 dependency 버전과 동일 registry를 사용한다.
 
 ---
 
-## 10. 구현 단계
+## 7. 기술 설계
 
-### Phase 1. Renderer Contract 정리
+### 7.1 모듈 경계
 
-- 현재 code block 렌더링 경로를 공용 경계로 분리한다.
-- language registry와 theme registry를 정의한다.
-- fallback 정책을 테스트 가능한 형태로 고정한다.
-- frontmatter의 `codeTheme`를 읽고 적용하는 경로를 정의한다.
-- 현재 구현 범위가 preview surface임을 문서와 코드 경계에 명확히 남긴다.
+새 경계는 `packages/ui/src/code-highlight/`에 둔다.
+
+이 경계의 책임은 아래 네 가지로 제한한다.
+
+- theme id 정규화
+- language id 정규화
+- Shiki highlighter 초기화/재사용
+- plain fallback 또는 highlighted token 결과 생성
+
+`MarkdownContent`는 markdown tree traversal과 fenced block 분기만 담당한다.  
+하이라이트 엔진 선택, theme 선택, alias 해석, fallback 정책은 모두 새 경계 밖으로 이동한다.
+
+### 7.2 공개 인터페이스
+
+v1 public surface는 아래 형태로 고정한다.
+
+```ts
+export type CodeThemeId =
+  | 'vscode-dark-modern'
+  | 'vscode-light'
+  | 'one-dark'
+  | 'one-light'
+  | 'github-dark'
+
+export type CodeLanguageId =
+  | 'typescript'
+  | 'tsx'
+  | 'javascript'
+  | 'jsx'
+  | 'python'
+  | 'go'
+  | 'rust'
+  | 'java'
+  | 'kotlin'
+  | 'swift'
+  | 'c'
+  | 'cpp'
+  | 'html'
+  | 'css'
+  | 'scss'
+  | 'markdown'
+  | 'xml'
+  | 'json'
+  | 'jsonc'
+  | 'yaml'
+  | 'toml'
+  | 'ini'
+  | 'bash'
+  | 'shellsession'
+  | 'powershell'
+  | 'diff'
+  | 'sql'
+  | 'graphql'
+  | 'dockerfile'
+
+export type ResolvedCodeLanguage =
+  | { kind: 'highlighted'; language: CodeLanguageId }
+  | { kind: 'plain' }
+
+export type HighlightedToken = {
+  content: string
+  color?: string
+  fontStyle?: 'normal' | 'italic'
+  fontWeight?: 'normal' | 'bold'
+  textDecoration?: 'none' | 'underline'
+}
+
+export type HighlightedLine = {
+  tokens: HighlightedToken[]
+}
+
+export type HighlightedCodeBlock =
+  | {
+      kind: 'highlighted'
+      theme: CodeThemeId
+      language: CodeLanguageId
+      lines: HighlightedLine[]
+    }
+  | {
+      kind: 'plain'
+      theme: CodeThemeId
+      lines: string[]
+    }
+
+export function resolveCodeTheme(input?: string): CodeThemeId
+export function resolveCodeLanguage(input?: string): ResolvedCodeLanguage
+export function highlightCodeBlock(input: {
+  code: string
+  language?: string
+  theme?: string
+}): Promise<HighlightedCodeBlock>
+```
+
+결정 이유는 아래와 같다.
+
+- raw HTML을 `MarkdownContent`가 그대로 신뢰하지 않게 해 렌더링 제어권을 유지한다.
+- block chrome과 token 스타일 책임을 분리하기 쉽다.
+- plain fallback과 highlighted 결과를 같은 React 렌더 경로로 다룰 수 있다.
+
+### 7.3 렌더링 흐름
+
+일반 fenced code block 처리 흐름은 아래로 고정한다.
+
+1. `MarkdownContent`가 `pre` renderer에서 fenced block을 추출한다.
+2. custom renderer registry에 해당 language가 있으면 기존 경로를 사용한다.
+3. 없으면 code block 전용 renderer가 loading state를 먼저 그린다.
+4. 같은 renderer가 `highlightCodeBlock({ code, language, theme })`를 비동기로 호출한다.
+5. 하이라이트 결과가 준비되면 해당 code block만 교체 렌더링한다.
+6. 실패 시 해당 code block만 plain fallback으로 내려간다.
+7. `MarkdownContent` 본문과 다른 markdown 요소는 이 비동기 작업 때문에 지연되지 않는다.
+8. resolver는 theme를 `vscode-dark-modern` 중심의 canonical id로 정규화한다.
+9. resolver는 language alias를 canonical id로 정규화하거나 plain fallback으로 내린다.
+10. highlighter는 token line 구조를 반환한다.
+11. code block renderer는 `<pre><code>`를 직접 렌더하고 token span만 결과에 맞게 만든다.
+
+### 7.4 Shiki 초기화 정책
+
+- `Shiki` highlighter는 `packages/ui/src/code-highlight/highlighter.ts`에서 lazy singleton promise로 관리한다.
+- 초기화 시 v1 theme 5개와 language 지원 집합을 함께 등록한다.
+- `highlightCodeBlock()`은 이미 생성된 highlighter를 재사용한다.
+- highlighter 생성 실패는 삼키지 않고 호출자에게 에러로 전달한다.
+
+### 7.5 CSS 책임 분리
+
+CSS 정책은 아래로 고정한다.
+
+- `packages/canvas-app/src/styles/canvas-app.css`에서 `highlight.js/styles/github.css` import를 제거한다.
+- `.markdown-content pre`, `.markdown-content pre code`의 container 규칙은 유지한다.
+- token 색상은 React inline style 또는 token class 기반 local render에서만 적용한다.
+- Shiki theme는 token 색상만 제공하고, block background는 기존 app surface 규칙을 유지한다.
+- light theme라도 block background는 별도로 밝게 맞추지 않으며, token palette 보정도 하지 않는다.
+
+### 7.6 레이어와 의존관계 다이어그램
+
+색상 기준은 아래와 같다.
+
+- 주황: 이번 작업의 영향을 받는 기존 컴포넌트
+- 초록: 이번 작업에서 새로 추가되는 컴포넌트/경계
+- 빨강: 교체되거나 제거되는 기존 의존성
+- 회색: 그대로 유지되는 외부/주변 요소
+
+```mermaid
+flowchart LR
+  subgraph App["App Layer"]
+    CanvasScene["CanvasScene<br/>apps/canvas-scene.tsx<br/>note/edge preview"]
+    AppStyles["canvas-app.css<br/>code block chrome"]
+    RootDeps["root package.json"]
+  end
+
+  subgraph Renderer["Renderer Layer"]
+    Sticky["StickyNoteRenderer"]
+    Notebook["NotebookNoteRenderer"]
+  end
+
+  subgraph UI["UI Markdown Layer"]
+    Markdown["MarkdownContent"]
+    Extract["fenced-block/extract"]
+    Registry["fenced-block/registry"]
+    AsyncBlock["CodeBlockRenderer<br/>block-local loading"]
+  end
+
+  subgraph Highlight["New Code Highlight Layer"]
+    Adapter["highlightCodeBlock adapter"]
+    ThemeRegistry["theme registry"]
+    LanguageRegistry["language registry"]
+    Highlighter["Shiki highlighter singleton"]
+  end
+
+  subgraph External["External Dependencies"]
+    ReactMarkdown["react-markdown + remark-gfm"]
+    Rehype["rehype-highlight"]
+    HighlightCss["highlight.js github.css"]
+    Shiki["shiki"]
+  end
+
+  CanvasScene --> Markdown
+  Sticky --> Markdown
+  Notebook --> Markdown
+
+  Markdown --> ReactMarkdown
+  Markdown --> Extract
+  Markdown --> Registry
+  Markdown --> AsyncBlock
+
+  AsyncBlock --> Adapter
+  Adapter --> ThemeRegistry
+  Adapter --> LanguageRegistry
+  Adapter --> Highlighter
+  Highlighter --> Shiki
+
+  Markdown -. current path to replace .-> Rehype
+  AppStyles -. current import to remove .-> HighlightCss
+  RootDeps -. dependency swap .-> Rehype
+  RootDeps --> Shiki
+
+  classDef affected fill:#f6d7b8,stroke:#a65a00,color:#2b1a0a,stroke-width:1.5px;
+  classDef added fill:#cfeccf,stroke:#2f7d32,color:#163218,stroke-width:1.5px;
+  classDef removed fill:#f4c7c3,stroke:#b42318,color:#4a0d0d,stroke-width:1.5px;
+  classDef stable fill:#e6e8eb,stroke:#5b6570,color:#1f2933,stroke-width:1.2px;
+
+  class CanvasScene,AppStyles,RootDeps,Sticky,Notebook,Markdown,Extract,Registry affected;
+  class AsyncBlock,Adapter,ThemeRegistry,LanguageRegistry,Highlighter,Shiki added;
+  class Rehype,HighlightCss removed;
+  class ReactMarkdown stable;
+```
+
+다이어그램 해석 포인트는 아래와 같다.
+
+- `MarkdownContent`는 계속 핵심 진입점이지만, 일반 code block은 새 `CodeBlockRenderer`와 `code-highlight` 경계 뒤로 이동한다.
+- `fenced-block/registry`는 유지되며 `mermaid` 같은 custom renderer는 계속 기존 우선순위를 가진다.
+- `canvas-app.css`는 token 색이 아니라 code block chrome만 계속 소유한다.
+- `rehype-highlight`와 `highlight.js` CSS import는 제거 대상이고, 새 외부 의존성은 `shiki` 하나로 수렴한다.
+
+---
+
+## 8. 구현 계획
+
+### Phase 1. Dependency 교체와 경계 도입
+
+- root `package.json`에서 `highlight.js`와 `rehype-highlight`를 제거하고 `shiki`를 추가한다.
+- `packages/ui/src/code-highlight/`에 theme registry, language registry, highlighter 초기화, adapter를 추가한다.
+- 일반 fenced code block 전용 비동기 renderer를 추가하고 block-local loading state를 정의한다.
+- `packages/ui/src/index.ts`에서 필요한 public surface만 export 한다.
+- `packages/ui/src/components/markdown-content.tsx`에서 `rehypePlugins={[rehypeHighlight]}`를 제거한다.
 
 완료 기준:
 
-- code block highlight가 단일 adapter 경계 뒤로 숨는다.
-- 문서 frontmatter와 app default의 우선순위가 고정된다.
+- 일반 fenced code block이 더 이상 `rehype-highlight`에 의존하지 않는다.
+- `MarkdownContent`는 새 adapter를 통해서만 code highlight를 수행한다.
+- code block 하나의 loading이 전체 markdown 렌더를 막지 않는다.
 
-### Phase 2. Theme 세트 도입
+### Phase 2. Theme registry와 기본 theme 연결
 
-- `VSCode Dark Modern`을 기본 theme로 도입한다.
-- `vscode-light`, `one-dark`, `one-light`, `github-dark`를 함께 번들한다.
-- web / desktop에서 동일 asset 경로로 로드되게 정리한다.
-
-완료 기준:
-
-- theme id만 바꿔 preview 결과가 즉시 달라진다.
-- 기존 GitHub 스타일 hard-code import를 제거하거나 축소할 수 있다.
-
-### Phase 3. Language Coverage 확장
-
-- 지원 언어 canonical list를 구현한다.
-- alias 정규화와 plain fallback을 테스트로 고정한다.
-- `json`, `yaml`, `bash`, `terminal`, `diff` 등 주요 비프로그래밍 언어까지 검증한다.
+- canonical theme id 다섯 개를 registry로 고정한다.
+- `resolveCodeTheme()`는 입력이 없거나 미지원 값이면 `vscode-dark-modern`을 반환한다.
+- note preview와 edge preview가 모두 같은 기본 theme를 사용하도록 `MarkdownContent`의 기본 동작을 고정한다.
+- 이번 구현은 기본 theme 적용에 집중하고, 사용자 선택 surface는 만들지 않는다.
 
 완료 기준:
 
-- 주요 문서형/도구형 code block이 예상 가능한 highlight를 제공한다.
+- theme 선택 로직이 중앙 registry 한 곳에만 존재한다.
+- note/edge preview의 theme 기본값 차이가 생길 경로가 없다.
 
-### Phase 4. Verification
+### Phase 3. Language alias와 fallback 정리
 
-- markdown preview snapshot 또는 DOM test를 추가한다.
-- web / desktop 시각 일치성을 확인한다.
-- 큰 보드에서 성능 회귀가 없는지 확인한다.
+- canonical language 집합을 registry로 고정한다.
+- alias map을 별도 모듈로 분리하고 `resolveCodeLanguage()`만 이를 읽게 한다.
+- 미지원 언어와 미지정 언어를 plain fallback으로 고정한다.
+- `mermaid` 같은 custom fenced renderer는 기존 registry 우선 정책을 유지한다.
 
 완료 기준:
 
-- 기능이 renderer regression 없이 안정적으로 유지된다.
+- alias와 fallback 정책이 테스트 가능한 함수로 분리된다.
+- 일반 code highlight 경로와 custom fenced renderer 경로가 서로 침범하지 않는다.
+
+### Phase 4. CSS 조정과 회귀 정리
+
+- `highlight.js` 전역 CSS import 제거 후 code block container 스타일을 유지한다.
+- token 렌더 구조에 맞게 `.markdown-content pre code` 스타일을 최소 조정한다.
+- 가로 스크롤, 긴 코드 블럭, edge label 내 코드 블럭의 레이아웃을 회귀 확인한다.
+
+완료 기준:
+
+- 기존 block chrome은 유지되고 token color만 Shiki 결과로 바뀐다.
+- edge label과 note preview에서 code block 레이아웃이 깨지지 않는다.
+
+### Phase 5. 검증
+
+- unit, component, integration 테스트를 추가 또는 갱신한다.
+- web/desktop에서 동일 샘플 markdown이 실질적으로 같은 결과인지 확인한다.
+- `json`, `yaml`, `bash`, `diff` 대표 샘플을 회귀 세트로 고정한다.
+
+완료 기준:
+
+- 기본 theme, alias, fallback, custom renderer 우선 정책이 모두 테스트로 잠긴다.
 
 ---
 
-## 11. 수용 기준
+## 9. 테스트 계획
 
-- 사용자가 TypeScript, JSON, YAML, Bash, Diff code block을 note에 넣으면 적절한 syntax color가 적용된다.
-- 사용자가 언어를 지정하지 않은 fenced block을 넣어도 block style은 유지되고 내용이 읽힌다.
-- 사용자가 미지원 언어나 오타가 있는 info string을 넣어도 언어 미지정 block과 같은 방식으로 렌더된다.
-- 기본 theme는 `VSCode Dark Modern`으로 보인다.
-- 문서 frontmatter에 저장된 theme가 있으면 그 값을 우선 사용한다.
-- 문서 frontmatter에 theme가 없을 때만 앱 기본값 또는 fallback 기본 theme를 사용한다.
-- 사용자가 `vscode-light`, `one-dark`, `one-light`, `github-dark`를 선택하고 저장하면 같은 `.md` 문서를 다음 실행에서도 같은 테마로 연다.
-- note와 edge label의 markdown preview가 같은 code highlight 결과를 사용한다.
-- web과 desktop에서 같은 샘플 문서를 열었을 때 code block의 시각 차이가 크지 않다.
-- 코드블럭은 최대 높이 제한 없이 렌더되고, 가로 스크롤을 지원한다.
-- inline code는 code theme를 따르지 않는다.
+### 9.1 Unit
 
----
+- `resolveCodeTheme()`
+  - 지원 theme id를 그대로 반환한다.
+  - 빈 값과 미지원 값은 `vscode-dark-modern`으로 정규화한다.
+- `resolveCodeLanguage()`
+  - `ts`, `js`, `yml`, `terminal`, `patch` 같은 alias를 canonical id로 정규화한다.
+  - 언어 미지정과 미지원 언어는 `{ kind: 'plain' }`을 반환한다.
+- `highlightCodeBlock()`
+  - highlighted 입력은 line/token 구조를 반환한다.
+  - plain fallback 입력은 원문 line 배열을 반환한다.
 
-## 12. 테스트 요구사항
+### 9.2 Component
 
-- `MarkdownContent` 수준 테스트
-  - fenced code block이 언어별 class 또는 렌더 결과를 가진다
-  - 미지정 언어 fallback이 동작한다
-  - 미지원 alias 입력이 plain fallback으로 내려간다
-- registry 테스트
-  - theme id 정규화
-  - language alias 정규화
-- frontmatter 설정 테스트
-  - 문서에 `codeTheme`가 있으면 해당 theme가 우선 적용된다
-  - 문서에 `codeTheme`가 없으면 app default가 적용된다
-- integration 테스트
-  - note preview와 edge preview가 같은 renderer를 사용한다
-  - web shell / desktop shell이 같은 기본 theme를 사용한다
+- `packages/ui/src/components/markdown-content.test.tsx`
+  - 일반 fenced code block이 Shiki adapter 결과로 렌더된다.
+  - 일반 fenced code block은 초기 loading state를 거쳐 highlighted 결과로 전환된다.
+  - custom fenced renderer 대상인 `mermaid`는 기존 registry 경로를 유지한다.
+  - inline code는 기존 typography 규칙을 유지한다.
 
----
+### 9.3 Integration
 
-## 13. 오픈 이슈
+- note preview와 edge preview가 같은 기본 theme를 사용한다.
+- note preview와 edge preview가 같은 fenced code 입력에서 같은 token 구조를 표시한다.
+- web과 desktop build가 같은 sample markdown에서 시각적으로 큰 차이 없이 동작한다.
 
-- `terminal` 계열 블럭을 어떤 canonical language id로 고정할지 정해야 한다.
-- SSR이 도입되는 future shell에서도 같은 highlighter 초기화 모델이 유지되는지 검토가 필요하다.
-- style pack 시스템과 code theme를 장기적으로 연결할지, 별도 viewer preference로 유지할지 결정이 필요하다.
-- seamless WYSIWYG surface 위에서 code block selection과 canvas pan 입력 우선순위를 어떻게 정의할지 별도 결정이 필요하다.
+### 9.4 Regression
+
+- code block loading 중에도 surrounding markdown는 즉시 렌더된다.
+- 긴 코드 블럭에서 가로 스크롤이 유지된다.
+- `json`, `yaml`, `bash`, `diff` 샘플이 읽기 좋게 렌더된다.
+- `highlight.js` CSS import 제거 후 block container padding, radius, overflow가 유지된다.
 
 ---
 
-## 14. 결론
+## 10. 수용 기준
 
-Code Highlight 기능은 단순 CSS 교체 작업이 아니다.  
-Boardmark가 markdown-native canvas로서 코드, 설정, 터미널, 데이터 스니펫을 신뢰 가능하게 보여주기 위한 핵심 렌더링 계약이다.
+- 일반 fenced code block은 `Shiki` 경로를 통해 렌더된다.
+- custom fenced renderer는 기존 registry 경로를 유지한다.
+- 기본 theme는 `vscode-dark-modern`이다.
+- 지원 theme와 language alias 정책은 중앙 registry로 고정된다.
+- 언어 미지정 또는 미지원 code block은 plain fallback으로 렌더된다.
+- note preview와 edge preview는 같은 adapter와 같은 기본 theme를 사용한다.
+- block chrome은 유지되고 token 색상만 새 renderer 결과를 따른다.
+- code block loading은 block 단위로만 발생하고 전체 markdown 렌더를 지연시키지 않는다.
+- web과 desktop에서 같은 샘플 markdown이 실질적으로 같은 highlighting 결과를 보인다.
 
-첫 단계에서는 아래를 확정하면 된다.
+---
 
-- 기본 theme는 `VSCode Dark Modern`
-- 내장 theme 세트는 `vscode-dark-modern`, `vscode-light`, `one-dark`, `one-light`, `github-dark`
-- language registry와 theme registry를 제품 계약으로 둔다
-- preview renderer는 명시적인 code highlight adapter 위에 재구성한다
+## 11. 명시적 보류 사항
 
-이 기준으로 구현하면 현재의 단순 `highlight.js` theme import 구조를 넘어, Boardmark의 code reading 경험을 제품 수준으로 끌어올릴 수 있다.
+아래 항목은 이번 문서와 구현 범위에서 의도적으로 제외한다.
+
+- 문서 frontmatter `codeTheme` 저장/복원
+- app settings 기반 theme 선택 UI
+- note별 또는 block별 theme override
+- editor 내부 live code highlighting
+- line number, copy button, code execution
+
+후속 단계에서 theme persistence가 필요해지면, 새 경계 위에 별도 입력 계층을 올리면 된다.  
+이번 단계에서는 renderer contract를 먼저 안정화하고, 사용자 노출 설정은 뒤로 미룬다.
+
+---
+
+## 12. 결론
+
+이번 Shiki 도입은 CSS 테마 교체 작업이 아니다.  
+이 작업은 Boardmark의 markdown code block을 제품 수준의 공용 렌더링 계약으로 끌어올리는 정리 작업이다.
+
+첫 구현은 아래 기준만 지키면 된다.
+
+- `Shiki`를 공용 adapter 뒤에 둔다.
+- 기본 theme는 `vscode-dark-modern`으로 고정한다.
+- theme와 language alias는 중앙 registry로 관리한다.
+- `MarkdownContent`는 fenced block 렌더링에서 adapter 결과만 소비한다.
+- note와 edge preview는 같은 contract를 공유한다.
+
+이 기준으로 구현하면 현재의 `highlight.js` CSS import 중심 구조를 정리하면서도, 이후 theme 확장과 renderer 진화를 안전하게 이어갈 수 있다.

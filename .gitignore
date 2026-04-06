@@ -4,7 +4,6 @@ dist-electron
 .vite
 coverage
 .DS_Store
-.agents
 .impeccable.md
 skills-lock.json
 untitled.canvas.md
