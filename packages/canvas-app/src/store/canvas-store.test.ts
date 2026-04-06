@@ -270,6 +270,82 @@ describe('viewer store', () => {
     vi.useRealTimers()
   })
 
+  it('does not auto-flush unmatched fenced markdown while a WYSIWYG session is active', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const store = createCanvasStore({
+        documentPicker: createPicker(),
+        documentRepository: createRepository(),
+        templateSource
+      })
+
+      await store.getState().hydrateTemplate()
+      store.getState().startObjectEditing('welcome')
+      store.getState().updateEditingMarkdown('```ts')
+
+      expect(store.getState().editingState).toMatchObject({
+        status: 'active',
+        dirty: true,
+        draftMarkdown: '```ts',
+        flushStatus: {
+          status: 'idle'
+        }
+      })
+
+      await vi.advanceTimersByTimeAsync(450)
+
+      expect(store.getState().draftSource).not.toContain('```ts')
+      expect(store.getState().operationError).toBeNull()
+      expect(store.getState().editingState).toMatchObject({
+        status: 'active',
+        dirty: true,
+        flushStatus: {
+          status: 'idle'
+        }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('blocks close flush for unmatched fenced markdown until the fence is completed', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().startObjectEditing('welcome')
+    store.getState().updateEditingMarkdown('```ts')
+
+    const blocked = await store.getState().flushEditingSession({
+      close: true,
+      reason: 'close'
+    })
+
+    expect(blocked).toBe(false)
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      error: 'Complete the fenced code block before leaving the editor.'
+    })
+    expect(store.getState().operationError).toBe('Complete the fenced code block before leaving the editor.')
+
+    store.getState().updateEditingMarkdown('```ts\nconst x = 1\n```')
+
+    const flushed = await store.getState().flushEditingSession({
+      close: true,
+      reason: 'close'
+    })
+
+    expect(flushed).toBe(true)
+    expect(store.getState().editingState).toEqual({
+      status: 'idle'
+    })
+    expect(store.getState().draftSource).toContain('```ts\nconst x = 1\n```')
+  })
+
   it('restores the baseline when cancelling an active editing session', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

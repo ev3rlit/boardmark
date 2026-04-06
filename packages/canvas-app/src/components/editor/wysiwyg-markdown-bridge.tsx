@@ -2,6 +2,7 @@ import { Editor, Node, mergeAttributes, type AnyExtension, type JSONContent } fr
 import Link from '@tiptap/extension-link'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
+import { NodeSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
@@ -9,6 +10,7 @@ import { buildFencedMarkdown, ensureTrailingNewline } from '@canvas-app/componen
 import { CodeBlockNodeView } from '@canvas-app/components/editor/views/code-block-node-view'
 import { HtmlFallbackBlockView } from '@canvas-app/components/editor/views/html-fallback-block-view'
 import { SpecialFencedBlockView } from '@canvas-app/components/editor/views/special-fenced-block-view'
+import { readOpeningCodeFenceLanguage } from '@canvas-app/markdown/fenced-block-guards'
 
 type MarkdownCodeToken = {
   type: 'code'
@@ -153,6 +155,39 @@ const WysiwygCodeBlock = Node.create({
   },
   renderMarkdown(node) {
     return buildFencedMarkdown(node.attrs?.language ?? '', node.attrs?.source ?? '')
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { selection } = this.editor.state
+        const { $from, empty } = selection
+
+        if (!empty || $from.parent.type.name !== 'paragraph') {
+          return false
+        }
+
+        const language = readOpeningCodeFenceLanguage($from.parent.textContent)
+
+        if (language === null || $from.parentOffset !== $from.parent.content.size) {
+          return false
+        }
+
+        const insertPosition = $from.before()
+
+        return this.editor.commands.command(({ tr }) => {
+          tr.replaceRangeWith(
+            insertPosition,
+            $from.after(),
+            this.type.create({
+              language,
+              source: ''
+            })
+          )
+          tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
+          return true
+        })
+      }
+    }
   },
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockNodeView)

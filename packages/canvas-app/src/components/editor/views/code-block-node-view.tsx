@@ -26,6 +26,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
   const lineNumbers = readLineNumbers(source)
 
   useAutoSizeTextarea(textareaRef, source)
+  useAutoFocusSelectedCodeBlock(textareaRef, props.selected, source.length)
 
   useEffect(() => {
     let cancelled = false
@@ -159,4 +160,35 @@ function useAutoSizeTextarea(
     element.style.height = '0px'
     element.style.height = `${element.scrollHeight}px`
   }, [textareaRef, value])
+}
+
+function useAutoFocusSelectedCodeBlock(
+  textareaRef: RefObject<HTMLTextAreaElement | null>,
+  selected: boolean,
+  sourceLength: number
+) {
+  useEffect(() => {
+    if (!selected) {
+      return
+    }
+
+    const textarea = textareaRef.current
+
+    if (!textarea || document.activeElement === textarea) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (document.activeElement === textarea) {
+        return
+      }
+
+      textarea.focus()
+      textarea.setSelectionRange(sourceLength, sourceLength)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [selected, sourceLength, textareaRef])
 }

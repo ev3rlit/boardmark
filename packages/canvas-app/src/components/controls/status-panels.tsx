@@ -85,7 +85,7 @@ export function StatusPanels({ store }: StatusPanelsProps) {
   )
 }
 
-function readStatusMessages({
+export function readStatusMessages({
   dropState,
   invalidState,
   loadState,
@@ -124,5 +124,5 @@ function readStatusMessages({
     messages.push(operationError)
   }
 
-  return messages
+  return [...new Set(messages)]
 }

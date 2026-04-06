@@ -107,20 +107,39 @@ describe('WysiwygMarkdownBridge', () => {
       expect(codeSource.value.startsWith('  const shipped = true')).toBe(true)
     })
   })
+
+  it('promotes ``` + Enter into a structured code block and focuses the source textarea', async () => {
+    render(<SurfaceHarness markdown="```ts" />)
+
+    const editor = await screen.findByRole('textbox', { name: 'Surface editor' })
+    fireEvent.focus(editor)
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+
+    const codeSource = await screen.findByRole('textbox', { name: 'Code block source' })
+
+    await waitFor(() => {
+      expect(codeSource).toHaveFocus()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```ts')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```')
+    })
+  })
 })
 
 function SurfaceHarness({ markdown }: { markdown: string }) {
   const [value, setValue] = useState(markdown)
 
   return (
-    <WysiwygEditorSurface
-      ariaLabel="Surface editor"
-      markdown={value}
-      onBlockModeChange={() => undefined}
-      onCancel={() => undefined}
-      onInteractionChange={() => undefined}
-      onMarkdownChange={setValue}
-    />
+    <>
+      <WysiwygEditorSurface
+        ariaLabel="Surface editor"
+        markdown={value}
+        onBlockModeChange={() => undefined}
+        onCancel={() => undefined}
+        onInteractionChange={() => undefined}
+        onMarkdownChange={setValue}
+      />
+      <pre data-testid="markdown-value">{value}</pre>
+    </>
   )
 }
 

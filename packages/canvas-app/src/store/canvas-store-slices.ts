@@ -35,6 +35,7 @@ import type {
   CanvasStoreSetState,
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
+import { hasUnclosedFencedBlock } from '@canvas-app/markdown/fenced-block-guards'
 import {
   readCanvasDocumentEditLabel,
   type CanvasDocumentEditIntent
@@ -75,6 +76,8 @@ const FRAME_PRESET = {
   height: 280,
   width: 420
 }
+
+const INCOMPLETE_FENCED_BLOCK_MESSAGE = 'Complete the fenced code block before leaving the editor.'
 
 function applyDocumentCommandResult({
   controls,
@@ -560,6 +563,16 @@ export function createCanvasCommandSlice(
     const editingState = get().editingState
 
     if (editingState.status !== 'active' || !editingState.dirty) {
+      return
+    }
+
+    if (shouldBlockEditingFlush(editingState)) {
+      set({
+        editingState: {
+          ...editingState,
+          flushStatus: { status: 'idle' }
+        }
+      })
       return
     }
 
@@ -1820,6 +1833,29 @@ export function createCanvasCommandSlice(
         return true
       }
 
+      if (shouldBlockEditingFlush(state.editingState)) {
+        if (reason === 'auto') {
+          set({
+            editingState: {
+              ...state.editingState,
+              error: null,
+              flushStatus: { status: 'idle' }
+            }
+          })
+        } else {
+          set({
+            editingState: {
+              ...state.editingState,
+              error: INCOMPLETE_FENCED_BLOCK_MESSAGE,
+              flushStatus: { status: 'idle' }
+            },
+            operationError: INCOMPLETE_FENCED_BLOCK_MESSAGE
+          })
+        }
+
+        return false
+      }
+
       const session = state.editingState
       const flushedMarkdown = session.draftMarkdown
 
@@ -2865,4 +2901,10 @@ function selectRecentlyInsertedObjects(
     nodeIds,
     edgeIds
   }))
+}
+
+function shouldBlockEditingFlush(
+  editingState: Exclude<CanvasStoreState['editingState'], { status: 'idle' }>
+) {
+  return editingState.surface === 'wysiwyg' && hasUnclosedFencedBlock(editingState.draftMarkdown)
 }
