@@ -114,7 +114,7 @@ export function createDocumentService(): DocumentService {
     },
 
     async saveExportedImage(window, input) {
-      const targetPathResult = await chooseImageSavePath(window, input.fileName)
+      const targetPathResult = await chooseImageSavePath(window, input.fileName, input.mimeType)
 
       if (!targetPathResult.ok) {
         return {
@@ -272,14 +272,15 @@ function chooseSaveLocator(
 
 async function chooseImageSavePath(
   window: BrowserWindow,
-  defaultName: string
+  defaultName: string,
+  mimeType: 'image/jpeg' | 'image/png'
 ): Promise<AsyncResult<string, { code: string; message: string }>> {
   try {
     const result = await dialog.showSaveDialog(window, {
       title: 'Export Boardmark Image',
-      defaultPath: ensureImageExtension(defaultName),
+      defaultPath: ensureImageExtension(defaultName, mimeType),
       properties: ['createDirectory', 'showOverwriteConfirmation'],
-      filters: [{ name: 'PNG image', extensions: ['png'] }]
+      filters: [{ name: 'Image', extensions: ['jpg', 'jpeg', 'png'] }]
     })
 
     if (result.canceled || !result.filePath) {
@@ -294,7 +295,7 @@ async function chooseImageSavePath(
 
     return {
       ok: true,
-      value: ensureImageExtension(result.filePath)
+      value: ensureImageExtension(result.filePath, mimeType)
     }
   } catch (error) {
     return {
@@ -335,8 +336,12 @@ function ensureCanvasExtension(path: string): string {
   return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.canvas.md`
 }
 
-function ensureImageExtension(path: string): string {
-  return path.endsWith('.png') ? path : `${path}.png`
+function ensureImageExtension(path: string, mimeType: 'image/jpeg' | 'image/png') {
+  if (/\.(jpg|jpeg|png)$/i.test(path)) {
+    return path
+  }
+
+  return mimeType === 'image/jpeg' ? `${path}.jpg` : `${path}.png`
 }
 
 function cancelledError(): CanvasDocumentPickerError {

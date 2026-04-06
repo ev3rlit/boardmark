@@ -30,6 +30,7 @@ export async function exportCodeBlockImage(
     cacheBust: true,
     canvasHeight: height,
     canvasWidth: width,
+    filter: (node) => !shouldSkipNodeDuringExport(node),
     height,
     pixelRatio: readPixelRatio(),
     skipAutoScale: true,
@@ -56,7 +57,7 @@ export async function exportMermaidBlockImage(
     throw new Error('Mermaid image export is only available after the diagram is rendered.')
   }
 
-  const svgElement = rootElement.querySelector('svg')
+  const svgElement = rootElement.querySelector('.mermaid-diagram__viewport svg')
 
   if (!(svgElement instanceof SVGElement)) {
     throw new Error('Mermaid export could not find a rendered SVG element.')
@@ -96,6 +97,10 @@ export async function exportMermaidBlockImage(
   } finally {
     URL.revokeObjectURL(imageUrl)
   }
+}
+
+function shouldSkipNodeDuringExport(node: HTMLElement | SVGElement) {
+  return node.dataset.boardmarkExportIgnore === 'true'
 }
 
 function requireExportRoot(rootElement: HTMLElement, label: string) {

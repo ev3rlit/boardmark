@@ -302,6 +302,7 @@ function CodeBlockRenderer({
         </div>
         {imageControls.statusMessage ? (
           <span
+            data-boardmark-export-ignore="true"
             className={joinClassName(
               'markdown-code-block__action-status',
               imageControls.statusTone === 'error'
@@ -315,38 +316,46 @@ function CodeBlockRenderer({
           </span>
         ) : null}
         {imageControls.quickAction && QuickActionIcon ? (
-          <button
-            aria-label={imageControls.quickAction.label}
-            className={joinClassName(
-              'markdown-code-block__copy-button',
-              'markdown-code-block__copy-button--image',
-              imageControls.quickAction.label === 'Image exported'
-                ? 'markdown-code-block__copy-button--copied'
-                : undefined,
-              imageControls.quickAction.label === 'Export failed'
-                ? 'markdown-code-block__copy-button--error'
-                : undefined
-            )}
-            disabled={imageControls.quickAction.disabled}
-            onClick={() => {
-              imageControls.quickAction?.onClick()
-            }}
-            title={imageControls.quickAction.label}
-            type="button"
+          <div
+            ref={imageControls.quickActionTriggerRef}
+            className="markdown-content__fenced-block-trigger"
           >
-            <QuickActionIcon
-              aria-hidden="true"
+            <button
+              aria-label={imageControls.quickAction.label}
+              data-boardmark-export-ignore="true"
               className={joinClassName(
-                'markdown-code-block__copy-icon',
-                imageControls.quickAction.label === 'Exporting image'
-                  ? 'markdown-code-block__copy-icon--spinning'
+                'markdown-code-block__copy-button',
+                'markdown-code-block__copy-button--image',
+                imageControls.quickAction.label === 'Image exported'
+                  ? 'markdown-code-block__copy-button--copied'
+                  : undefined,
+                imageControls.quickAction.label === 'Export failed'
+                  ? 'markdown-code-block__copy-button--error'
                   : undefined
               )}
-            />
-          </button>
+              disabled={imageControls.quickAction.disabled}
+              onClick={() => {
+                imageControls.quickAction?.onClick()
+              }}
+              title={imageControls.quickAction.label}
+              type="button"
+            >
+              <QuickActionIcon
+                aria-hidden="true"
+                className={joinClassName(
+                  'markdown-code-block__copy-icon',
+                  imageControls.quickAction.label === 'Exporting image'
+                    ? 'markdown-code-block__copy-icon--spinning'
+                    : undefined
+                )}
+              />
+            </button>
+            {imageControls.quickActionMenu}
+          </div>
         ) : null}
         <button
           aria-label={copyAction.label}
+          data-boardmark-export-ignore="true"
           className={joinClassName(
             'markdown-code-block__copy-button',
             copyStatus === 'copied' ? 'markdown-code-block__copy-button--copied' : undefined,

@@ -21,6 +21,7 @@ import {
   exportMermaidBlockImage,
   type FencedBlockImageExportRequest
 } from './image-export'
+import type { MarkdownContentImageExportFormat } from './image-actions-context'
 
 type FencedBlockImageActionState =
   | { status: 'idle' }
@@ -49,6 +50,7 @@ type ActionRunnerInput = {
   rootRef: RefObject<HTMLElement | null>
   setActionState: (state: FencedBlockImageActionState) => void
   setContextMenu: (state: ContextMenuState | null) => void
+  setQuickActionMenuOpen: (open: boolean) => void
 }
 
 export function useFencedBlockImageControls<TElement extends HTMLElement>({
@@ -64,9 +66,13 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
 }) {
   const imageActions = useMarkdownContentImageActions()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [quickActionMenuOpen, setQuickActionMenuOpen] = useState(false)
   const [actionState, setActionState] = useState<FencedBlockImageActionState>({ status: 'idle' })
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const quickActionMenuRef = useRef<HTMLDivElement | null>(null)
+  const quickActionTriggerRef = useRef<HTMLDivElement | null>(null)
   const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const quickActionMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const canShowAffordance = Boolean(imageActions) && enabled
   const canCopyImage = Boolean(imageActions?.canCopyImageToClipboard())
   const isBusy = actionState.status === 'exporting' || actionState.status === 'copying'
@@ -90,7 +96,7 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
   }, [actionState])
 
   useEffect(() => {
-    if (!contextMenu) {
+    if (!contextMenu && !quickActionMenuOpen) {
       return
     }
 
@@ -101,12 +107,22 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
         return
       }
 
+      if (target instanceof HTMLElement && quickActionMenuRef.current?.contains(target)) {
+        return
+      }
+
+      if (target instanceof HTMLElement && quickActionTriggerRef.current?.contains(target)) {
+        return
+      }
+
       setContextMenu(null)
+      setQuickActionMenuOpen(false)
     }
 
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setContextMenu(null)
+        setQuickActionMenuOpen(false)
       }
     }
 
@@ -117,7 +133,7 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleWindowKeyDown)
     }
-  }, [contextMenu])
+  }, [contextMenu, quickActionMenuOpen])
 
   const menuItems = useMemo<MenuItem[]>(() => {
     if (!imageActions) {
@@ -136,21 +152,40 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
             language,
             rootRef,
             setActionState,
-            setContextMenu
+            setContextMenu,
+            setQuickActionMenuOpen
           })
         }
       },
       {
         icon: Download,
-        label: 'Export image',
+        label: 'Export PNG',
         onSelect: () => {
           void runExportImageAction({
             imageActions,
+            format: 'png',
             kind,
             language,
             rootRef,
             setActionState,
-            setContextMenu
+            setContextMenu,
+            setQuickActionMenuOpen
+          })
+        }
+      },
+      {
+        icon: Download,
+        label: 'Export JPG',
+        onSelect: () => {
+          void runExportImageAction({
+            imageActions,
+            format: 'jpeg',
+            kind,
+            language,
+            rootRef,
+            setActionState,
+            setContextMenu,
+            setQuickActionMenuOpen
           })
         }
       }
@@ -171,6 +206,20 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
     menuItemRefs.current[firstEnabledIndex]?.focus()
   }, [contextMenu, menuItems])
 
+  useEffect(() => {
+    if (!quickActionMenuOpen) {
+      return
+    }
+
+    const firstEnabledIndex = menuItems.findIndex((item) => !item.disabled)
+
+    if (firstEnabledIndex < 0) {
+      return
+    }
+
+    quickActionMenuItemRefs.current[firstEnabledIndex]?.focus()
+  }, [menuItems, quickActionMenuOpen])
+
   const quickAction = readQuickAction(actionState)
   const statusMessage =
     actionState.status === 'idle' || actionState.status === 'exporting' || actionState.status === 'copying'
@@ -184,6 +233,7 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
         ? (
             <div
               ref={menuRef}
+              data-boardmark-export-ignore="true"
               className="viewer-context-menu markdown-content__fenced-block-menu"
               role="menu"
               style={alignMenuPosition(contextMenu)}
@@ -221,15 +271,64 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
             </div>
           )
         : null,
+    quickActionMenu:
+      canShowAffordance && quickActionMenuOpen
+        ? (
+            <div
+              ref={quickActionMenuRef}
+              data-boardmark-export-ignore="true"
+              className="viewer-context-menu markdown-content__fenced-block-popover"
+              role="menu"
+              onKeyDown={(event) => {
+                handleMenuKeyDown(
+                  event,
+                  menuItems,
+                  quickActionMenuItemRefs,
+                  () => setQuickActionMenuOpen(false)
+                )
+              }}
+            >
+              <div className="viewer-context-menu-section">
+                {menuItems.map((item, index) => {
+                  const Icon = item.icon
+
+                  return (
+                    <button
+                      key={item.label}
+                      ref={(button) => {
+                        quickActionMenuItemRefs.current[index] = button
+                      }}
+                      className="viewer-context-menu-item"
+                      disabled={item.disabled}
+                      onClick={() => {
+                        item.onSelect()
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <Icon
+                        aria-hidden="true"
+                        className="viewer-context-menu-icon"
+                      />
+                      <span>{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        : null,
+    quickActionTriggerRef,
     onContextMenu:
       canShowAffordance
         ? (event: ReactMouseEvent<HTMLElement>) => {
-            event.preventDefault()
-            setContextMenu({
-              x: event.clientX,
-              y: event.clientY
-            })
-          }
+          event.preventDefault()
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY
+          })
+          setQuickActionMenuOpen(false)
+        }
         : undefined,
     quickAction:
       canShowAffordance
@@ -238,14 +337,8 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
             icon: quickAction.icon,
             label: quickAction.label,
             onClick: () => {
-              void runExportImageAction({
-                imageActions,
-                kind,
-                language,
-                rootRef,
-                setActionState,
-                setContextMenu
-              })
+              setContextMenu(null)
+              setQuickActionMenuOpen((currentValue) => !currentValue)
             }
           }
         : null,
@@ -329,7 +422,7 @@ function readQuickAction(actionState: FencedBlockImageActionState): {
   if (actionState.status === 'error') {
     return {
       icon: AlertCircle,
-      label: 'Export failed'
+      label: 'Export image'
     }
   }
 
@@ -353,17 +446,20 @@ function readStatusTone(actionState: FencedBlockImageActionState) {
 
 async function runExportImageAction({
   imageActions,
+  format,
   kind,
   language,
   rootRef,
   setActionState,
-  setContextMenu
-}: ActionRunnerInput) {
+  setContextMenu,
+  setQuickActionMenuOpen
+}: ActionRunnerInput & { format: MarkdownContentImageExportFormat }) {
   if (!imageActions) {
     return
   }
 
   setContextMenu(null)
+  setQuickActionMenuOpen(false)
   setActionState({ status: 'exporting' })
 
   try {
@@ -372,7 +468,7 @@ async function runExportImageAction({
       language,
       rootRef
     })
-    const outcome = await imageActions.exportImage(result)
+    const outcome = await imageActions.exportImage(result, format)
 
     if (outcome.status === 'cancelled') {
       setActionState({ status: 'idle' })
@@ -381,7 +477,7 @@ async function runExportImageAction({
 
     setActionState({
       status: 'exported',
-      message: 'Image exported'
+      message: format === 'jpeg' ? 'JPG exported' : 'PNG exported'
     })
   } catch (error) {
     setActionState({
@@ -397,13 +493,15 @@ async function runCopyImageAction({
   language,
   rootRef,
   setActionState,
-  setContextMenu
+  setContextMenu,
+  setQuickActionMenuOpen
 }: ActionRunnerInput) {
   if (!imageActions) {
     return
   }
 
   setContextMenu(null)
+  setQuickActionMenuOpen(false)
   setActionState({ status: 'copying' })
 
   try {
@@ -429,7 +527,10 @@ async function exportImageForSurface({
   kind,
   language,
   rootRef
-}: Omit<ActionRunnerInput, 'imageActions' | 'setActionState' | 'setContextMenu'>) {
+}: Omit<
+  ActionRunnerInput,
+  'imageActions' | 'setActionState' | 'setContextMenu' | 'setQuickActionMenuOpen'
+>) {
   const rootElement = rootRef.current
 
   if (!rootElement) {

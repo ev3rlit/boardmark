@@ -450,6 +450,12 @@ button {
   margin-left: auto;
 }
 
+.markdown-content :where(.markdown-content__fenced-block-trigger) {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .markdown-content :where(.markdown-code-block__copy-button--light) {
   background: color-mix(in oklab, var(--color-surface-lowest) 62%, transparent);
   color: var(--color-on-surface-variant);
@@ -626,6 +632,14 @@ button {
 
 .markdown-content__fenced-block-menu {
   position: fixed;
+  z-index: 60;
+}
+
+.markdown-content__fenced-block-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  left: auto;
   z-index: 60;
 }
 

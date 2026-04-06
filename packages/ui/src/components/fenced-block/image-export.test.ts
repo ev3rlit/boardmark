@@ -59,6 +59,9 @@ describe('fenced block image export', () => {
   it('exports code block roots to PNG blobs with language-aware file names', async () => {
     const root = document.createElement('div')
     root.style.backgroundColor = 'rgb(43, 52, 55)'
+    const ignoredButton = document.createElement('button')
+    ignoredButton.dataset.boardmarkExportIgnore = 'true'
+    root.append(ignoredButton)
     Object.defineProperty(root, 'scrollWidth', { configurable: true, value: 420 })
     Object.defineProperty(root, 'scrollHeight', { configurable: true, value: 180 })
     root.getBoundingClientRect = () =>
@@ -88,9 +91,12 @@ describe('fenced block image export', () => {
       expect.objectContaining({
         canvasHeight: 180,
         canvasWidth: 420,
+        filter: expect.any(Function),
         width: 420
       })
     )
+    const [, options] = toBlobMock.mock.calls[0] as [HTMLElement, { filter: (node: HTMLElement) => boolean }]
+    expect(options.filter(ignoredButton)).toBe(false)
   })
 
   it('exports ready Mermaid SVG surfaces through the SVG-aware path', async () => {
@@ -112,10 +118,13 @@ describe('fenced block image export', () => {
         toJSON: () => undefined
       }) as DOMRect
 
+    const viewport = document.createElement('div')
+    viewport.className = 'mermaid-diagram__viewport'
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     svg.setAttribute('width', '320')
     svg.setAttribute('height', '200')
-    root.append(svg)
+    viewport.append(svg)
+    root.append(viewport)
 
     const result = await exportMermaidBlockImage({
       kind: 'mermaid',

@@ -5,6 +5,7 @@ export {
   MarkdownContentImageActionsProvider,
   useMarkdownContentImageActions,
   type MarkdownContentImageActions,
+  type MarkdownContentImageExportFormat,
   type MarkdownContentImageExportOutcome
 } from './components/fenced-block/image-actions-context'
 export {

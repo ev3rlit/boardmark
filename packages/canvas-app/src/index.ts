@@ -3,6 +3,7 @@ export {
   MarkdownContentImageActionsProvider,
   useMarkdownContentImageActions,
   type MarkdownContentImageActions,
+  type MarkdownContentImageExportFormat,
   type MarkdownContentImageExportOutcome,
   type FencedBlockImageExportRequest,
   type FencedBlockImageExportResult

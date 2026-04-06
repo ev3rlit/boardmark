@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderMermaidDiagram } from '../lib/mermaid-renderer'
 import { MarkdownContentImageActionsProvider } from './fenced-block/image-actions-context'
@@ -72,14 +72,12 @@ A[Start] -->`} />
   })
 
   it('shows export image affordance only after the diagram is ready', async () => {
-    const exportImageMock = vi.fn().mockResolvedValue({ status: 'saved' as const })
-
     render(
       <MarkdownContentImageActionsProvider
         actions={{
           canCopyImageToClipboard: () => true,
           copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
-          exportImage: exportImageMock
+          exportImage: vi.fn().mockResolvedValue({ status: 'saved' as const })
         }}
       >
         <MermaidDiagram source={`flowchart TD
@@ -90,6 +88,10 @@ A[Start] --> B[Ship]`} />
     expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
 
     expect(await screen.findByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
+    expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export JPG' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy image to clipboard' })).toBeInTheDocument()
   })
 
   it('hides export affordance for loading and error Mermaid states', async () => {

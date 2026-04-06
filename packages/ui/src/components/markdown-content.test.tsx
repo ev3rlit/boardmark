@@ -340,17 +340,26 @@ const shipped = true
 
     expect(await screen.findByText('const')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
+
+    expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export JPG' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy image to clipboard' })).toBeInTheDocument()
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Export JPG' }))
       await Promise.resolve()
     })
 
     expect(exportCodeBlockImageMock).toHaveBeenCalledTimes(1)
-    expect(exportImageMock).toHaveBeenCalledWith({
-      blob: expect.any(Blob),
-      fileName: 'boardmark-code-block-ts.png',
-      mimeType: 'image/png'
-    })
+    expect(exportImageMock).toHaveBeenCalledWith(
+      {
+        blob: expect.any(Blob),
+        fileName: 'boardmark-code-block-ts.png',
+        mimeType: 'image/png'
+      },
+      'jpeg'
+    )
   })
 
   it('opens image export context menu entries for supported code blocks', async () => {
@@ -372,7 +381,8 @@ const shipped = true
     fireEvent.contextMenu(container.querySelector('.markdown-code-block') as HTMLElement)
 
     expect(screen.getByRole('menuitem', { name: 'Copy image to clipboard' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Export image' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export JPG' })).toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Copy image to clipboard' }))

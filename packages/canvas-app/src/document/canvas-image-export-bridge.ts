@@ -13,7 +13,7 @@ export type CanvasImageExportError = {
 export type CanvasImageExportSaveInput = {
   bytes: Uint8Array
   fileName: string
-  mimeType: 'image/png'
+  mimeType: 'image/jpeg' | 'image/png'
 }
 
 export type CanvasImageExportBridge = {
