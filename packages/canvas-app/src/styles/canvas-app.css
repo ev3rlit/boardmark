@@ -1067,6 +1067,24 @@ button {
   position: relative;
   min-height: 0;
   flex: 1 1 auto;
+  overflow: visible;
+}
+
+.canvas-body-editor-host--wysiwyg {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-body-editor-host__toolbar-shell {
+  position: fixed;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.canvas-body-editor-host__toolbar {
+  width: max-content;
+  max-width: min(100%, 28rem);
+  pointer-events: auto;
 }
 
 .canvas-body-editor-host__textarea {
@@ -1103,13 +1121,11 @@ button {
 }
 
 .canvas-wysiwyg-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  position: static;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.35rem;
-  margin-bottom: 0.5rem;
   padding: 0.35rem;
   border-radius: 0.9rem;
   background: color-mix(in oklab, var(--color-surface-lowest) 92%, white);

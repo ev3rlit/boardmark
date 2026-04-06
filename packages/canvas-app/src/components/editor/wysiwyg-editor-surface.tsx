@@ -5,7 +5,6 @@ import type {
   CanvasEditingBlockMode,
   CanvasEditingInteractionState
 } from '@canvas-app/store/canvas-store-types'
-import { FloatingToolbar } from '@canvas-app/components/editor/floating-toolbar'
 import { createWysiwygMarkdownBridge } from '@canvas-app/components/editor/wysiwyg-markdown-bridge'
 
 type WysiwygEditorSurfaceProps = {
@@ -13,6 +12,7 @@ type WysiwygEditorSurfaceProps = {
   autoFocus?: boolean
   editable?: boolean
   markdown: string
+  onEditorChange?: (editor: Editor | null) => void
   onBlockModeChange: (mode: CanvasEditingBlockMode) => void
   onCancel: () => void
   onInteractionChange: (interaction: CanvasEditingInteractionState) => void
@@ -24,6 +24,7 @@ export function WysiwygEditorSurface({
   autoFocus = false,
   editable = true,
   markdown,
+  onEditorChange,
   onBlockModeChange,
   onCancel,
   onInteractionChange,
@@ -120,9 +121,16 @@ export function WysiwygEditorSurface({
     }
   }, [autoFocus, editor])
 
+  useEffect(() => {
+    onEditorChange?.(editor as Editor | null)
+
+    return () => {
+      onEditorChange?.(null)
+    }
+  }, [editor, onEditorChange])
+
   return (
     <div className="canvas-wysiwyg-surface">
-      <FloatingToolbar editor={editor as Editor | null} />
       {editor ? <EditorContent editor={editor} /> : null}
     </div>
   )

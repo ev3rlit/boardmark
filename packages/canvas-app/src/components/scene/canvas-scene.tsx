@@ -445,6 +445,7 @@ function CanvasNoteNode({
   onResizeCommit,
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
+  const hostAnchorRef = useRef<HTMLDivElement | null>(null)
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
@@ -459,6 +460,7 @@ function CanvasNoteNode({
   return (
     <div
       className="h-full w-full max-w-none"
+      ref={hostAnchorRef}
       onDoubleClick={() => {
         if (!data.locked) {
           startObjectEditing(id)
@@ -515,6 +517,7 @@ function CanvasNoteNode({
             onInteractionChange={setEditingInteraction}
             onMarkdownChange={updateEditingMarkdown}
             session={activeSession}
+            toolbarAnchorRef={hostAnchorRef}
           />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
@@ -544,6 +547,7 @@ function CanvasComponentNode({
   onResizeCommit,
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
+  const hostAnchorRef = useRef<HTMLDivElement | null>(null)
   const editingState = useStore(store, (state) => state.editingState)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
@@ -560,6 +564,7 @@ function CanvasComponentNode({
   return (
     <div
       className="max-w-none"
+      ref={hostAnchorRef}
       onDoubleClick={() => {
         if (!isImageNode && !data.locked) {
           startObjectEditing(id)
@@ -615,6 +620,7 @@ function CanvasComponentNode({
               onInteractionChange={setEditingInteraction}
               onMarkdownChange={updateEditingMarkdown}
               session={activeSession}
+              toolbarAnchorRef={hostAnchorRef}
             />
           ) : null}
         </div>
@@ -662,6 +668,7 @@ function CanvasMarkdownEdge({
   data,
   store
 }: EdgeProps<Edge<CanvasFlowEdgeData>> & { store: CanvasStore }) {
+  const hostAnchorRef = useRef<HTMLDivElement | null>(null)
   const edgeData = (data ?? {}) as CanvasFlowEdgeData
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
@@ -695,6 +702,7 @@ function CanvasMarkdownEdge({
       <EdgeLabelRenderer>
         <div
           className="absolute max-w-64 -translate-x-1/2 -translate-y-1/2"
+          ref={hostAnchorRef}
           style={{
             left: labelX,
             top: labelY
@@ -719,6 +727,7 @@ function CanvasMarkdownEdge({
                 onInteractionChange={setEditingInteraction}
                 onMarkdownChange={updateEditingMarkdown}
                 session={activeSession}
+                toolbarAnchorRef={hostAnchorRef}
               />
             ) : edgeData.body ? (
               <MarkdownContent
