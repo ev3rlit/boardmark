@@ -63,6 +63,162 @@ const noteSourceMap = {
   }
 } as const
 
+const DEFAULT_CAPABILITIES = {
+  canOpen: true,
+  canSave: true,
+  canPersist: true,
+  canDropDocumentImport: true,
+  canDropImageInsertion: true,
+  supportsMultiSelect: true,
+  newDocumentMode: 'reset-template' as const
+}
+
+vi.mock('@canvas-app/components/scene/canvas-scene', async () => {
+  const React = await vi.importActual<typeof import('react')>('react')
+  const { useStore } = await vi.importActual<typeof import('zustand')>('zustand')
+  const { readActiveToolMode } = await vi.importActual<typeof import('@canvas-app/store/canvas-store')>('@canvas-app/store/canvas-store')
+
+  return {
+    CanvasScene({
+      onObjectContextMenu,
+      onPaneContextMenu,
+      store
+    }: {
+      onObjectContextMenu?: (input: { x: number; y: number }) => void
+      onPaneContextMenu?: (input: { x: number; y: number }) => void
+      store: ReturnType<typeof createCanvasStore>
+    }) {
+      const nodes = useStore(store, (state) => state.nodes)
+      const edges = useStore(store, (state) => state.edges)
+      const groups = useStore(store, (state) => state.groups)
+      const editingState = useStore(store, (state) => state.editingState)
+      const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
+      const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
+      const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
+      const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
+      const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
+      const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
+      const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
+      const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
+      const activeToolMode = useStore(store, readActiveToolMode)
+
+      return (
+        <div
+          className={activeToolMode === 'pan' ? 'boardmark-flow--pan' : ''}
+          role="application"
+        >
+          <div
+            className="react-flow__pane"
+            onContextMenu={(event) => {
+              event.preventDefault()
+              onPaneContextMenu?.({
+                x: event.clientX,
+                y: event.clientY
+              })
+            }}
+          />
+          {nodes.map((node) => {
+            const isEditing = editingState.status === 'active'
+              && editingState.target.kind === 'object-body'
+              && editingState.target.objectId === node.id
+
+            return (
+              <div
+                key={node.id}
+                onClick={(event) => {
+                  if (activeToolMode === 'select') {
+                    selectNodeFromCanvas(node.id, event.shiftKey)
+                  }
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  const isNodeIncludedInCurrentSelection = selectedNodeIds.includes(node.id)
+                    || groups.some((group) =>
+                      selectedGroupIds.includes(group.id) && group.members.nodeIds.includes(node.id)
+                    )
+
+                  if (!isNodeIncludedInCurrentSelection) {
+                    selectNodeFromCanvas(node.id, event.shiftKey)
+                  }
+                  onObjectContextMenu?.({
+                    x: event.clientX,
+                    y: event.clientY
+                  })
+                }}
+                onDoubleClick={() => {
+                  if (!node.locked && node.component !== 'image') {
+                    startObjectEditing(node.id)
+                  }
+                }}
+              >
+                {isEditing ? (
+                  <div
+                    aria-label={`Edit ${node.id}`}
+                    className="nodrag nopan"
+                    contentEditable
+                    onBlur={() => {
+                      void commitInlineEditing()
+                    }}
+                    role="textbox"
+                    suppressContentEditableWarning
+                  >
+                    {editingState.draftMarkdown}
+                  </div>
+                ) : (
+                  <span>{(node.body ?? '').trim() || node.component}</span>
+                )}
+              </div>
+            )
+          })}
+          {edges.map((edge) => {
+            const isEditing = editingState.status === 'active'
+              && editingState.target.kind === 'edge-label'
+              && editingState.target.edgeId === edge.id
+
+            return (
+              <div
+                key={edge.id}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  if (!selectedEdgeIds.includes(edge.id)) {
+                    selectEdgeFromCanvas(edge.id, event.shiftKey)
+                  }
+                  onObjectContextMenu?.({
+                    x: event.clientX,
+                    y: event.clientY
+                  })
+                }}
+                onDoubleClick={() => {
+                  if (!edge.locked) {
+                    startEdgeEditing(edge.id)
+                  }
+                }}
+              >
+                {isEditing ? (
+                  <div
+                    aria-label={`Edit ${edge.id}`}
+                    className="nodrag nopan"
+                    contentEditable
+                    onBlur={() => {
+                      void commitInlineEditing()
+                    }}
+                    role="textbox"
+                    suppressContentEditableWarning
+                  >
+                    {editingState.draftMarkdown}
+                  </div>
+                ) : (
+                  <span>{(edge.body ?? '').trim()}</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+  }
+})
+
 describe('CanvasApp', () => {
   it('renders the shared shell', async () => {
     const store = createCanvasStore({
@@ -71,20 +227,14 @@ describe('CanvasApp', () => {
       templateSource: EMPTY_CANVAS_SOURCE
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: false,
-          canPersist: false,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({
+      capabilities: {
+        ...DEFAULT_CAPABILITIES,
+        canSave: false,
+        canPersist: false
+      },
+      store
+    })
 
     await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     expect(store.getState().nodes).toHaveLength(0)
@@ -114,20 +264,7 @@ describe('CanvasApp', () => {
       }
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     expect(screen.getByText(/The file changed on disk/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reload from disk' })).toBeInTheDocument()
@@ -141,20 +278,7 @@ describe('CanvasApp', () => {
       templateSource
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
@@ -166,13 +290,17 @@ describe('CanvasApp', () => {
     expect(panButton).toHaveAttribute('aria-pressed', 'false')
     expect(application).not.toHaveClass('boardmark-flow--pan')
 
-    fireEvent.keyDown(window, { code: 'Space', key: ' ' })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { code: 'Space', key: ' ' })
+    })
 
     expect(selectButton).toHaveAttribute('aria-pressed', 'false')
     expect(panButton).toHaveAttribute('aria-pressed', 'true')
     expect(application).toHaveClass('boardmark-flow--pan')
 
-    fireEvent.keyUp(window, { code: 'Space', key: ' ' })
+    await dispatchUiEvent(() => {
+      fireEvent.keyUp(window, { code: 'Space', key: ' ' })
+    })
 
     expect(selectButton).toHaveAttribute('aria-pressed', 'true')
     expect(panButton).toHaveAttribute('aria-pressed', 'false')
@@ -186,25 +314,16 @@ describe('CanvasApp', () => {
       templateSource
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pan' }))
-    fireEvent.click(noteText)
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Pan' }))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(noteText)
+    })
 
     expect(store.getState().selectedNodeIds).toEqual([])
     expect(store.getState().selectedEdgeIds).toEqual([])
@@ -217,24 +336,13 @@ describe('CanvasApp', () => {
       templateSource
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
 
-    fireEvent.contextMenu(noteText)
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(noteText)
+    })
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeInTheDocument()
@@ -253,20 +361,14 @@ describe('CanvasApp', () => {
       documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
       templateSource: EMPTY_CANVAS_SOURCE
     })
-    const { container } = render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: false,
-          canPersist: false,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    const { container } = await renderCanvasAppForTest({
+      capabilities: {
+        ...DEFAULT_CAPABILITIES,
+        canSave: false,
+        canPersist: false
+      },
+      store
+    })
 
     await waitFor(() => expect(store.getState().document?.name).toBe(EMPTY_CANVAS_DOCUMENT_NAME))
     act(() => {
@@ -289,7 +391,9 @@ describe('CanvasApp', () => {
       })
     })
 
-    fireEvent.contextMenu(readFlowPane(container))
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(readFlowPane(container))
+    })
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeEnabled()
@@ -305,26 +409,19 @@ describe('CanvasApp', () => {
       templateSource
     })
 
-    await store.getState().hydrateTemplate()
-    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await act(async () => {
+      await store.getState().hydrateTemplate()
+    })
+    act(() => {
+      store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const welcome = await screen.findByText('Boardmark Viewer')
-    fireEvent.contextMenu(welcome)
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(welcome)
+    })
 
     expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
     expect(screen.getByRole('menuitem', { name: 'Delete 2 items' })).toBeInTheDocument()
@@ -364,26 +461,19 @@ main thread
       templateSource: lockedSource
     })
 
-    await store.getState().hydrateTemplate()
-    store.getState().replaceSelectedNodes(['welcome'])
+    await act(async () => {
+      await store.getState().hydrateTemplate()
+    })
+    act(() => {
+      store.getState().replaceSelectedNodes(['welcome'])
+    })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const welcome = await screen.findByText('Boardmark Viewer')
-    fireEvent.contextMenu(welcome)
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(welcome)
+    })
 
     const state = store.getState()
     const appContext = createCanvasAppCommandContext({
@@ -458,25 +548,16 @@ main thread
     })
     const createShapeSpy = vi.spyOn(store.getState(), 'createShapeAtViewport')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Shape' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Triangle' }))
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Shape' }))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Triangle' }))
+    })
 
     expect(createShapeSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -494,24 +575,13 @@ main thread
     })
     const createFrameSpy = vi.spyOn(store.getState(), 'createFrameAtViewport')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Frame' }))
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Frame' }))
+    })
 
     expect(createFrameSpy).toHaveBeenCalled()
   })
@@ -524,28 +594,19 @@ main thread
     })
     const commitInlineEditingSpy = vi.spyOn(store.getState(), 'commitInlineEditing')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
 
-    fireEvent.doubleClick(noteText)
+    await dispatchUiEvent(() => {
+      fireEvent.doubleClick(noteText)
+    })
 
     const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
 
-    store.getState().updateEditingMarkdown('Line 1\nLine 2')
+    act(() => {
+      store.getState().updateEditingMarkdown('Line 1\nLine 2')
+    })
 
     expect(editor.tagName).not.toBe('TEXTAREA')
     expect(editor).toHaveClass('nodrag')
@@ -562,7 +623,9 @@ main thread
     expect(commitInlineEditingSpy).not.toHaveBeenCalled()
     expect(store.getState().draftSource).not.toContain('Line 1\nLine 2')
 
-    fireEvent.blur(editor)
+    await dispatchUiEvent(() => {
+      fireEvent.blur(editor)
+    })
 
     await waitFor(() => {
       expect(commitInlineEditingSpy).toHaveBeenCalledTimes(1)
@@ -580,28 +643,23 @@ main thread
     })
     const saveSpy = vi.spyOn(store.getState(), 'saveCurrentDocument')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
 
-    fireEvent.doubleClick(noteText)
-    store.getState().updateEditingMarkdown('Saved from session')
+    await dispatchUiEvent(() => {
+      fireEvent.doubleClick(noteText)
+    })
+    act(() => {
+      store.getState().updateEditingMarkdown('Saved from session')
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Save' }))
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Save' }))
+    })
 
     await waitFor(() => {
       expect(store.getState().draftSource).toContain('Saved from session')
@@ -616,20 +674,7 @@ main thread
       templateSource
     })
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
@@ -677,26 +722,15 @@ main thread
     const undoSpy = vi.spyOn(store.getState(), 'undo')
     const redoSpy = vi.spyOn(store.getState(), 'redo')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
-    fireEvent.keyDown(window, { key: 'z', metaKey: true })
-    fireEvent.keyDown(window, { key: 'Z', metaKey: true, shiftKey: true })
-    fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'z', metaKey: true })
+      fireEvent.keyDown(window, { key: 'Z', metaKey: true, shiftKey: true })
+      fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+    })
 
     expect(undoSpy).toHaveBeenCalledTimes(1)
     expect(redoSpy).toHaveBeenCalledTimes(2)
@@ -727,33 +761,40 @@ main thread
     const pasteSpy = vi.spyOn(store.getState(), 'pasteClipboard')
     const pasteInPlaceSpy = vi.spyOn(store.getState(), 'pasteClipboardInPlace')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
 
-    fireEvent.keyDown(window, { key: '=', metaKey: true })
-    fireEvent.keyDown(window, { key: '-', metaKey: true })
-    fireEvent.keyDown(window, { key: 'a', metaKey: true })
-    fireEvent.keyDown(window, { key: 'c', metaKey: true })
-    fireEvent.keyDown(window, { key: 'x', metaKey: true })
-    fireEvent.keyDown(window, { key: 'v', metaKey: true })
-    fireEvent.keyDown(window, { key: 'V', metaKey: true, shiftKey: true })
-    fireEvent.keyDown(window, { key: 'd', metaKey: true })
-    fireEvent.keyDown(window, { key: 'ArrowRight' })
-    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: '=', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: '-', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'a', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'c', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'x', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'v', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'V', metaKey: true, shiftKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'd', metaKey: true })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'ArrowRight' })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+    })
 
     expect(store.getState().viewport.zoom).toBe(0.92)
     expect(selectAllSpy).toHaveBeenCalledTimes(1)
@@ -781,37 +822,28 @@ main thread
     const pasteSpy = vi.spyOn(store.getState(), 'pasteClipboard')
     const pasteInPlaceSpy = vi.spyOn(store.getState(), 'pasteClipboardInPlace')
 
-    render(
-      <CanvasApp
-        store={store}
-        capabilities={{
-          canOpen: true,
-          canSave: true,
-          canPersist: true,
-          canDropDocumentImport: true,
-          canDropImageInsertion: true,
-          supportsMultiSelect: true,
-          newDocumentMode: 'reset-template'
-        }}
-      />
-    )
+    await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
 
-    fireEvent.doubleClick(noteText)
+    await dispatchUiEvent(() => {
+      fireEvent.doubleClick(noteText)
+    })
 
     const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
 
-    fireEvent.keyDown(editor, { key: 'z', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'y', ctrlKey: true })
-    fireEvent.keyDown(editor, { key: '=', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'a', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'c', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'x', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'v', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'V', metaKey: true, shiftKey: true })
-    fireEvent.keyDown(editor, { key: 'd', metaKey: true })
-    fireEvent.keyDown(editor, { key: 'ArrowRight' })
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(editor, { key: 'z', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'y', ctrlKey: true })
+      fireEvent.keyDown(editor, { key: '=', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'a', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'c', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'x', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'v', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'V', metaKey: true, shiftKey: true })
+      fireEvent.keyDown(editor, { key: 'd', metaKey: true })
+      fireEvent.keyDown(editor, { key: 'ArrowRight' })
+    })
 
     expect(undoSpy).not.toHaveBeenCalled()
     expect(selectAllSpy).not.toHaveBeenCalled()
@@ -842,6 +874,56 @@ function createPicker(): CanvasDocumentPicker {
       }
     })
   }
+}
+
+async function renderCanvasAppForTest({
+  capabilities = DEFAULT_CAPABILITIES,
+  store
+}: {
+  capabilities?: typeof DEFAULT_CAPABILITIES
+  store: ReturnType<typeof createCanvasStore>
+}) {
+  if (!store.getState().document) {
+    await act(async () => {
+      await store.getState().hydrateTemplate()
+    })
+  }
+
+  let view: ReturnType<typeof render> | null = null
+
+  await act(async () => {
+    view = render(
+      <CanvasApp
+        store={store}
+        capabilities={capabilities}
+      />
+    )
+
+    await Promise.resolve()
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0)
+    })
+  })
+
+  if (!view) {
+    throw new Error('Expected CanvasApp test render to produce a view.')
+  }
+
+  return view
+}
+
+async function dispatchUiEvent(action: () => void) {
+  await act(async () => {
+    action()
+    await waitForUiSettled()
+  })
+}
+
+async function waitForUiSettled() {
+  await Promise.resolve()
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0)
+  })
 }
 
 function createRepository(): CanvasDocumentRepositoryGateway {
