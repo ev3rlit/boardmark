@@ -11,6 +11,8 @@ import type {
   CanvasDocumentSourceInput
 } from '../../../../packages/canvas-repository/src/index'
 import type {
+  CanvasImageExportBridge,
+  CanvasImageExportError,
   CanvasDocumentPersistenceBridge,
   CanvasImageAssetBridge,
   CanvasImageAssetError
@@ -22,6 +24,7 @@ const IPC_CHANNELS = {
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
   saveDocument: 'boardmark/document/save',
+  saveExportedImage: 'boardmark/image-export/save',
   importImageAsset: 'boardmark/image/import',
   resolveImageSource: 'boardmark/image/resolve',
   openImageSource: 'boardmark/image/open',
@@ -32,6 +35,7 @@ const IPC_CHANNELS = {
 } as const
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
+  imageExports: CanvasImageExportBridge
   persistence: CanvasDocumentPersistenceBridge
   imageAssets: CanvasImageAssetBridge
 }
@@ -204,6 +208,14 @@ const documentBridge: DesktopDocumentBridge = {
         ipcRenderer.removeListener(eventName, listener)
         void ipcRenderer.invoke(IPC_CHANNELS.unsubscribeExternalChanges, subscriptionId)
       }
+    }
+  },
+  imageExports: {
+    saveImage(input) {
+      return ipcRenderer.invoke(
+        IPC_CHANNELS.saveExportedImage,
+        input
+      ) as Promise<AsyncResult<void, CanvasImageExportError>>
     }
   },
   imageAssets: {

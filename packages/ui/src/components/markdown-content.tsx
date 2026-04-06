@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type ComponentProps } from 'react'
+import { Suspense, useEffect, useRef, useState, type ComponentProps } from 'react'
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -10,6 +10,7 @@ import {
 } from '../code-highlight'
 import type { HighlightedCodeBlock } from '../code-highlight/adapter'
 import { extractFencedBlock } from './fenced-block/extract'
+import { useFencedBlockImageControls } from './fenced-block/image-export-controls'
 import { getFencedBlockRenderer } from './fenced-block/registry'
 
 type MarkdownContentProps = {
@@ -231,6 +232,12 @@ function CodeBlockRenderer({
 }: CodeBlockRendererProps) {
   const [result, setResult] = useState<HighlightedCodeBlock | null>(null)
   const [copyStatus, setCopyStatus] = useState<CodeBlockCopyStatus>('idle')
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const imageControls = useFencedBlockImageControls({
+    kind: 'code',
+    language,
+    rootRef
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -277,9 +284,14 @@ function CodeBlockRenderer({
   const languageLabel = readCodeBlockLanguageLabel(result, language)
   const copyAction = readCopyAction(copyStatus)
   const CopyIcon = copyAction.icon
+  const QuickActionIcon = imageControls.quickAction?.icon
 
   return (
-    <div className="markdown-code-block">
+    <div
+      ref={rootRef}
+      className="markdown-code-block"
+      onContextMenu={imageControls.onContextMenu}
+    >
       <div className="markdown-code-block__header">
         <div className="markdown-code-block__header-slot">
           {languageLabel ? (
@@ -288,6 +300,51 @@ function CodeBlockRenderer({
             </span>
           ) : null}
         </div>
+        {imageControls.statusMessage ? (
+          <span
+            className={joinClassName(
+              'markdown-code-block__action-status',
+              imageControls.statusTone === 'error'
+                ? 'markdown-code-block__action-status--error'
+                : imageControls.statusTone === 'success'
+                  ? 'markdown-code-block__action-status--success'
+                  : undefined
+            )}
+          >
+            {imageControls.statusMessage}
+          </span>
+        ) : null}
+        {imageControls.quickAction && QuickActionIcon ? (
+          <button
+            aria-label={imageControls.quickAction.label}
+            className={joinClassName(
+              'markdown-code-block__copy-button',
+              'markdown-code-block__copy-button--image',
+              imageControls.quickAction.label === 'Image exported'
+                ? 'markdown-code-block__copy-button--copied'
+                : undefined,
+              imageControls.quickAction.label === 'Export failed'
+                ? 'markdown-code-block__copy-button--error'
+                : undefined
+            )}
+            disabled={imageControls.quickAction.disabled}
+            onClick={() => {
+              imageControls.quickAction?.onClick()
+            }}
+            title={imageControls.quickAction.label}
+            type="button"
+          >
+            <QuickActionIcon
+              aria-hidden="true"
+              className={joinClassName(
+                'markdown-code-block__copy-icon',
+                imageControls.quickAction.label === 'Exporting image'
+                  ? 'markdown-code-block__copy-icon--spinning'
+                  : undefined
+              )}
+            />
+          </button>
+        ) : null}
         <button
           aria-label={copyAction.label}
           className={joinClassName(
@@ -319,6 +376,7 @@ function CodeBlockRenderer({
               )}
         </code>
       </pre>
+      {imageControls.contextMenu}
     </div>
   )
 }

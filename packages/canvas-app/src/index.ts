@@ -1,5 +1,13 @@
 export { CanvasApp, type CanvasAppCapabilities } from '@canvas-app/app/canvas-app'
 export {
+  MarkdownContentImageActionsProvider,
+  useMarkdownContentImageActions,
+  type MarkdownContentImageActions,
+  type MarkdownContentImageExportOutcome,
+  type FencedBlockImageExportRequest,
+  type FencedBlockImageExportResult
+} from '@boardmark/ui'
+export {
   EMPTY_CANVAS_DOCUMENT_NAME,
   EMPTY_CANVAS_SOURCE
 } from '@canvas-app/document/empty-canvas'
@@ -9,12 +17,18 @@ export {
   type CanvasDocumentState
 } from '@canvas-app/document/canvas-document-state'
 export {
+  type CanvasImageExportBridge,
+  type CanvasImageExportError,
+  type CanvasImageExportSaveInput
+} from '@canvas-app/document/canvas-image-export-bridge'
+export {
   type CanvasImageAssetBridge,
   type CanvasImageAssetError,
   type CanvasImageAssetImportInput,
   type CanvasImageAssetImportPayload,
   type CanvasImageAssetResolvePayload
 } from '@canvas-app/document/canvas-image-asset-bridge'
+export { createFencedBlockImageActions } from '@canvas-app/services/fenced-block-image-actions'
 export {
   type CanvasDocumentPersistenceBridge,
   type CanvasDocumentPersistencePayload,

@@ -1,10 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderMermaidDiagram } from '../lib/mermaid-renderer'
+import { MarkdownContentImageActionsProvider } from './fenced-block/image-actions-context'
 import { MermaidDiagram } from './mermaid-diagram'
+
+const { exportMermaidBlockImageMock } = vi.hoisted(() => ({
+  exportMermaidBlockImageMock: vi.fn()
+}))
 
 vi.mock('../lib/mermaid-renderer', () => ({
   renderMermaidDiagram: vi.fn()
+}))
+
+vi.mock('./fenced-block/image-export', () => ({
+  exportCodeBlockImage: vi.fn(),
+  exportMermaidBlockImage: exportMermaidBlockImageMock
 }))
 
 const renderMermaidDiagramMock = vi.mocked(renderMermaidDiagram)
@@ -12,6 +22,15 @@ const renderMermaidDiagramMock = vi.mocked(renderMermaidDiagram)
 describe('MermaidDiagram', () => {
   beforeEach(() => {
     renderMermaidDiagramMock.mockReset()
+    exportMermaidBlockImageMock.mockReset()
+    renderMermaidDiagramMock.mockResolvedValue({
+      svg: '<svg><text>diagram</text></svg>'
+    })
+    exportMermaidBlockImageMock.mockResolvedValue({
+      blob: new Blob(['png'], { type: 'image/png' }),
+      fileName: 'boardmark-mermaid-diagram.png',
+      mimeType: 'image/png'
+    })
   })
 
   it('renders svg output after loading completes', async () => {
@@ -50,5 +69,80 @@ A[Start] -->`} />
     expect(await screen.findByText('Mermaid diagram could not be rendered.')).toBeInTheDocument()
     expect(screen.getByText('Parse error on line 2')).toBeInTheDocument()
     expect(screen.getByText(/A\[Start\] -->/)).toBeInTheDocument()
+  })
+
+  it('shows export image affordance only after the diagram is ready', async () => {
+    const exportImageMock = vi.fn().mockResolvedValue({ status: 'saved' as const })
+
+    render(
+      <MarkdownContentImageActionsProvider
+        actions={{
+          canCopyImageToClipboard: () => true,
+          copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
+          exportImage: exportImageMock
+        }}
+      >
+        <MermaidDiagram source={`flowchart TD
+A[Start] --> B[Ship]`} />
+      </MarkdownContentImageActionsProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
+
+    expect(await screen.findByRole('button', { name: 'Export image' })).toBeInTheDocument()
+  })
+
+  it('hides export affordance for loading and error Mermaid states', async () => {
+    let resolveRender: ((value: { svg: string }) => void) | undefined
+
+    renderMermaidDiagramMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRender = resolve
+        })
+    )
+
+    const { rerender } = render(
+      <MarkdownContentImageActionsProvider
+        actions={{
+          canCopyImageToClipboard: () => true,
+          copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
+          exportImage: vi.fn().mockResolvedValue({ status: 'saved' as const })
+        }}
+      >
+        <MermaidDiagram source={`flowchart TD
+A[Start] --> B[Ship]`} />
+      </MarkdownContentImageActionsProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
+
+    if (!resolveRender) {
+      throw new Error('Expected loading Mermaid render to expose a resolver.')
+    }
+
+    resolveRender({
+      svg: '<svg width="320" height="200"><text>diagram</text></svg>'
+    })
+
+    expect(await screen.findByRole('button', { name: 'Export image' })).toBeInTheDocument()
+
+    renderMermaidDiagramMock.mockRejectedValueOnce(new Error('Parse error on line 2'))
+
+    rerender(
+      <MarkdownContentImageActionsProvider
+        actions={{
+          canCopyImageToClipboard: () => true,
+          copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
+          exportImage: vi.fn().mockResolvedValue({ status: 'saved' as const })
+        }}
+      >
+        <MermaidDiagram source={`flowchart TD
+A[Start] -->`} />
+      </MarkdownContentImageActionsProvider>
+    )
+
+    expect(await screen.findByText('Mermaid diagram could not be rendered.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
   })
 })

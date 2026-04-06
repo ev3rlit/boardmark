@@ -48,6 +48,14 @@ export type DocumentService = {
   saveDocument: (
     input: CanvasDocumentSaveInput
   ) => Promise<AsyncResult<CanvasDocumentRecord, CanvasDocumentRepositoryError>>
+  saveExportedImage: (
+    window: BrowserWindow,
+    input: {
+      bytes: Uint8Array
+      fileName: string
+      mimeType: 'image/png'
+    }
+  ) => Promise<AsyncResult<void, { code: string; message: string }>>
   importImageAsset: (input: {
     documentPath: string
     bytes: Uint8Array
@@ -103,6 +111,34 @@ export function createDocumentService(): DocumentService {
         (value) => ({ ok: true, value }),
         (error) => ({ ok: false, error })
       )
+    },
+
+    async saveExportedImage(window, input) {
+      const targetPathResult = await chooseImageSavePath(window, input.fileName)
+
+      if (!targetPathResult.ok) {
+        return {
+          ok: false,
+          error: targetPathResult.error
+        }
+      }
+
+      try {
+        await writeFile(targetPathResult.value, Buffer.from(input.bytes))
+
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'save-failed',
+            message: error instanceof Error ? error.message : 'Could not save the exported image.'
+          }
+        }
+      }
     },
 
     async importImageAsset(input) {
@@ -234,6 +270,43 @@ function chooseSaveLocator(
   })
 }
 
+async function chooseImageSavePath(
+  window: BrowserWindow,
+  defaultName: string
+): Promise<AsyncResult<string, { code: string; message: string }>> {
+  try {
+    const result = await dialog.showSaveDialog(window, {
+      title: 'Export Boardmark Image',
+      defaultPath: ensureImageExtension(defaultName),
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+      filters: [{ name: 'PNG image', extensions: ['png'] }]
+    })
+
+    if (result.canceled || !result.filePath) {
+      return {
+        ok: false,
+        error: {
+          code: 'cancelled',
+          message: 'The dialog was cancelled.'
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      value: ensureImageExtension(result.filePath)
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: 'save-failed',
+        message: error instanceof Error ? error.message : 'Image save dialog could not open.'
+      }
+    }
+  }
+}
+
 function chooseOpenLocator(
   window: BrowserWindow
 ): ResultAsync<CanvasFileDocumentLocator, CanvasDocumentPickerError> {
@@ -260,6 +333,10 @@ function chooseOpenLocator(
 
 function ensureCanvasExtension(path: string): string {
   return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.canvas.md`
+}
+
+function ensureImageExtension(path: string): string {
+  return path.endsWith('.png') ? path : `${path}.png`
 }
 
 function cancelledError(): CanvasDocumentPickerError {

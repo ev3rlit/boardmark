@@ -1,8 +1,16 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps, ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { highlightCodeBlockMock } = vi.hoisted(() => ({
   highlightCodeBlockMock: vi.fn()
+}))
+const {
+  exportCodeBlockImageMock,
+  exportMermaidBlockImageMock
+} = vi.hoisted(() => ({
+  exportCodeBlockImageMock: vi.fn(),
+  exportMermaidBlockImageMock: vi.fn()
 }))
 
 vi.mock('./mermaid-diagram', () => ({
@@ -16,13 +24,25 @@ vi.mock('./mermaid-diagram', () => ({
   )
 }))
 
+vi.mock('./sandpack-block', () => ({
+  SandpackBlock: ({ source }: { source: string }) => (
+    <div data-testid="sandpack-block">{source}</div>
+  )
+}))
+
 vi.mock('../code-highlight', () => ({
   highlightCodeBlock: highlightCodeBlockMock,
   resolveCodeLanguage: vi.fn(),
   resolveCodeTheme: vi.fn(() => 'vscode-dark-modern')
 }))
 
+vi.mock('./fenced-block/image-export', () => ({
+  exportCodeBlockImage: exportCodeBlockImageMock,
+  exportMermaidBlockImage: exportMermaidBlockImageMock
+}))
+
 import { MarkdownContent } from './markdown-content'
+import { MarkdownContentImageActionsProvider } from './fenced-block/image-actions-context'
 
 type Deferred<T> = {
   promise: Promise<T>
@@ -34,6 +54,8 @@ describe('MarkdownContent', () => {
 
   beforeEach(() => {
     highlightCodeBlockMock.mockReset()
+    exportCodeBlockImageMock.mockReset()
+    exportMermaidBlockImageMock.mockReset()
     writeTextMock = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
@@ -53,6 +75,11 @@ describe('MarkdownContent', () => {
         }
       ],
       theme: 'vscode-dark-modern'
+    })
+    exportCodeBlockImageMock.mockResolvedValue({
+      blob: new Blob(['png'], { type: 'image/png' }),
+      fileName: 'boardmark-code-block-ts.png',
+      mimeType: 'image/png'
     })
   })
 
@@ -296,6 +323,77 @@ const shipped = true
       'file:///tmp/mockup.png'
     )
   })
+
+  it('shows an export image quick action when image actions are provided', async () => {
+    const exportImageMock = vi.fn().mockResolvedValue({ status: 'saved' as const })
+
+    renderWithImageActions(
+      <MarkdownContent
+        content={`\`\`\`ts
+const shipped = true
+\`\`\``}
+      />,
+      {
+        exportImage: exportImageMock
+      }
+    )
+
+    expect(await screen.findByText('const')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
+      await Promise.resolve()
+    })
+
+    expect(exportCodeBlockImageMock).toHaveBeenCalledTimes(1)
+    expect(exportImageMock).toHaveBeenCalledWith({
+      blob: expect.any(Blob),
+      fileName: 'boardmark-code-block-ts.png',
+      mimeType: 'image/png'
+    })
+  })
+
+  it('opens image export context menu entries for supported code blocks', async () => {
+    const copyImageToClipboardMock = vi.fn().mockResolvedValue(undefined)
+
+    const { container } = renderWithImageActions(
+      <MarkdownContent
+        content={`\`\`\`ts
+const shipped = true
+\`\`\``}
+      />,
+      {
+        copyImageToClipboard: copyImageToClipboardMock
+      }
+    )
+
+    await screen.findByText('const')
+
+    fireEvent.contextMenu(container.querySelector('.markdown-code-block') as HTMLElement)
+
+    expect(screen.getByRole('menuitem', { name: 'Copy image to clipboard' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export image' })).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Copy image to clipboard' }))
+      await Promise.resolve()
+    })
+
+    expect(copyImageToClipboardMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not add image export affordance to unsupported fenced block renderers', async () => {
+    renderWithImageActions(
+      <MarkdownContent
+        content={`\`\`\`sandpack
+console.log('preview')
+\`\`\``}
+      />
+    )
+
+    expect(await screen.findByTestId('sandpack-block')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
+  })
 })
 
 function createDeferred<T>(): Deferred<T> {
@@ -313,4 +411,22 @@ function createDeferred<T>(): Deferred<T> {
     promise,
     resolve
   }
+}
+
+function renderWithImageActions(
+  element: ReactElement,
+  overrides?: Partial<ComponentProps<typeof MarkdownContentImageActionsProvider>['actions']>
+) {
+  return render(
+    <MarkdownContentImageActionsProvider
+      actions={{
+        canCopyImageToClipboard: () => true,
+        copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
+        exportImage: vi.fn().mockResolvedValue({ status: 'saved' as const }),
+        ...overrides
+      }}
+    >
+      {element}
+    </MarkdownContentImageActionsProvider>
+  )
 }

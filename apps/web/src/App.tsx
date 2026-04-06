@@ -1,8 +1,16 @@
-import { CanvasApp, EMPTY_CANVAS_SOURCE, createCanvasStore, type CanvasStore } from '@boardmark/canvas-app'
+import {
+  CanvasApp,
+  EMPTY_CANVAS_SOURCE,
+  MarkdownContentImageActionsProvider,
+  createCanvasStore,
+  createFencedBlockImageActions,
+  type CanvasStore
+} from '@boardmark/canvas-app'
 import { WysiwygPhase0Spike } from '@boardmark/canvas-app/components/wysiwyg-phase0/wysiwyg-phase0-spike'
 import { createBrowserDocumentBridge } from './document-bridge'
 
 const browserBridge = createBrowserDocumentBridge()
+const fencedBlockImageActions = createFencedBlockImageActions()
 
 const defaultCanvasStore = createCanvasStore({
   documentPicker: browserBridge.picker,
@@ -31,14 +39,16 @@ export function App({ store = defaultCanvasStore }: AppProps) {
     typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
   const spikeMode = searchParams?.get('spike')
 
-  if (spikeMode === 'wysiwyg-phase0') {
-    return <WysiwygPhase0Spike />
-  }
-
   return (
-    <CanvasApp
-      store={store}
-      capabilities={webCapabilities}
-    />
+    <MarkdownContentImageActionsProvider actions={fencedBlockImageActions}>
+      {spikeMode === 'wysiwyg-phase0' ? (
+        <WysiwygPhase0Spike />
+      ) : (
+        <CanvasApp
+          store={store}
+          capabilities={webCapabilities}
+        />
+      )}
+    </MarkdownContentImageActionsProvider>
   )
 }

@@ -17,6 +17,7 @@ const IPC_CHANNELS = {
   readDocument: 'boardmark/document/read',
   readDocumentSource: 'boardmark/document/read-source',
   saveDocument: 'boardmark/document/save',
+  saveExportedImage: 'boardmark/image-export/save',
   importImageAsset: 'boardmark/image/import',
   resolveImageSource: 'boardmark/image/resolve',
   openImageSource: 'boardmark/image/open',
@@ -111,6 +112,21 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.saveDocument, async (_event, input) =>
     documentService.saveDocument(input)
   )
+
+  ipcMain.handle(IPC_CHANNELS.saveExportedImage, async (_event, input) => {
+    if (!mainWindow) {
+      logger.error('Main window missing during image-export save request.')
+      return {
+        ok: false,
+        error: {
+          code: 'save-failed',
+          message: 'Main window is not ready.'
+        }
+      }
+    }
+
+    return documentService.saveExportedImage(mainWindow, input)
+  })
 
   ipcMain.handle(IPC_CHANNELS.importImageAsset, async (_event, input) =>
     documentService.importImageAsset(input)

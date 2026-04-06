@@ -446,9 +446,29 @@ button {
     transform 150ms;
 }
 
+.markdown-content :where(.markdown-code-block__copy-button--image) {
+  margin-left: auto;
+}
+
+.markdown-content :where(.markdown-code-block__copy-button--light) {
+  background: color-mix(in oklab, var(--color-surface-lowest) 62%, transparent);
+  color: var(--color-on-surface-variant);
+}
+
+.markdown-content :where(.markdown-code-block__copy-button:disabled) {
+  cursor: wait;
+  transform: none;
+  opacity: 0.8;
+}
+
 .markdown-content :where(.markdown-code-block__copy-button:hover) {
   background: color-mix(in oklab, white 12%, transparent);
   color: white;
+}
+
+.markdown-content :where(.markdown-code-block__copy-button--light:hover) {
+  background: color-mix(in oklab, var(--color-primary) 10%, white);
+  color: var(--color-on-surface);
 }
 
 .markdown-content :where(.markdown-code-block__copy-button:active) {
@@ -472,6 +492,26 @@ button {
   height: 1rem;
   width: 1rem;
   stroke-width: 2.2;
+}
+
+.markdown-content :where(.markdown-code-block__copy-icon--spinning) {
+  animation: markdown-action-spin 800ms linear infinite;
+}
+
+.markdown-content :where(.markdown-code-block__action-status) {
+  color: color-mix(in oklab, white 82%, var(--color-on-surface-variant));
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.markdown-content :where(.markdown-code-block__action-status--success) {
+  color: #9fe0b5;
+}
+
+.markdown-content :where(.markdown-code-block__action-status--error) {
+  color: #f2b1aa;
 }
 
 .markdown-content :where(.markdown-code-block__pre) {
@@ -504,6 +544,34 @@ button {
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 249, 250, 0.94)),
     color-mix(in oklab, var(--color-surface-lowest) 90%, white);
   padding: 0.95rem 1rem;
+}
+
+.markdown-content :where(.mermaid-diagram__header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.markdown-content :where(.mermaid-diagram__action-status) {
+  color: var(--color-on-surface-variant);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.markdown-content :where(.mermaid-diagram__action-status--success) {
+  color: color-mix(in oklab, #227549 72%, white);
+}
+
+.markdown-content :where(.mermaid-diagram__action-status--error) {
+  color: color-mix(in oklab, #b64a41 76%, var(--color-on-surface));
+}
+
+.markdown-content :where(.mermaid-diagram__action-status--placeholder) {
+  color: var(--color-on-surface-variant);
 }
 
 .markdown-content :where(.mermaid-diagram__viewport) {
@@ -554,6 +622,21 @@ button {
   padding: 0;
   color: inherit;
   white-space: pre-wrap;
+}
+
+.markdown-content__fenced-block-menu {
+  position: fixed;
+  z-index: 60;
+}
+
+@keyframes markdown-action-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .markdown-table-wrap {

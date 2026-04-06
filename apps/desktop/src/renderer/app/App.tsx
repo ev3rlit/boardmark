@@ -2,13 +2,17 @@ import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
 import {
   CanvasApp,
   EMPTY_CANVAS_SOURCE,
+  MarkdownContentImageActionsProvider,
   createCanvasStore,
+  createFencedBlockImageActions,
   type CanvasDocumentPersistenceBridge,
+  type CanvasImageExportBridge,
   type CanvasImageAssetBridge,
   type CanvasStore
 } from '@boardmark/canvas-app'
 
 type DesktopDocumentBridge = BoardmarkDocumentBridge & {
+  imageExports?: CanvasImageExportBridge
   persistence?: CanvasDocumentPersistenceBridge
   imageAssets?: CanvasImageAssetBridge
 }
@@ -108,8 +112,21 @@ const fallbackBridge: DesktopDocumentBridge =
               message: 'Desktop image bridge unavailable. Restart the app and try again.'
             }
           })
+        },
+        imageExports: {
+          saveImage: async () => ({
+            ok: false as const,
+            error: {
+              code: 'unsupported' as const,
+              message: 'Desktop image export bridge unavailable. Restart the app and try again.'
+            }
+          })
         }
       }
+
+const fencedBlockImageActions = createFencedBlockImageActions({
+  imageExportBridge: fallbackBridge.imageExports
+})
 
 export const defaultCanvasStore = createCanvasStore({
   documentPicker: fallbackBridge.picker,
@@ -135,9 +152,11 @@ type AppProps = {
 
 export function App({ store = defaultCanvasStore }: AppProps) {
   return (
-    <CanvasApp
-      store={store}
-      capabilities={desktopCapabilities}
-    />
+    <MarkdownContentImageActionsProvider actions={fencedBlockImageActions}>
+      <CanvasApp
+        store={store}
+        capabilities={desktopCapabilities}
+      />
+    </MarkdownContentImageActionsProvider>
   )
 }
