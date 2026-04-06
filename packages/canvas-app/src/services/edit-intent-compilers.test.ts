@@ -38,6 +38,7 @@ describe('canvas edit compiler registry', () => {
       'delete-objects',
       'duplicate-objects',
       'move-node',
+      'move-nodes',
       'nudge-objects',
       'paste-objects',
       'replace-edge-body',
@@ -71,6 +72,36 @@ describe('canvas edit compiler registry', () => {
     }
 
     expect(result.value.label).toBe(readCanvasDocumentEditLabel(intent))
+  })
+
+  it('compiles move-nodes into a single transaction with one edit per moved node', () => {
+    const record = readRecord(source)
+    const intent: CanvasDocumentEditIntent = {
+      kind: 'move-nodes',
+      moves: [
+        {
+          nodeId: 'welcome',
+          x: 140,
+          y: 160
+        },
+        {
+          nodeId: 'overview',
+          x: 420,
+          y: 180
+        }
+      ]
+    }
+    const service = createCanvasDocumentEditService()
+    const result = service.compileTransaction(source, record, intent)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.label).toBe('Move node')
+    expect(result.value.edits).toHaveLength(2)
   })
 })
 

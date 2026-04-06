@@ -429,6 +429,88 @@ describe('viewer store', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
+  it('commits batch node moves through one transaction and one history entry', async () => {
+    const repository = createRepository()
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: repository,
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMoves([
+      {
+        nodeId: 'welcome',
+        x: 140,
+        y: 160
+      },
+      {
+        nodeId: 'overview',
+        x: 420,
+        y: 180
+      }
+    ])
+
+    expect(repository.readSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: expect.stringContaining(
+          '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+        )
+      })
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: overview, at: { x: 420, y: 180, w: 320, h: 220 } }'
+    )
+    expect(store.getState().history.past).toHaveLength(1)
+  })
+
+  it('filters grouped member moves out of batch commits unless the selection is in drilldown', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMoves([
+      {
+        nodeId: 'welcome',
+        x: 140,
+        y: 160
+      },
+      {
+        nodeId: 'solo',
+        x: 820,
+        y: 160
+      }
+    ])
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 2 }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: solo, at: { x: 820, y: 160, w: 320, h: 220 }, z: 4 }'
+    )
+
+    store.getState().clearSelection()
+    store.getState().selectNodeFromCanvas('welcome', false)
+    store.getState().selectNodeFromCanvas('welcome', false)
+    await store.getState().commitNodeMoves([
+      {
+        nodeId: 'welcome',
+        x: 180,
+        y: 200
+      }
+    ])
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 180, y: 200, w: 320, h: 220 }, z: 2 }'
+    )
+  })
+
   it('records document edits in history and restores them through undo/redo', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -572,6 +654,35 @@ describe('viewer store', () => {
     expect(store.getState().invalidState.status).toBe('invalid')
     expect(store.getState().lastParsedDocument?.ast.nodes[0]?.id).toBe('welcome')
     expect(store.getState().nodes[0]?.id).toBe('welcome')
+  })
+
+  it('does not push history when a batch move produces invalid source', async () => {
+    const repository = createRepository({
+      failOnSource: 'x: NaN'
+    })
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: repository,
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    await store.getState().commitNodeMoves([
+      {
+        nodeId: 'welcome',
+        x: Number.NaN,
+        y: 120
+      },
+      {
+        nodeId: 'overview',
+        x: 420,
+        y: 180
+      }
+    ])
+
+    expect(store.getState().invalidState.status).toBe('invalid')
+    expect(store.getState().history.past).toHaveLength(0)
+    expect(store.getState().lastParsedDocument?.ast.nodes[0]?.id).toBe('welcome')
   })
 
   it('preserves the current viewport across local edit commits', async () => {
@@ -923,6 +1034,34 @@ describe('viewer store', () => {
       '::: edge { id: overview-solo, from: overview, to: solo, z: 5 }'
     )
     expect(store.getState().draftSource).not.toContain('locked: false')
+  })
+
+  it('skips locked nodes when committing batch moves', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: [],
+      nodeIds: ['overview'],
+      edgeIds: []
+    })
+    await store.getState().setSelectionLocked(true)
+
+    const lockedSource = store.getState().draftSource
+
+    await store.getState().commitNodeMoves([
+      {
+        nodeId: 'overview',
+        x: 460,
+        y: 180
+      }
+    ])
+
+    expect(store.getState().draftSource).toBe(lockedSource)
   })
 
   it('does not push history when a transaction fails during repository reparse', async () => {

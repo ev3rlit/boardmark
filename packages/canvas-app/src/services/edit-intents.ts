@@ -6,6 +6,7 @@ import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
 export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
   | { kind: 'move-node'; nodeId: string; x: number; y: number }
+  | { kind: 'move-nodes'; moves: Array<{ nodeId: string; x: number; y: number }> }
   | { kind: 'resize-node'; nodeId: string; x: number; y: number; width: number; height: number }
   | { kind: 'duplicate-objects'; nodeIds: string[]; edgeIds: string[]; offsetX: number; offsetY: number }
   | { kind: 'paste-objects'; payload: CanvasClipboardPayload; anchorX: number; anchorY: number; inPlace: boolean }
@@ -84,6 +85,7 @@ export type CanvasDocumentEditError = {
 export function readCanvasDocumentEditLabel(intent: CanvasDocumentEditIntent) {
   switch (intent.kind) {
     case 'move-node':
+    case 'move-nodes':
     case 'nudge-objects':
       return 'Move node'
     case 'arrange-objects':

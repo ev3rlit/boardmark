@@ -64,6 +64,12 @@ export type CanvasViewportSize = {
   height: number
 }
 
+export type CanvasNodeMove = {
+  nodeId: string
+  x: number
+  y: number
+}
+
 export type CanvasClipboardPayload = {
   edges: CanvasClipboardEdge[]
   groups: CanvasClipboardGroup[]
@@ -185,6 +191,7 @@ export type CanvasStoreState = {
   setLastCanvasPointer: (pointer: CanvasPointer | null) => void
   previewNodeMove: (nodeId: string, x: number, y: number) => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
+  commitNodeMoves: (moves: CanvasNodeMove[]) => Promise<void>
   previewNodeResize: (nodeId: string, geometry: {
     x: number
     y: number

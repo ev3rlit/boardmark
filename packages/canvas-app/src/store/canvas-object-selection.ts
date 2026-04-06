@@ -1,5 +1,5 @@
 import type { CanvasGroup } from '@boardmark/canvas-domain'
-import type { CanvasStoreState } from '@canvas-app/store/canvas-store-types'
+import type { CanvasNodeMove, CanvasStoreState } from '@canvas-app/store/canvas-store-types'
 
 export type CanvasSelectionSnapshot = Pick<
   CanvasStoreState,
@@ -168,6 +168,39 @@ export function isEdgeLocked(
   }
 
   return isNodeLocked(state, edge.from) || isNodeLocked(state, edge.to)
+}
+
+export function normalizeCommittedNodeMoves(
+  moves: CanvasNodeMove[],
+  state: Pick<CanvasSelectionSnapshot, 'groupSelectionState' | 'groups' | 'nodes'>
+) {
+  const normalizedMovesById = new Map<string, CanvasNodeMove>()
+
+  for (const move of moves) {
+    if (isNodeLocked(state, move.nodeId)) {
+      continue
+    }
+
+    const containingGroup = readContainingGroup(state, move.nodeId)
+
+    if (containingGroup) {
+      const isAllowedDrilldownMove =
+        state.groupSelectionState.status === 'drilldown' &&
+        state.groupSelectionState.groupId === containingGroup.id
+
+      if (!isAllowedDrilldownMove) {
+        continue
+      }
+    }
+
+    normalizedMovesById.set(move.nodeId, {
+      nodeId: move.nodeId,
+      x: Math.round(move.x),
+      y: Math.round(move.y)
+    })
+  }
+
+  return [...normalizedMovesById.values()]
 }
 
 function readClipboardSelection(state: CanvasSelectionSnapshot, includeLocked: boolean): CanvasDocumentSelection {

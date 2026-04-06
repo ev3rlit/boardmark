@@ -2,11 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { applyNodeChanges, type Node } from '@xyflow/react'
 import type { CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import {
+  applyFlowNodeGeometryDrafts,
   applyNodeChangesToStore,
   mergeFlowNodes,
   readFlowNodes
 } from '@canvas-app/components/scene/canvas-scene'
-import { normalizeTopLevelNodeSelection } from '@canvas-app/components/scene/flow/flow-selection-changes'
+import {
+  normalizeTopLevelNodeSelection,
+  readCommittedNodeMovesFromDraggedNodes
+} from '@canvas-app/components/scene/flow/flow-selection-changes'
 import type { CanvasFlowNodeData } from '@boardmark/canvas-renderer'
 
 const sourceMap = {
@@ -179,6 +183,54 @@ describe('CanvasScene', () => {
     expect(mergedFlowNodes[0]?.height).toBe(160)
   })
 
+  it('applies local resize drafts without regenerating unrelated flow nodes', () => {
+    const flowNodes = readFlowNodes([
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      },
+      {
+        id: 'overview',
+        component: 'note',
+        at: { x: 380, y: 72, w: 320, h: 220 },
+        body: 'Overview\n',
+        position: {
+          start: { line: 5, offset: 0 },
+          end: { line: 7, offset: 12 }
+        },
+        sourceMap: {
+          ...sourceMap,
+          objectRange: {
+            start: { line: 5, offset: 0 },
+            end: { line: 7, offset: 12 }
+          }
+        }
+      }
+    ])
+
+    const resizedFlowNodes = applyFlowNodeGeometryDrafts(flowNodes, {
+      welcome: {
+        x: 144,
+        y: 168,
+        width: 420,
+        height: 280
+      }
+    })
+
+    expect(resizedFlowNodes[0]?.position).toEqual({ x: 144, y: 168 })
+    expect(resizedFlowNodes[0]?.width).toBe(420)
+    expect(resizedFlowNodes[0]?.data.width).toBe(420)
+    expect(resizedFlowNodes[0]?.style?.height).toBe(280)
+    expect(resizedFlowNodes[1]).toBe(flowNodes[1])
+  })
+
   it('reconciles local drag preview nodes back to store-backed geometry', () => {
     const storeBackedFlowNodes = readFlowNodes([
       {
@@ -209,6 +261,36 @@ describe('CanvasScene', () => {
 
     expect(mergedFlowNodes[0]?.position).toEqual({ x: 80, y: 72 })
     expect(mergedFlowNodes[0]?.dragging).toBe(true)
+  })
+
+  it('reconciles local resize preview geometry back to store-backed geometry', () => {
+    const storeBackedFlowNodes = readFlowNodes([
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ])
+    const localPreviewFlowNodes = applyFlowNodeGeometryDrafts(storeBackedFlowNodes, {
+      welcome: {
+        x: 144,
+        y: 168,
+        width: 420,
+        height: 280
+      }
+    })
+
+    const mergedFlowNodes = mergeFlowNodes(storeBackedFlowNodes, localPreviewFlowNodes)
+
+    expect(mergedFlowNodes[0]?.position).toEqual({ x: 80, y: 72 })
+    expect(mergedFlowNodes[0]?.width).toBe(320)
+    expect(mergedFlowNodes[0]?.height).toBe(220)
   })
 
   it('maps component nodes into generic flow nodes with width, height, and raw body', () => {
@@ -257,5 +339,122 @@ describe('CanvasScene', () => {
       groupIds: ['ideation-group'],
       nodeIds: ['solo']
     })
+  })
+
+  it('normalizes dragged nodes into commit moves using top-level, drilldown, and lock rules', () => {
+    const groups: CanvasGroup[] = [
+      {
+        id: 'ideation-group',
+        z: 10,
+        members: {
+          nodeIds: ['welcome', 'overview']
+        },
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 5, offset: 0 }
+        },
+        sourceMap
+      }
+    ]
+    const nodes: CanvasNode[] = [
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320, h: 220 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      },
+      {
+        id: 'overview',
+        component: 'note',
+        at: { x: 380, y: 72, w: 320, h: 220 },
+        body: 'Overview\n',
+        locked: true,
+        position: {
+          start: { line: 5, offset: 0 },
+          end: { line: 7, offset: 12 }
+        },
+        sourceMap: {
+          ...sourceMap,
+          objectRange: {
+            start: { line: 5, offset: 0 },
+            end: { line: 7, offset: 12 }
+          }
+        }
+      },
+      {
+        id: 'solo',
+        component: 'note',
+        at: { x: 760, y: 72, w: 320, h: 220 },
+        body: 'Solo\n',
+        position: {
+          start: { line: 9, offset: 0 },
+          end: { line: 11, offset: 12 }
+        },
+        sourceMap: {
+          ...sourceMap,
+          objectRange: {
+            start: { line: 9, offset: 0 },
+            end: { line: 11, offset: 12 }
+          }
+        }
+      }
+    ]
+    const draggedNodes = readFlowNodes(nodes)
+
+    expect(readCommittedNodeMovesFromDraggedNodes({
+      draggedNodes: [
+        {
+          ...draggedNodes[0]!,
+          position: { x: 111.6, y: 155.2 }
+        },
+        {
+          ...draggedNodes[1]!,
+          position: { x: 420, y: 180 }
+        },
+        {
+          ...draggedNodes[2]!,
+          position: { x: 810.4, y: 166.8 }
+        }
+      ],
+      groupSelectionState: {
+        status: 'group-selected',
+        groupId: 'ideation-group'
+      },
+      groups,
+      nodes
+    })).toEqual([
+      {
+        nodeId: 'solo',
+        x: 810,
+        y: 167
+      }
+    ])
+
+    expect(readCommittedNodeMovesFromDraggedNodes({
+      draggedNodes: [
+        {
+          ...draggedNodes[0]!,
+          position: { x: 112.2, y: 156.8 }
+        }
+      ],
+      groupSelectionState: {
+        status: 'drilldown',
+        groupId: 'ideation-group',
+        nodeId: 'welcome'
+      },
+      groups,
+      nodes
+    })).toEqual([
+      {
+        nodeId: 'welcome',
+        x: 112,
+        y: 157
+      }
+    ])
   })
 })

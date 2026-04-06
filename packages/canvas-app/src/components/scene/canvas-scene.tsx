@@ -31,6 +31,8 @@ import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
 import {
+  applyFlowNodeGeometryDrafts,
+  type CanvasNodeGeometryDraft,
   mergeFlowNodes,
   readFlowEdges,
   readFlowNodes
@@ -38,7 +40,8 @@ import {
 import {
   applyEdgeChangesToStore,
   applyNodeChangesToStore,
-  filterSelectionChanges
+  filterSelectionChanges,
+  readCommittedNodeMovesFromDraggedNodes
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
@@ -57,6 +60,11 @@ type CanvasSceneProps = {
   supportsMultiSelect?: boolean
 }
 
+type ResizeCallbacks = {
+  onResizeCommit: (nodeId: string, geometry: CanvasNodeGeometryDraft) => Promise<void>
+  onResizePreview: (nodeId: string, geometry: CanvasNodeGeometryDraft) => void
+}
+
 export function CanvasScene({
   onObjectContextMenu,
   onPaneContextMenu,
@@ -72,7 +80,6 @@ export function CanvasScene({
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
-  const interactionOverrides = useStore(store, (state) => state.interactionOverrides)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const setViewportSize = useStore(store, (state) => state.setViewportSize)
@@ -80,8 +87,7 @@ export function CanvasScene({
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
   const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
   const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
-  const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
-  const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
+  const commitNodeMoves = useStore(store, (state) => state.commitNodeMoves)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
@@ -92,30 +98,76 @@ export function CanvasScene({
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
   const baseFlowNodes = useMemo(
     () =>
-      readFlowNodes(nodes, interactionOverrides, selectedNodeIds, {
+      readFlowNodes(nodes, undefined, selectedNodeIds, {
         defaultStyle,
         imageResolver: resolveImageSource
       }),
-    [nodes, interactionOverrides, selectedNodeIds, defaultStyle, resolveImageSource]
+    [nodes, selectedNodeIds, defaultStyle, resolveImageSource]
   )
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
+  const [resizeDrafts, setResizeDrafts] = useState<Record<string, CanvasNodeGeometryDraft>>({})
   const flowEdges = useMemo(() => readFlowEdges(edges, selectedEdgeIds), [edges, selectedEdgeIds])
+  const syncFlowNodesFromStore = (drafts: Record<string, CanvasNodeGeometryDraft> = resizeDrafts) => {
+    const state = store.getState()
+    const nextFlowNodes = applyFlowNodeGeometryDrafts(
+      readFlowNodes(state.nodes, undefined, state.selectedNodeIds, {
+        defaultStyle: state.document?.ast.frontmatter.defaultStyle,
+        imageResolver: state.resolveImageSource
+      }),
+      drafts
+    )
+
+    setFlowNodes((currentFlowNodes) => mergeFlowNodes(nextFlowNodes, currentFlowNodes))
+  }
+  const resizeCallbacks = useMemo<ResizeCallbacks>(
+    () => ({
+      onResizePreview(nodeId, geometry) {
+        const nextDraft = {
+          x: Math.round(geometry.x),
+          y: Math.round(geometry.y),
+          width: Math.round(geometry.width),
+          height: Math.round(geometry.height)
+        }
+
+        setResizeDrafts((currentDrafts) => ({
+          ...currentDrafts,
+          [nodeId]: nextDraft
+        }))
+        setFlowNodes((currentFlowNodes) => applyFlowNodeGeometryDrafts(currentFlowNodes, {
+          [nodeId]: nextDraft
+        }))
+      },
+      async onResizeCommit(nodeId, geometry) {
+        try {
+          await commitNodeResize(nodeId, geometry)
+        } finally {
+          setResizeDrafts({})
+          syncFlowNodesFromStore({})
+        }
+      }
+    }),
+    [commitNodeResize, store]
+  )
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       'canvas-note': (props) => (
         <CanvasNoteNode
           {...props}
+          onResizeCommit={resizeCallbacks.onResizeCommit}
+          onResizePreview={resizeCallbacks.onResizePreview}
           store={store}
         />
       ),
       'canvas-component': (props) => (
         <CanvasComponentNode
           {...props}
+          onResizeCommit={resizeCallbacks.onResizeCommit}
+          onResizePreview={resizeCallbacks.onResizePreview}
           store={store}
         />
       )
     }),
-    [store]
+    [resizeCallbacks, store]
   )
   const edgeTypes = useMemo<EdgeTypes>(
     () => ({
@@ -130,18 +182,11 @@ export function CanvasScene({
   )
 
   useEffect(() => {
-    setFlowNodes((currentFlowNodes) => mergeFlowNodes(baseFlowNodes, currentFlowNodes))
-  }, [baseFlowNodes])
-
-  const syncFlowNodesFromStore = () => {
-    const state = store.getState()
-    const nextFlowNodes = readFlowNodes(state.nodes, state.interactionOverrides, state.selectedNodeIds, {
-      defaultStyle: state.document?.ast.frontmatter.defaultStyle,
-      imageResolver: state.resolveImageSource
-    })
-
-    setFlowNodes((currentFlowNodes) => mergeFlowNodes(nextFlowNodes, currentFlowNodes))
-  }
+    setFlowNodes((currentFlowNodes) => applyFlowNodeGeometryDrafts(
+      mergeFlowNodes(baseFlowNodes, currentFlowNodes),
+      resizeDrafts
+    ))
+  }, [baseFlowNodes, resizeDrafts])
 
   useEffect(() => {
     const element = viewportRef.current
@@ -262,10 +307,21 @@ export function CanvasScene({
 
           selectEdgeFromCanvas(edge.id, event.shiftKey)
         }}
-        onNodeDragStop={(_event, node) => {
+        onNodeDragStop={(_event, node, draggedNodes) => {
           void (async () => {
-            await commitNodeMove(node.id, node.position.x, node.position.y)
-            syncFlowNodesFromStore()
+            const state = store.getState()
+            const committedMoves = readCommittedNodeMovesFromDraggedNodes({
+              draggedNodes: draggedNodes.length > 0 ? draggedNodes : [node],
+              groupSelectionState: state.groupSelectionState,
+              groups: state.groups,
+              nodes: state.nodes
+            })
+
+            try {
+              await commitNodeMoves(committedMoves)
+            } finally {
+              syncFlowNodesFromStore({})
+            }
           })()
         }}
         onNodeContextMenu={(event, node) => {
@@ -324,11 +380,16 @@ export function CanvasScene({
   )
 }
 
-function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
+function CanvasNoteNode({
+  id,
+  data,
+  selected,
+  store,
+  onResizeCommit,
+  onResizePreview
+}: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
-  const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
-  const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
@@ -362,7 +423,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
           if (!data.locked) {
-            previewNodeResize(id, {
+            onResizePreview(id, {
               x: resize.x,
               y: resize.y,
               width: resize.width,
@@ -372,7 +433,7 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
         }}
         onResizeEnd={(_event, resize) => {
           if (!data.locked) {
-            void commitNodeResize(id, {
+            void onResizeCommit(id, {
               x: resize.x,
               y: resize.y,
               width: resize.width,
@@ -426,10 +487,15 @@ function CanvasNoteNode({ id, data, selected, store }: NodeProps<Node<CanvasFlow
   )
 }
 
-function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore }) {
+function CanvasComponentNode({
+  id,
+  data,
+  selected,
+  store,
+  onResizeCommit,
+  onResizePreview
+}: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const editingState = useStore(store, (state) => state.editingState)
-  const previewNodeResize = useStore(store, (state) => state.previewNodeResize)
-  const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
@@ -466,7 +532,7 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
         lineClassName="boardmark-flow__resize-line"
         onResize={(_event, resize) => {
           if (!data.locked) {
-            previewNodeResize(id, {
+            onResizePreview(id, {
               x: resize.x,
               y: resize.y,
               width: resize.width,
@@ -476,7 +542,7 @@ function CanvasComponentNode({ id, data, selected, store }: NodeProps<Node<Canva
         }}
         onResizeEnd={(_event, resize) => {
           if (!data.locked) {
-            void commitNodeResize(id, {
+            void onResizeCommit(id, {
               x: resize.x,
               y: resize.y,
               width: resize.width,
@@ -705,5 +771,9 @@ function FallbackComponentNode({
   )
 }
 
-export { mergeFlowNodes, readFlowNodes } from '@canvas-app/components/scene/flow/flow-node-adapters'
+export {
+  applyFlowNodeGeometryDrafts,
+  mergeFlowNodes,
+  readFlowNodes
+} from '@canvas-app/components/scene/flow/flow-node-adapters'
 export { applyNodeChangesToStore } from '@canvas-app/components/scene/flow/flow-selection-changes'

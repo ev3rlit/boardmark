@@ -8,6 +8,13 @@ import {
 import type { CanvasEdge, CanvasNode } from '@boardmark/canvas-domain'
 import type { CanvasStoreState } from '@canvas-app/store/canvas-store'
 
+export type CanvasNodeGeometryDraft = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export function readFlowNodes(
   nodes: CanvasNode[],
   interactionOverrides: CanvasStoreState['interactionOverrides'] = {},
@@ -61,13 +68,64 @@ export function mergeFlowNodes(
       return nextFlowNode
     }
 
+    const preserveMeasuredSize = hasSameFlowNodeGeometry(nextFlowNode, currentFlowNode)
+
     return {
       ...nextFlowNode,
       dragging: currentFlowNode.dragging,
-      height: currentFlowNode.height,
+      height: preserveMeasuredSize ? currentFlowNode.height : nextFlowNode.height,
       measured: currentFlowNode.measured,
       resizing: currentFlowNode.resizing,
-      width: currentFlowNode.width
+      width: preserveMeasuredSize ? currentFlowNode.width : nextFlowNode.width
     }
   })
+}
+
+export function applyFlowNodeGeometryDrafts(
+  flowNodes: Node<CanvasFlowNodeData>[],
+  drafts: Record<string, CanvasNodeGeometryDraft>
+) {
+  if (Object.keys(drafts).length === 0) {
+    return flowNodes
+  }
+
+  return flowNodes.map((flowNode) => {
+    const draft = drafts[flowNode.id]
+
+    if (!draft) {
+      return flowNode
+    }
+
+    return {
+      ...flowNode,
+      position: {
+        x: draft.x,
+        y: draft.y
+      },
+      data: {
+        ...flowNode.data,
+        width: draft.width,
+        height: draft.height
+      },
+      style: {
+        ...flowNode.style,
+        width: draft.width,
+        height: draft.height
+      },
+      width: draft.width,
+      height: draft.height
+    }
+  })
+}
+
+function hasSameFlowNodeGeometry(
+  left: Node<CanvasFlowNodeData>,
+  right: Node<CanvasFlowNodeData>
+) {
+  return (
+    left.position.x === right.position.x &&
+    left.position.y === right.position.y &&
+    left.style?.width === right.style?.width &&
+    left.style?.height === right.style?.height
+  )
 }

@@ -1,6 +1,12 @@
 import type { Edge, EdgeChange, Node, NodeChange } from '@xyflow/react'
-import type { CanvasGroup } from '@boardmark/canvas-domain'
+import type { CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import type { CanvasFlowEdgeData, CanvasFlowNodeData } from '@boardmark/canvas-renderer'
+import {
+  normalizeCommittedNodeMoves
+} from '@canvas-app/store/canvas-object-selection'
+import type {
+  CanvasGroupSelectionState
+} from '@canvas-app/store/canvas-store-types'
 
 export function filterSelectionChanges<T extends { type: string }>(
   changes: T[],
@@ -118,4 +124,24 @@ export function normalizeTopLevelNodeSelection(nodeIds: string[], groups: Canvas
     groupIds: [...normalizedGroupIds],
     nodeIds: [...normalizedNodeIds]
   }
+}
+
+export function readCommittedNodeMovesFromDraggedNodes(input: {
+  draggedNodes: Node<CanvasFlowNodeData>[]
+  groupSelectionState: CanvasGroupSelectionState
+  groups: CanvasGroup[]
+  nodes: CanvasNode[]
+}) {
+  return normalizeCommittedNodeMoves(
+    input.draggedNodes.map((node) => ({
+      nodeId: node.id,
+      x: node.position.x,
+      y: node.position.y
+    })),
+    {
+      groupSelectionState: input.groupSelectionState,
+      groups: input.groups,
+      nodes: input.nodes
+    }
+  )
 }

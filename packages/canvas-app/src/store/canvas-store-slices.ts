@@ -41,6 +41,7 @@ import {
   isEdgeLocked,
   isNodeLocked,
   isTopLevelNode,
+  normalizeCommittedNodeMoves,
   readArrangeableSelection,
   readContainingGroup,
   readLockSelectionTargetIds,
@@ -447,6 +448,7 @@ export function createCanvasCommandSlice(
   | 'setLastCanvasPointer'
   | 'previewNodeMove'
   | 'commitNodeMove'
+  | 'commitNodeMoves'
   | 'previewNodeResize'
   | 'commitNodeResize'
   | 'reconnectEdge'
@@ -755,7 +757,7 @@ export function createCanvasCommandSlice(
         return
       }
 
-      clearInteractionOverride(set, get, nodeId)
+      clearInteractionOverrides(set, get, [nodeId])
       logCanvasDiagnostic('debug', 'Committing node move intent from the canvas store.', {
         nodeId,
         x,
@@ -772,6 +774,32 @@ export function createCanvasCommandSlice(
           nodeId,
           x,
           y
+        },
+        set
+      })
+    },
+
+    async commitNodeMoves(moves) {
+      const normalizedMoves = normalizeCommittedNodeMoves(moves, get())
+
+      if (normalizedMoves.length === 0) {
+        return
+      }
+
+      clearInteractionOverrides(set, get, normalizedMoves.map((move) => move.nodeId))
+      logCanvasDiagnostic('debug', 'Committing node moves intent from the canvas store.', {
+        count: normalizedMoves.length,
+        nodeIds: normalizedMoves.map((move) => move.nodeId)
+      })
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'move-nodes',
+          moves: normalizedMoves
         },
         set
       })
@@ -804,7 +832,7 @@ export function createCanvasCommandSlice(
       }
 
       const nextGeometry = readResizedGeometryForNode(get(), nodeId, geometry)
-      clearInteractionOverride(set, get, nodeId)
+      clearInteractionOverrides(set, get, [nodeId])
       logCanvasDiagnostic('debug', 'Committing node resize intent from the canvas store.', {
         nodeId,
         x: nextGeometry.x,
@@ -1887,13 +1915,27 @@ export async function reconcileCanvasExternalSource(
   })
 }
 
-function clearInteractionOverride(
+function clearInteractionOverrides(
   set: CanvasStoreSetState,
   get: CanvasStoreGetState,
-  nodeId: string
+  nodeIds: string[]
 ) {
   const overrides = { ...get().interactionOverrides }
-  delete overrides[nodeId]
+  let changed = false
+
+  for (const nodeId of nodeIds) {
+    if (!(nodeId in overrides)) {
+      continue
+    }
+
+    delete overrides[nodeId]
+    changed = true
+  }
+
+  if (!changed) {
+    return
+  }
+
   set({
     interactionOverrides: overrides
   })
