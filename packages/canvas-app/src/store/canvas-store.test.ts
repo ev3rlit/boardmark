@@ -220,6 +220,114 @@ describe('viewer store', () => {
     expect(store.getState().selectedNodeIds).toEqual([])
   })
 
+  it('opens host-backed sessions with surface metadata and flushes note drafts on debounce', async () => {
+    vi.useFakeTimers()
+
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+
+    store.getState().startNoteEditing('welcome')
+
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      surface: 'wysiwyg',
+      target: {
+        kind: 'note-body',
+        objectId: 'welcome'
+      }
+    })
+
+    store.getState().updateEditingMarkdown('Updated body')
+
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      dirty: true,
+      draftMarkdown: 'Updated body',
+      flushStatus: {
+        status: 'debouncing'
+      }
+    })
+
+    await vi.advanceTimersByTimeAsync(450)
+
+    expect(store.getState().draftSource).toContain('Updated body')
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      baselineMarkdown: 'Updated body',
+      dirty: false,
+      draftMarkdown: 'Updated body',
+      flushStatus: {
+        status: 'idle'
+      }
+    })
+
+    vi.useRealTimers()
+  })
+
+  it('restores the baseline when cancelling an active editing session', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+
+    store.getState().startEdgeEditing('welcome-overview')
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      surface: 'wysiwyg',
+      target: {
+        kind: 'edge-label',
+        edgeId: 'welcome-overview'
+      }
+    })
+    store.getState().updateEditingMarkdown('Changed connector')
+    store.getState().cancelInlineEditing()
+
+    expect(store.getState().editingState).toEqual({
+      status: 'idle'
+    })
+    expect(store.getState().draftSource).toContain('main thread')
+    expect(store.getState().draftSource).not.toContain('Changed connector')
+  })
+
+  it('opens shape sessions behind the shared host contract with textarea fallback', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: `---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: boardmark.shape.roundRect { id: shape-1, at: { x: 80, y: 72, w: 320, h: 220 } }
+Shape body
+:::`
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().startShapeEditing('shape-1')
+
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      surface: 'textarea',
+      target: {
+        kind: 'shape-body',
+        objectId: 'shape-1'
+      }
+    })
+  })
+
   it('selects all top-level objects without expanding groups', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

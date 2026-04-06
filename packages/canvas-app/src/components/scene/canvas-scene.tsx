@@ -28,7 +28,7 @@ import {
 } from '@boardmark/canvas-renderer'
 import type { BuiltInComponentKey, CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
-import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
 import {
   applyFlowNodeGeometryDrafts,
@@ -42,10 +42,13 @@ import {
   applyNodeChangesToStore,
   filterSelectionChanges
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
+import {
+  canCanvasMutateSelection,
+  isEditingEdgeLabel,
+  isEditingNodeBody
+} from '@canvas-app/store/canvas-editing-session'
 import { readUnlockedNodeSelection } from '@canvas-app/store/canvas-object-selection'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
-
-const CANVAS_EDITOR_INTERACTION_CLASS = 'nodrag nopan'
 
 type CanvasSceneProps = {
   onObjectContextMenu?: (input: {
@@ -141,6 +144,7 @@ export function CanvasScene({
   const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
   const editingState = useStore(store, (state) => state.editingState)
+  const canManipulateCanvas = canCanvasMutateSelection(editingState)
   const isPanMode = activeToolMode === 'pan'
   const viewportRef = useRef<HTMLDivElement | null>(null)
 
@@ -291,9 +295,9 @@ export function CanvasScene({
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        nodesDraggable={activeToolMode === 'select' && editingState.status === 'idle'}
-        nodesConnectable={activeToolMode === 'select' && editingState.status === 'idle'}
-        edgesReconnectable={activeToolMode === 'select' && editingState.status === 'idle'}
+        nodesDraggable={activeToolMode === 'select' && canManipulateCanvas}
+        nodesConnectable={activeToolMode === 'select' && canManipulateCanvas}
+        edgesReconnectable={activeToolMode === 'select' && canManipulateCanvas}
         elementsSelectable={activeToolMode === 'select'}
         panOnDrag={isPanMode}
         selectionOnDrag={supportsMultiSelect && activeToolMode === 'select'}
@@ -445,18 +449,15 @@ function CanvasNoteNode({
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startNoteEditing = useStore(store, (state) => state.startNoteEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
+  const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
+  const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const isEditing = editingState.status === 'note' && editingState.objectId === id
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  useEffect(() => {
-    if (!isEditing || !textareaRef.current) {
-      return
-    }
-
-    textareaRef.current.focus()
-    textareaRef.current.select()
-  }, [isEditing])
+  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
+  const isEditing = isEditingNodeBody(editingState, {
+    nodeId: id,
+    targetKind: 'note-body'
+  })
+  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
 
   return (
     <div
@@ -506,20 +507,18 @@ function CanvasNoteNode({
         color="default"
         selected={selected}
       >
-        {isEditing ? (
-          <div className={`min-h-0 flex-1 ${CANVAS_EDITOR_INTERACTION_CLASS}`}>
-            <textarea
-              ref={textareaRef}
-              aria-label={`Edit ${id}`}
-              className={`h-full min-h-0 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
-              value={editingState.markdown}
-              onChange={(event) => updateEditingMarkdown(event.target.value)}
-              onBlur={() => void commitInlineEditing()}
-              onKeyDown={(event) => {
-                handleInlineEditorKeyDown(event, commitInlineEditing)
-              }}
-            />
-          </div>
+        {activeSession ? (
+          <BodyEditorHost
+            ariaLabel={`Edit ${id}`}
+            autoFocus
+            editable={!data.locked}
+            onBlockModeChange={setEditingBlockMode}
+            onCancel={cancelInlineEditing}
+            onCommit={() => commitInlineEditing()}
+            onInteractionChange={setEditingInteraction}
+            onMarkdownChange={updateEditingMarkdown}
+            session={activeSession}
+          />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <MarkdownContent
@@ -551,19 +550,16 @@ function CanvasComponentNode({
   const editingState = useStore(store, (state) => state.editingState)
   const startShapeEditing = useStore(store, (state) => state.startShapeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
+  const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
+  const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
+  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isImageNode = data.component === 'image'
-  const isEditing = !isImageNode && editingState.status === 'shape' && editingState.objectId === id
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  useEffect(() => {
-    if (!isEditing || !textareaRef.current) {
-      return
-    }
-
-    textareaRef.current.focus()
-    textareaRef.current.select()
-  }, [isEditing])
+  const isEditing = !isImageNode && isEditingNodeBody(editingState, {
+    nodeId: id,
+    targetKind: 'shape-body'
+  })
+  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
 
   const Renderer = readBuiltInRenderer(data.component)
 
@@ -612,19 +608,21 @@ function CanvasComponentNode({
       />
       {isEditing ? (
         <div
-          className={`rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)] ${CANVAS_EDITOR_INTERACTION_CLASS}`}
+          className="rounded-[1rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] p-3 shadow-[0_16px_32px_rgba(43,52,55,0.08)]"
         >
-          <textarea
-            ref={textareaRef}
-            aria-label={`Edit ${id}`}
-            className={`min-h-18 w-full resize-none rounded-xl border border-[color:color-mix(in_oklab,var(--color-primary)_20%,transparent)] bg-transparent p-1 text-sm text-[var(--color-on-surface)] outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
-            value={editingState.markdown}
-            onChange={(event) => updateEditingMarkdown(event.target.value)}
-            onBlur={() => void commitInlineEditing()}
-            onKeyDown={(event) => {
-              handleInlineEditorKeyDown(event, commitInlineEditing)
-            }}
-          />
+          {activeSession ? (
+            <BodyEditorHost
+              ariaLabel={`Edit ${id}`}
+              autoFocus
+              editable={!data.locked}
+              onBlockModeChange={setEditingBlockMode}
+              onCancel={cancelInlineEditing}
+              onCommit={() => commitInlineEditing()}
+              onInteractionChange={setEditingInteraction}
+              onMarkdownChange={updateEditingMarkdown}
+              session={activeSession}
+            />
+          ) : null}
         </div>
       ) : Renderer ? (
         <Renderer
@@ -675,9 +673,12 @@ function CanvasMarkdownEdge({
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
+  const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
+  const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
-  const isEditing = editingState.status === 'edge' && editingState.edgeId === id
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
+  const isEditing = isEditingEdgeLabel(editingState, id)
+  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -686,15 +687,6 @@ function CanvasMarkdownEdge({
     sourcePosition,
     targetPosition
   })
-
-  useEffect(() => {
-    if (!isEditing || !textareaRef.current) {
-      return
-    }
-
-    textareaRef.current.focus()
-    textareaRef.current.select()
-  }, [isEditing])
 
   return (
     <>
@@ -715,24 +707,24 @@ function CanvasMarkdownEdge({
           }}
         >
           <div
-            className={`rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)] ${CANVAS_EDITOR_INTERACTION_CLASS}`}
+            className="rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)]"
             onDoubleClick={() => {
               if (!edgeData.locked) {
                 startEdgeEditing(id)
               }
             }}
           >
-            {isEditing ? (
-              <textarea
-                ref={textareaRef}
-                aria-label={`Edit ${id}`}
-                className={`min-h-12 w-48 resize-none bg-transparent outline-none ${CANVAS_EDITOR_INTERACTION_CLASS}`}
-                value={editingState.markdown}
-                onChange={(event) => updateEditingMarkdown(event.target.value)}
-                onBlur={() => void commitInlineEditing()}
-                onKeyDown={(event) => {
-                  handleInlineEditorKeyDown(event, commitInlineEditing)
-                }}
+            {activeSession ? (
+              <BodyEditorHost
+                ariaLabel={`Edit ${id}`}
+                autoFocus
+                editable={!edgeData.locked}
+                onBlockModeChange={setEditingBlockMode}
+                onCancel={cancelInlineEditing}
+                onCommit={() => commitInlineEditing()}
+                onInteractionChange={setEditingInteraction}
+                onMarkdownChange={updateEditingMarkdown}
+                session={activeSession}
               />
             ) : edgeData.body ? (
               <MarkdownContent
@@ -782,18 +774,6 @@ function readBuiltInRenderer(component: string) {
   }
 
   return BUILT_IN_RENDERER_COMPONENTS[component as BuiltInComponentKey]
-}
-
-function handleInlineEditorKeyDown(
-  event: React.KeyboardEvent<HTMLTextAreaElement>,
-  commitInlineEditing: () => Promise<void>
-) {
-  if (!matchesEscapeKey(event.nativeEvent)) {
-    return
-  }
-
-  event.preventDefault()
-  void commitInlineEditing()
 }
 
 function FallbackComponentNode({

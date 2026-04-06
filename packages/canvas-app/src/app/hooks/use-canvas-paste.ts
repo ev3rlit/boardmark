@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
 import {
-  insertTextAtSelection,
+  insertTextAtEditableSelection,
   isEditableTarget,
   readClipboardImageFile
 } from '@canvas-app/app/utils/canvas-app-helpers'
+import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
 import type { CanvasEditingState } from '@canvas-app/store/canvas-store-types'
 
 type UseCanvasPasteOptions = {
@@ -25,7 +26,15 @@ export function useCanvasPaste({
     const handlePaste = async (event: ClipboardEvent) => {
       const imageFile = readClipboardImageFile(event)
 
-      if (imageFile && editingState.status !== 'idle' && event.target instanceof HTMLTextAreaElement) {
+      if (
+        imageFile &&
+        isCanvasEditingActive(editingState) &&
+        isEditableTarget(event.target) &&
+        (
+          editingState.surface === 'textarea' ||
+          editingState.blockMode.status !== 'none'
+        )
+      ) {
         event.preventDefault()
         const markdown = await createMarkdownImageAsset(imageFile)
 
@@ -33,7 +42,7 @@ export function useCanvasPaste({
           return
         }
 
-        insertTextAtSelection(event.target, markdown)
+        insertTextAtEditableSelection(event.target, markdown)
         return
       }
 

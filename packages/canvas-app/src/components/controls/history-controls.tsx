@@ -1,6 +1,7 @@
 import { Redo2, Undo2 } from 'lucide-react'
 import { useStore } from 'zustand'
 import { readCanvasAppShortcutLabel } from '@canvas-app/app/canvas-app-keymap'
+import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 type HistoryControlsProps = {
@@ -12,7 +13,7 @@ export function HistoryControls({ store }: HistoryControlsProps) {
   const history = useStore(store, (state) => state.history)
   const redo = useStore(store, (state) => state.redo)
   const undo = useStore(store, (state) => state.undo)
-  const isEditing = editingState.status !== 'idle'
+  const isEditing = isCanvasEditingActive(editingState)
   const canUndo = !isEditing && history.past.length > 0
   const canRedo = !isEditing && history.future.length > 0
   const undoShortcut = readCanvasAppShortcutLabel('undo')

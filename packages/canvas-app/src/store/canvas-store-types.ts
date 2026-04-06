@@ -30,11 +30,44 @@ export type CanvasDropState =
   | { status: 'opened'; name: string }
   | { status: 'error'; message: string }
 
+export type CanvasEditingTarget =
+  | { kind: 'note-body'; objectId: string }
+  | { kind: 'shape-body'; component: string; objectId: string }
+  | { kind: 'edge-label'; edgeId: string }
+
+export type CanvasEditingSurface = 'textarea' | 'wysiwyg'
+
+export type CanvasEditingFlushState =
+  | { status: 'idle' }
+  | { status: 'debouncing' }
+  | { reason: 'auto' | 'blur' | 'explicit' | 'close' | 'file-action'; status: 'flushing' }
+
+export type CanvasEditingBlockMode =
+  | { status: 'none' }
+  | {
+      blockKind: 'mermaid' | 'sandpack'
+      status: 'special-fenced-source'
+    }
+  | { status: 'html-fallback' }
+
+export type CanvasEditingInteractionState = 'active' | 'inactive'
+
+export type CanvasEditingSessionState = {
+  baselineMarkdown: string
+  blockMode: CanvasEditingBlockMode
+  dirty: boolean
+  draftMarkdown: string
+  error: string | null
+  flushStatus: CanvasEditingFlushState
+  interaction: CanvasEditingInteractionState
+  status: 'active'
+  surface: CanvasEditingSurface
+  target: CanvasEditingTarget
+}
+
 export type CanvasEditingState =
   | { status: 'idle' }
-  | { status: 'note'; objectId: string; markdown: string }
-  | { status: 'shape'; objectId: string; markdown: string }
-  | { status: 'edge'; edgeId: string; markdown: string }
+  | CanvasEditingSessionState
 
 export type CanvasConflictState =
   | { status: 'idle' }
@@ -254,7 +287,13 @@ export type CanvasStoreState = {
   startShapeEditing: (nodeId: string) => void
   startEdgeEditing: (edgeId: string) => void
   updateEditingMarkdown: (markdown: string) => void
-  commitInlineEditing: () => Promise<void>
+  setEditingBlockMode: (blockMode: CanvasEditingBlockMode) => void
+  setEditingInteraction: (interaction: CanvasEditingInteractionState) => void
+  flushEditingSession: (options?: {
+    close?: boolean
+    reason?: 'auto' | 'blur' | 'explicit' | 'close' | 'file-action'
+  }) => Promise<boolean>
+  commitInlineEditing: () => Promise<boolean>
   cancelInlineEditing: () => void
   reloadFromDisk: () => Promise<void>
   keepLocalDraft: () => void

@@ -5,6 +5,7 @@ import { createEmptyCanvasHistoryState } from '@canvas-app/services/canvas-histo
 import type {
   CanvasClipboardState,
   CanvasDropState,
+  CanvasEditingState,
   CanvasGroupSelectionState,
   CanvasHistoryState,
   CanvasStoreState
@@ -20,6 +21,7 @@ type CanvasDocumentRecordPatchOptions = {
   selectedNodeIds?: string[]
   selectedEdgeIds?: string[]
   clipboardState?: CanvasClipboardState
+  editingState?: CanvasEditingState
   groupSelectionState?: CanvasGroupSelectionState
   history?: CanvasHistoryState
 }
@@ -57,7 +59,7 @@ export function createCanvasDocumentRecordPatch(
     lastSavedAt: options?.lastSavedAt ?? null,
     dropState: options?.dropState ?? { status: 'idle' },
     interactionOverrides: {},
-    editingState: { status: 'idle' },
+    editingState: options?.editingState ?? { status: 'idle' },
     conflictState: { status: 'idle' },
     invalidState: { status: 'valid' },
     history: options?.history ?? createEmptyCanvasHistoryState(),

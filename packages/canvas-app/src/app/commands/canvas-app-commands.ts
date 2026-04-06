@@ -1,6 +1,7 @@
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
 import type { CanvasEditingState } from '@canvas-app/store/canvas-store'
 import type { CanvasViewport } from '@boardmark/canvas-domain'
+import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
 import {
   hasDeletableSelection,
   type CanvasSelectionSnapshot
@@ -36,7 +37,7 @@ type CanvasAppCommand = {
 const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   'activate-pan-shortcut': {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       context.setPanShortcutActive(true)
@@ -52,7 +53,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   'delete-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && hasDeletableSelection(context)
+      return canCanvasMutateSelection(context.editingState) && hasDeletableSelection(context)
     },
     execute(context) {
       void context.deleteSelection()
@@ -68,7 +69,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   redo: {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       void context.redo()
@@ -76,7 +77,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   undo: {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       void context.undo()
@@ -84,7 +85,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   'zoom-in': {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       context.setViewport(applyZoomStep(context.viewport, 'in'))
@@ -92,7 +93,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
   },
   'zoom-out': {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       context.setViewport(applyZoomStep(context.viewport, 'out'))

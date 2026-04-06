@@ -25,6 +25,7 @@ import {
   selectCanvasEditingState,
   selectCanvasIsDropActive
 } from '@canvas-app/store/canvas-selectors'
+import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
 import {
   isEdgeLocked,
   isNodeLocked
@@ -279,7 +280,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     ? edges.find((edge) => edge.id === selectedEdgeIds[0])
     : undefined
   const canEditSelection =
-    editingState.status === 'idle' &&
+    canCanvasMutateSelection(editingState) &&
     selectedGroupIds.length === 0 &&
     selectedNodeIds.length + selectedEdgeIds.length === 1 &&
     (selectedNode

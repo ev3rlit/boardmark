@@ -17,6 +17,7 @@ import { getBuiltInRendererContract } from '@boardmark/canvas-renderer'
 import { useStore } from 'zustand'
 import type { BuiltInComponentKey } from '@boardmark/canvas-domain'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ToolMenuProps = {
@@ -39,7 +40,7 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
   const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false)
   const shapeMenuRef = useRef<HTMLDivElement | null>(null)
   const imageMenuRef = useRef<HTMLDivElement | null>(null)
-  const isBusy = editingState.status !== 'idle'
+  const isBusy = isCanvasEditingActive(editingState)
 
   useEffect(() => {
     if (!isShapeMenuOpen && !isImageMenuOpen) {

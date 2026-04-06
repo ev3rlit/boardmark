@@ -3,6 +3,7 @@ import type {
   CanvasEditingState
 } from '@canvas-app/store/canvas-store-types'
 import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
+import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
 import {
   hasAnySelection,
   hasArrangeableSelection,
@@ -79,7 +80,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'select-all': {
     canExecute(context) {
-      return context.editingState.status === 'idle'
+      return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
       context.selectAllObjects()
@@ -103,7 +104,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'paste-selection': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && context.clipboardState.status === 'ready'
+      return canCanvasMutateSelection(context.editingState) && context.clipboardState.status === 'ready'
     },
     execute(context) {
       void context.pasteClipboard()
@@ -111,7 +112,7 @@ const CANVAS_OBJECT_COMMANDS: Record<CanvasObjectCommandId, CanvasObjectCommand>
   },
   'paste-in-place': {
     canExecute(context) {
-      return context.editingState.status === 'idle' && context.clipboardState.status === 'ready'
+      return canCanvasMutateSelection(context.editingState) && context.clipboardState.status === 'ready'
     },
     execute(context) {
       void context.pasteClipboardInPlace()
@@ -247,5 +248,5 @@ function canNudgeSelection(context: CanvasObjectCommandContext) {
 }
 
 function canMutateSelection(context: CanvasObjectCommandContext) {
-  return context.editingState.status === 'idle'
+  return canCanvasMutateSelection(context.editingState)
 }

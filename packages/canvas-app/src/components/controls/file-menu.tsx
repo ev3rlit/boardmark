@@ -4,6 +4,7 @@ import { useStore } from 'zustand'
 import type { CanvasAppCapabilities } from '@canvas-app/app/canvas-app'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { Button } from '@canvas-app/components/primitives/button'
+import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 type FileMenuProps = {
@@ -16,6 +17,8 @@ type PendingFileAction = 'new' | 'open'
 export function FileMenu({ store, capabilities }: FileMenuProps) {
   const createNewDocument = useStore(store, (state) => state.createNewDocument)
   const document = useStore(store, (state) => state.document)
+  const editingState = useStore(store, (state) => state.editingState)
+  const flushEditingSession = useStore(store, (state) => state.flushEditingSession)
   const isDirty = useStore(store, (state) => state.isDirty)
   const openDocument = useStore(store, (state) => state.openDocument)
   const resetToTemplate = useStore(store, (state) => state.resetToTemplate)
@@ -85,6 +88,24 @@ export function FileMenu({ store, capabilities }: FileMenuProps) {
   const requestFileAction = (action: PendingFileAction) => {
     setIsOpen(false)
 
+    if (isCanvasEditingActive(store.getState().editingState)) {
+      void flushEditingSession({
+        reason: 'file-action'
+      }).then((result) => {
+        if (!result) {
+          return
+        }
+
+        if (document && isDirty) {
+          setPendingAction(action)
+          return
+        }
+
+        void runFileAction(action)
+      })
+      return
+    }
+
     if (document && isDirty) {
       setPendingAction(action)
       return
@@ -110,6 +131,18 @@ export function FileMenu({ store, capabilities }: FileMenuProps) {
 
     const action = pendingAction
     setIsResolvingPendingAction(true)
+
+    if (isCanvasEditingActive(store.getState().editingState)) {
+      const flushed = await flushEditingSession({
+        reason: 'file-action'
+      })
+
+      if (!flushed) {
+        setIsResolvingPendingAction(false)
+        return
+      }
+    }
+
     await saveCurrentDocument()
     setIsResolvingPendingAction(false)
 

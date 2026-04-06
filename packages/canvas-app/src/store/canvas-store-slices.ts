@@ -29,6 +29,8 @@ import type {
 import type { CanvasDocumentCommandResult, CanvasDocumentService } from '@canvas-app/services/canvas-document-service'
 import type { CanvasEditingOutcome, CanvasEditingService } from '@canvas-app/services/canvas-editing-service'
 import type {
+  CanvasEditingSurface,
+  CanvasEditingTarget,
   CanvasStoreGetState,
   CanvasStoreSetState,
   CanvasStoreState
@@ -131,6 +133,7 @@ function applyDocumentCommandResult({
     set(
       createCanvasDocumentRecordPatch(result.record, {
         documentState: result.documentState,
+        editingState: get().editingState,
         history: get().history,
         lastSavedAt: result.savedAt,
         saveState: {
@@ -183,7 +186,7 @@ function applyEditingOutcome({
     set({
       operationError: outcome.message
     })
-    return
+    return false
   }
 
   if (outcome.status === 'invalid') {
@@ -191,7 +194,7 @@ function applyEditingOutcome({
       message: outcome.message
     })
     set(createCanvasInvalidDocumentPatch(get(), outcome.documentState, outcome.message))
-    return
+    return false
   }
 
   logCanvasDiagnostic('debug', 'Canvas editing outcome applied to store.', {
@@ -229,6 +232,8 @@ function applyEditingOutcome({
     get,
     set
   })
+
+  return true
 }
 
 function applyConflictOutcome({
@@ -301,7 +306,7 @@ async function commitCanvasIntent({
     intent
   )
 
-  applyEditingOutcome({
+  return applyEditingOutcome({
     controls,
     documentService,
     get,
@@ -486,6 +491,9 @@ export function createCanvasCommandSlice(
   | 'startShapeEditing'
   | 'startEdgeEditing'
   | 'updateEditingMarkdown'
+  | 'setEditingBlockMode'
+  | 'setEditingInteraction'
+  | 'flushEditingSession'
   | 'commitInlineEditing'
   | 'cancelInlineEditing'
   | 'reloadFromDisk'
@@ -494,6 +502,83 @@ export function createCanvasCommandSlice(
   | 'redo'
 > {
   let droppedDocumentSequence = 0
+  let editingFlushTimer: ReturnType<typeof setTimeout> | null = null
+  let inflightEditingFlush: Promise<boolean> | null = null
+
+  const clearEditingFlushTimer = () => {
+    if (!editingFlushTimer) {
+      return
+    }
+
+    clearTimeout(editingFlushTimer)
+    editingFlushTimer = null
+  }
+
+  const startEditingSession = (input: {
+    markdown: string
+    surface: CanvasEditingSurface
+    target: CanvasEditingTarget
+  }) => {
+    clearEditingFlushTimer()
+    set({
+      editingState: {
+        status: 'active',
+        target: input.target,
+        surface: input.surface,
+        baselineMarkdown: input.markdown,
+        draftMarkdown: input.markdown,
+        dirty: false,
+        flushStatus: { status: 'idle' },
+        blockMode: { status: 'none' },
+        interaction: 'inactive',
+        error: null
+      },
+      operationError: null
+    })
+  }
+
+  const scheduleEditingFlush = () => {
+    clearEditingFlushTimer()
+
+    const editingState = get().editingState
+
+    if (editingState.status !== 'active' || !editingState.dirty) {
+      return
+    }
+
+    set({
+      editingState: {
+        ...editingState,
+        flushStatus: { status: 'debouncing' }
+      }
+    })
+
+    editingFlushTimer = setTimeout(() => {
+      editingFlushTimer = null
+      void get().flushEditingSession({
+        reason: 'auto'
+      })
+    }, 400)
+  }
+
+  const readEditingIntent = (
+    editingState: Exclude<CanvasStoreState['editingState'], { status: 'idle' }>,
+    markdown: string
+  ): CanvasDocumentEditIntent => {
+    if (editingState.target.kind === 'edge-label') {
+      return {
+        kind: 'replace-edge-body',
+        edgeId: editingState.target.edgeId,
+        markdown
+      }
+    }
+
+    return {
+      kind: 'replace-object-body',
+      objectId: editingState.target.objectId,
+      markdown
+    }
+  }
 
   return {
     async hydrateTemplate() {
@@ -575,6 +660,17 @@ export function createCanvasCommandSlice(
     },
 
     async saveCurrentDocument() {
+      const flushSucceeded = await get().flushEditingSession({
+        reason: 'file-action'
+      })
+
+      if (!flushSucceeded) {
+        set({
+          saveState: { status: 'idle' }
+        })
+        return
+      }
+
       const state = get()
 
       set({
@@ -1606,13 +1702,13 @@ export function createCanvasCommandSlice(
         return
       }
 
-      set({
-        editingState: {
-          status: 'note',
-          objectId: nodeId,
-          markdown: node.body ?? ''
-        },
-        operationError: null
+      startEditingSession({
+        markdown: node.body ?? '',
+        surface: 'wysiwyg',
+        target: {
+          kind: 'note-body',
+          objectId: nodeId
+        }
       })
     },
 
@@ -1623,13 +1719,14 @@ export function createCanvasCommandSlice(
         return
       }
 
-      set({
-        editingState: {
-          status: 'shape',
-          objectId: nodeId,
-          markdown: node.body ?? ''
-        },
-        operationError: null
+      startEditingSession({
+        markdown: node.body ?? '',
+        surface: 'textarea',
+        target: {
+          kind: 'shape-body',
+          component: node.component,
+          objectId: nodeId
+        }
       })
     },
 
@@ -1640,19 +1737,19 @@ export function createCanvasCommandSlice(
         return
       }
 
-      set({
-        editingState: {
-          status: 'edge',
-          edgeId,
-          markdown: edge.body ?? ''
-        },
-        operationError: null
+      startEditingSession({
+        markdown: edge.body ?? '',
+        surface: 'wysiwyg',
+        target: {
+          kind: 'edge-label',
+          edgeId
+        }
       })
     },
 
     updateEditingMarkdown(markdown) {
       set((state) => {
-        if (state.editingState.status === 'idle') {
+        if (state.editingState.status !== 'active') {
           return state
         }
 
@@ -1660,58 +1757,207 @@ export function createCanvasCommandSlice(
           ...state,
           editingState: {
             ...state.editingState,
-            markdown
+            draftMarkdown: markdown,
+            dirty: markdown !== state.editingState.baselineMarkdown,
+            error: null
+          }
+        }
+      })
+
+      scheduleEditingFlush()
+    },
+
+    setEditingBlockMode(blockMode) {
+      set((state) => {
+        if (state.editingState.status !== 'active') {
+          return state
+        }
+
+        return {
+          ...state,
+          editingState: {
+            ...state.editingState,
+            blockMode
           }
         }
       })
     },
 
-    async commitInlineEditing() {
-      const state = get()
+    setEditingInteraction(interaction) {
+      set((state) => {
+        if (state.editingState.status !== 'active') {
+          return state
+        }
 
-      if (state.editingState.status === 'idle') {
-        return
+        return {
+          ...state,
+          editingState: {
+            ...state.editingState,
+            interaction
+          }
+        }
+      })
+    },
+
+    async flushEditingSession(options) {
+      clearEditingFlushTimer()
+
+      if (inflightEditingFlush) {
+        const result = await inflightEditingFlush
+
+        if (result && options?.close) {
+          return get().flushEditingSession(options)
+        }
+
+        return result
       }
 
-      const intent: CanvasDocumentEditIntent =
-        state.editingState.status === 'note' || state.editingState.status === 'shape'
-          ? {
-              kind: 'replace-object-body',
-              objectId: state.editingState.objectId,
-              markdown: state.editingState.markdown
-            }
-          : {
-              kind: 'replace-edge-body',
-              edgeId: state.editingState.edgeId,
-              markdown: state.editingState.markdown
-            }
+      const state = get()
 
-      logCanvasDiagnostic('debug', 'Committing inline editing intent from the canvas store.', {
-        editingStatus: state.editingState.status,
-        targetId:
-          state.editingState.status === 'edge'
-            ? state.editingState.edgeId
-            : state.editingState.objectId,
-        markdownLength: state.editingState.markdown.length
+      if (state.editingState.status !== 'active') {
+        return true
+      }
+
+      const close = options?.close ?? false
+      const reason = options?.reason ?? (close ? 'close' : 'explicit')
+
+      if (!state.editingState.dirty) {
+        set({
+          editingState: close
+            ? { status: 'idle' }
+            : {
+                ...state.editingState,
+                error: null,
+                flushStatus: { status: 'idle' }
+              }
+        })
+        return true
+      }
+
+      const session = state.editingState
+      const flushedMarkdown = session.draftMarkdown
+
+      set({
+        editingState: {
+          ...session,
+          error: null,
+          flushStatus: {
+            status: 'flushing',
+            reason
+          }
+        },
+        operationError: null
       })
 
-      await commitCanvasIntent({
+      const nextFlush = commitCanvasIntent({
         controls,
         documentService: services.documentService,
         editingService: services.editingService,
         get,
         historyService: services.historyService,
-        intent,
+        intent: readEditingIntent(session, flushedMarkdown),
         onSuccess() {
-          set({
-            editingState: { status: 'idle' }
+          set((currentState) => {
+            if (close) {
+              return {
+                editingState: { status: 'idle' },
+                operationError: null
+              }
+            }
+
+            const currentEditingState = currentState.editingState
+
+            if (currentEditingState.status !== 'active') {
+              return {
+                editingState: {
+                  ...session,
+                  baselineMarkdown: flushedMarkdown,
+                  blockMode: { status: 'none' },
+                  dirty: false,
+                  draftMarkdown: flushedMarkdown,
+                  error: null,
+                  flushStatus: { status: 'idle' }
+                },
+                operationError: null
+              }
+            }
+
+            const hasUnflushedDraft = currentEditingState.draftMarkdown !== flushedMarkdown
+
+            return {
+              editingState: {
+                ...currentEditingState,
+                baselineMarkdown: flushedMarkdown,
+                dirty: hasUnflushedDraft,
+                error: null,
+                flushStatus: hasUnflushedDraft ? { status: 'debouncing' } : { status: 'idle' }
+              },
+              operationError: null
+            }
           })
         },
         set
+      }).then((result) => {
+        if (!result) {
+          set((currentState) => {
+            if (currentState.editingState.status !== 'active') {
+              return currentState
+            }
+
+            return {
+              ...currentState,
+              editingState: {
+                ...currentState.editingState,
+                error: currentState.operationError ?? 'Failed to flush editor changes.',
+                flushStatus: { status: 'idle' }
+              }
+            }
+          })
+          return false
+        }
+
+        return true
+      }).finally(() => {
+        inflightEditingFlush = null
+      })
+
+      inflightEditingFlush = nextFlush
+      const flushResult = await nextFlush
+
+      if (flushResult) {
+        const currentEditingState = get().editingState
+
+        if (
+          currentEditingState.status === 'active' &&
+          currentEditingState.dirty &&
+          currentEditingState.flushStatus.status === 'debouncing'
+        ) {
+          scheduleEditingFlush()
+        }
+      }
+
+      return flushResult
+    },
+
+    async commitInlineEditing() {
+      const state = get()
+
+      if (state.editingState.status === 'active') {
+        logCanvasDiagnostic('debug', 'Committing active body editor session from the canvas store.', {
+          surface: state.editingState.surface,
+          targetKind: state.editingState.target.kind,
+          markdownLength: state.editingState.draftMarkdown.length
+        })
+      }
+
+      return get().flushEditingSession({
+        close: true,
+        reason: 'close'
       })
     },
 
     cancelInlineEditing() {
+      clearEditingFlushTimer()
       set({
         editingState: { status: 'idle' }
       })

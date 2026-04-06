@@ -516,7 +516,7 @@ main thread
     expect(createFrameSpy).toHaveBeenCalled()
   })
 
-  it('keeps markdown object editing active on Enter, then commits on blur', async () => {
+  it('opens note editing through the shared WYSIWYG host and commits on blur', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: createRepository(),
@@ -543,16 +543,21 @@ main thread
 
     fireEvent.doubleClick(noteText)
 
-    const editor = (await screen.findByRole('textbox', { name: 'Edit welcome' })) as HTMLTextAreaElement
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
 
-    fireEvent.change(editor, { target: { value: 'Line 1' } })
-    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
-    fireEvent.change(editor, { target: { value: 'Line 1\nLine 2' } })
+    store.getState().updateEditingMarkdown('Line 1\nLine 2')
 
-    expect(editor).toHaveValue('Line 1\nLine 2')
+    expect(editor.tagName).not.toBe('TEXTAREA')
     expect(editor).toHaveClass('nodrag')
     expect(editor).toHaveClass('nopan')
-    expect(store.getState().editingState.status).toBe('note')
+    expect(store.getState().editingState).toMatchObject({
+      status: 'active',
+      surface: 'wysiwyg',
+      target: {
+        kind: 'note-body',
+        objectId: 'welcome'
+      }
+    })
     expect(commitInlineEditingSpy).not.toHaveBeenCalled()
     expect(store.getState().draftSource).not.toContain('Line 1\nLine 2')
 
@@ -564,6 +569,43 @@ main thread
     })
     expect(store.getState().draftSource).toContain('Line 1\nLine 2')
     expect(screen.queryByRole('textbox', { name: 'Edit welcome' })).not.toBeInTheDocument()
+  })
+
+  it('flushes an active editor session before saving', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const saveSpy = vi.spyOn(store.getState(), 'saveCurrentDocument')
+
+    render(
+      <CanvasApp
+        store={store}
+        capabilities={{
+          canOpen: true,
+          canSave: true,
+          canPersist: true,
+          canDropDocumentImport: true,
+          canDropImageInsertion: true,
+          supportsMultiSelect: true,
+          newDocumentMode: 'reset-template'
+        }}
+      />
+    )
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    fireEvent.doubleClick(noteText)
+    store.getState().updateEditingMarkdown('Saved from session')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(store.getState().draftSource).toContain('Saved from session')
+      expect(saveSpy).toHaveBeenCalled()
+    })
   })
 
   it('reflects history availability in the shared controls', async () => {

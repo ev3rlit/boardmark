@@ -37,6 +37,32 @@ export function insertTextAtSelection(target: HTMLTextAreaElement, text: string)
   target.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+export function insertTextAtEditableSelection(target: EventTarget | null, text: string) {
+  if (target instanceof HTMLTextAreaElement) {
+    insertTextAtSelection(target, text)
+    return true
+  }
+
+  if (!(target instanceof HTMLElement) || !target.isContentEditable) {
+    return false
+  }
+
+  const selection = window.getSelection()
+
+  if (!selection || selection.rangeCount === 0) {
+    return false
+  }
+
+  const range = selection.getRangeAt(0)
+  range.deleteContents()
+  range.insertNode(document.createTextNode(text))
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  target.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }))
+  return true
+}
+
 export async function pickImageFileFromDocument(rootDocument: Document) {
   if (!rootDocument.body) {
     return null
