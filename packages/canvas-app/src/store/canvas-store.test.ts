@@ -678,6 +678,56 @@ describe('viewer store', () => {
     expect(store.getState().edges).toHaveLength(1)
   })
 
+  it('records arrange selection as a single undo step', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['overview'],
+      edgeIds: ['overview-solo']
+    })
+    const previousSource = store.getState().draftSource
+
+    await store.getState().arrangeSelection('bring-to-front')
+
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().draftSource).not.toBe(previousSource)
+
+    await store.getState().undo()
+
+    expect(store.getState().draftSource).toBe(previousSource)
+  })
+
+  it('records lock selection as a single undo step', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['solo'],
+      edgeIds: ['overview-solo']
+    })
+    const previousSource = store.getState().draftSource
+
+    await store.getState().setSelectionLocked(true)
+
+    expect(store.getState().history.past).toHaveLength(1)
+    expect(store.getState().draftSource).toContain('locked: true')
+
+    await store.getState().undo()
+
+    expect(store.getState().draftSource).toBe(previousSource)
+  })
+
   it('duplicates the current selection with offset, derived edges, and a single undo step', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -873,6 +923,31 @@ describe('viewer store', () => {
       '::: edge { id: overview-solo, from: overview, to: solo, z: 5 }'
     )
     expect(store.getState().draftSource).not.toContain('locked: false')
+  })
+
+  it('does not push history when a transaction fails during repository reparse', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository({ failOnSource: 'locked: true' }),
+      templateSource: arrangeLockSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelection({
+      groupIds: ['ideation-group'],
+      nodeIds: ['solo'],
+      edgeIds: ['overview-solo']
+    })
+    const previousSource = store.getState().draftSource
+
+    await store.getState().setSelectionLocked(true)
+
+    expect(store.getState().history.past).toHaveLength(0)
+    expect(store.getState().draftSource).not.toBe(previousSource)
+    expect(store.getState().invalidState.status).toBe('invalid')
+    expect(store.getState().groups.map((group) => group.id)).toEqual(['ideation-group'])
+    expect(store.getState().nodes.map((node) => node.id)).toEqual(['welcome', 'overview', 'solo'])
+    expect(store.getState().edges.map((edge) => edge.id)).toEqual(['overview-solo'])
   })
 
   it('blocks undo and redo while conflict or invalid states are active', async () => {

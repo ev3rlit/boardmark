@@ -237,21 +237,21 @@ const shipped = true
       />
     )
 
-    const copyButton = await screen.findByRole('button', { name: 'Copy code' })
-    fireEvent.click(copyButton)
-
-    await waitFor(() => {
-      expect(writeTextMock).toHaveBeenCalledWith('const shipped = true')
-    })
-    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    const copyButton = screen.getByRole('button', { name: 'Copy code' })
 
     await act(async () => {
-      vi.advanceTimersByTime(1500)
+      fireEvent.click(copyButton)
+      await Promise.resolve()
     })
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
+    expect(writeTextMock).toHaveBeenCalledWith('const shipped = true')
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500)
     })
+
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
   })
 
   it('shows an error state when clipboard copy fails and then resets', async () => {
@@ -266,17 +266,18 @@ const shipped = true
       />
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy code' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+      await Promise.resolve()
+    })
 
-    expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy failed' })).toBeInTheDocument()
 
     await act(async () => {
-      vi.advanceTimersByTime(1500)
+      await vi.advanceTimersByTimeAsync(1500)
     })
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
-    })
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
   })
 
   it('renders local markdown images through the async image resolver', async () => {

@@ -33,7 +33,10 @@ import type {
   CanvasStoreSetState,
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
-import type { CanvasDocumentEditIntent } from '@canvas-app/services/edit-service'
+import {
+  readCanvasDocumentEditLabel,
+  type CanvasDocumentEditIntent
+} from '@canvas-app/services/edit-intents'
 import {
   isEdgeLocked,
   isNodeLocked,
@@ -285,7 +288,7 @@ async function commitCanvasIntent({
   set: CanvasStoreSetState
 }) {
   const state = get()
-  const historyEntry = historyService.captureEntry(state, readHistoryLabel(intent))
+  const historyEntry = historyService.captureEntry(state, readCanvasDocumentEditLabel(intent))
   const outcome = await editingService.applyIntent(
     {
       conflictState: state.conflictState,
@@ -1906,51 +1909,6 @@ function areSameIds(left: string[], right: string[]) {
 
 function roundGeometry(value: number) {
   return Math.round(value)
-}
-
-function readHistoryLabel(intent: CanvasDocumentEditIntent) {
-  switch (intent.kind) {
-    case 'move-node':
-    case 'nudge-objects':
-      return 'Move node'
-    case 'arrange-objects':
-      return 'Arrange selection'
-    case 'resize-node':
-      return 'Resize node'
-    case 'replace-object-body':
-      return 'Edit object'
-    case 'replace-edge-body':
-      return 'Edit connector'
-    case 'create-note':
-      return 'Create note'
-    case 'create-shape':
-      return 'Create shape'
-    case 'create-image':
-      return 'Insert image'
-    case 'duplicate-objects':
-      return 'Duplicate selection'
-    case 'paste-objects':
-      return 'Paste selection'
-    case 'replace-image-source':
-      return 'Replace image'
-    case 'update-image-metadata':
-      return 'Update image'
-    case 'set-objects-locked':
-      return intent.locked ? 'Lock selection' : 'Unlock selection'
-    case 'delete-node':
-    case 'delete-edge':
-    case 'delete-objects':
-    case 'delete-groups':
-      return 'Delete selection'
-    case 'upsert-group':
-      return 'Group selection'
-    case 'update-edge-endpoints':
-      return 'Reconnect edge'
-    case 'create-edge':
-      return 'Create edge'
-    default:
-      return 'Edit canvas'
-  }
 }
 
 function createShapeBody(label: string, props?: Record<string, unknown>) {

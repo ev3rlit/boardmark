@@ -30,9 +30,22 @@ export {
   createCanvasDocumentEditService,
   type CanvasDocumentEditError,
   type CanvasDocumentEditIntent,
-  type CanvasDocumentEditResult,
   type CanvasDocumentEditService
 } from '@canvas-app/services/edit-service'
+export {
+  createCanvasEditTransactionResolver,
+  type CanvasEditTransactionResolver,
+  type TransactionResolver
+} from '@canvas-app/services/edit-transaction-resolver'
+export type {
+  CanvasEditAnchor,
+  CanvasEditPhase,
+  CanvasEditTransaction,
+  CanvasEditUnit,
+  ResolvedCanvasEditTransaction,
+  TransactionApplyError,
+  TransactionResolveError
+} from '@canvas-app/services/edit-transaction'
 export {
   applyZoomStep,
   createCanvasStore,
