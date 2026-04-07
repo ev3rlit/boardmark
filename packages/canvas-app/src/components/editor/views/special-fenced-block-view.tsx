@@ -128,7 +128,7 @@ export function SpecialFencedBlockView(
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              className="canvas-wysiwyg-special-block__textarea nodrag nopan"
+              className="canvas-wysiwyg-special-block__textarea nodrag nopan nowheel"
               data-1p-ignore="true"
               data-bwignore="true"
               data-form-type="other"

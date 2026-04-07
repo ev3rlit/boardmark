@@ -1119,10 +1119,16 @@ button {
   position: relative;
   min-height: 0;
   flex: 1 1 auto;
+  overflow: auto;
+  font: inherit;
+  line-height: 1.6;
 }
 
 .canvas-wysiwyg-surface__content {
   min-height: 100%;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
   outline: none;
 }
 

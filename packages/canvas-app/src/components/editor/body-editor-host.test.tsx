@@ -127,6 +127,31 @@ describe('BodyEditorHost', () => {
     expect(screen.getByRole('textbox', { name: 'Edit welcome' }).tagName).toBe('TEXTAREA')
   })
 
+  it('keeps wheel events inside the editor host', async () => {
+    const onWheel = vi.fn()
+
+    render(
+      <div onWheel={onWheel}>
+        <BodyEditorHost
+          ariaLabel="Edit welcome"
+          editable
+          onBlockModeChange={() => undefined}
+          onCancel={() => undefined}
+          onCommit={async () => undefined}
+          onInteractionChange={() => undefined}
+          onMarkdownChange={() => undefined}
+          session={ACTIVE_WYSIWYG_SESSION}
+          toolbarAnchorRef={createDefaultAnchorRef()}
+        />
+      </div>
+    )
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+    fireEvent.wheel(editor)
+
+    expect(onWheel).not.toHaveBeenCalled()
+  })
+
   it('flips the toolbar below the object when there is not enough room above', async () => {
     const anchorRef = createAnchorRef({
       bottom: 60,

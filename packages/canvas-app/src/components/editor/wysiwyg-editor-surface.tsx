@@ -43,7 +43,7 @@ export function WysiwygEditorSurface({
     editorProps: {
       attributes: {
         'aria-label': ariaLabel,
-        class: 'markdown-content canvas-wysiwyg-surface__content nodrag nopan',
+        class: 'markdown-content canvas-wysiwyg-surface__content nodrag nopan nowheel',
         role: 'textbox'
       },
       handleClick(_view, _pos, event) {
@@ -130,7 +130,12 @@ export function WysiwygEditorSurface({
   }, [editor, onEditorChange])
 
   return (
-    <div className="canvas-wysiwyg-surface">
+    <div
+      className="canvas-wysiwyg-surface nowheel"
+      onWheelCapture={(event) => {
+        event.stopPropagation()
+      }}
+    >
       {editor ? <EditorContent editor={editor} /> : null}
     </div>
   )

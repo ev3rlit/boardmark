@@ -520,7 +520,12 @@ function CanvasNoteNode({
             toolbarAnchorRef={hostAnchorRef}
           />
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div
+            className="min-h-0 flex-1 overflow-auto nowheel"
+            onWheelCapture={(event) => {
+              event.stopPropagation()
+            }}
+          >
             <MarkdownContent
               className="markdown-content note-markdown"
               content={data.body ?? ''}
@@ -730,11 +735,18 @@ function CanvasMarkdownEdge({
                 toolbarAnchorRef={hostAnchorRef}
               />
             ) : edgeData.body ? (
-              <MarkdownContent
-                className="markdown-content edge-markdown"
-                content={edgeData.body}
-                imageResolver={resolveImageSource}
-              />
+              <div
+                className="nowheel"
+                onWheelCapture={(event) => {
+                  event.stopPropagation()
+                }}
+              >
+                <MarkdownContent
+                  className="markdown-content edge-markdown"
+                  content={edgeData.body}
+                  imageResolver={resolveImageSource}
+                />
+              </div>
             ) : (
               <span className="text-xs text-[var(--color-on-surface-variant)]">Double-click to label</span>
             )}

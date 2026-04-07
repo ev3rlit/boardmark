@@ -129,7 +129,7 @@ describe('WysiwygMarkdownBridge', () => {
 
     await waitFor(() => {
       expect(codeMarkdown).toHaveFocus()
-      expect(codeMarkdown.selectionStart).toBe(4)
+      expect(codeMarkdown.selectionStart).toBe(3)
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
     })

@@ -18,7 +18,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
   })
 
   useAutoSizeTextarea(textareaRef, rawMarkdown)
-  useAutoFocusSelectedCodeBlock(textareaRef, props.selected, openingFence.length + 1)
+  useAutoFocusSelectedCodeBlock(textareaRef, props.selected, openingFence.length)
 
   return (
     <NodeViewWrapper className="canvas-wysiwyg-code-block nodrag nopan">
@@ -29,7 +29,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
-          className="canvas-wysiwyg-code-block__textarea nodrag nopan"
+          className="canvas-wysiwyg-code-block__textarea nodrag nopan nowheel"
           data-1p-ignore="true"
           data-bwignore="true"
           data-form-type="other"

@@ -23,7 +23,7 @@ export function HtmlFallbackBlockView(
         autoCapitalize="off"
         autoComplete="off"
         autoCorrect="off"
-        className="canvas-wysiwyg-html-block__textarea nodrag nopan"
+        className="canvas-wysiwyg-html-block__textarea nodrag nopan nowheel"
         data-1p-ignore="true"
         data-bwignore="true"
         data-form-type="other"

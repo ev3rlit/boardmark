@@ -72,6 +72,9 @@ export function BodyEditorHost({
         'canvas-body-editor-host',
         session.surface === 'wysiwyg' ? 'canvas-body-editor-host--wysiwyg' : ''
       ].join(' ').trim()}
+      onWheelCapture={(event) => {
+        event.stopPropagation()
+      }}
       onBlurCapture={(event) => {
         const nextTarget = event.relatedTarget
 
@@ -110,7 +113,7 @@ export function BodyEditorHost({
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
-          className="canvas-body-editor-host__textarea nodrag nopan"
+          className="canvas-body-editor-host__textarea nodrag nopan nowheel"
           data-1p-ignore="true"
           data-bwignore="true"
           data-form-type="other"
