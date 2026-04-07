@@ -35,6 +35,7 @@ export function CodeBlockNodeView(props: NodeViewProps) {
           data-form-type="other"
           data-lpignore="true"
           spellCheck={false}
+          rows={Math.max(rawMarkdown.split(/\r\n|\r|\n/).length, 3)}
           value={rawMarkdown}
           onChange={(event) => {
             props.updateAttributes(parseRawFencedMarkdown(event.target.value))

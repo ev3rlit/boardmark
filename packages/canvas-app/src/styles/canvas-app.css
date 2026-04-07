@@ -1111,8 +1111,8 @@ button {
   color: var(--color-on-surface);
   outline: none;
   padding: 0.5rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  line-height: 1.65;
 }
 
 .canvas-wysiwyg-surface {
@@ -1120,8 +1120,8 @@ button {
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
-  font: inherit;
-  line-height: 1.6;
+  font-size: 0.95rem;
+  line-height: 1.65;
 }
 
 .canvas-wysiwyg-surface__content {

@@ -2,7 +2,7 @@ import { Editor, Node, mergeAttributes, type AnyExtension, type JSONContent } fr
 import Link from '@tiptap/extension-link'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
@@ -203,39 +203,54 @@ const WysiwygCodeBlock = Node.create({
       closingFence: String(node.attrs?.closingFence ?? '```')
     })}\n`
   },
-  addKeyboardShortcuts() {
-    return {
-      Enter: () => {
-        const { selection } = this.editor.state
-        const { $from, empty } = selection
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (!transactions.some((transaction) => transaction.docChanged)) {
+            return null
+          }
 
-        if (!empty || $from.parent.type.name !== 'paragraph') {
-          return false
-        }
+          const { selection } = newState
+          const { $from, empty } = selection
 
-        const language = readOpeningCodeFenceLanguage($from.parent.textContent)
+          if (!empty || $from.parent.type.name !== 'paragraph') {
+            return null
+          }
 
-        if (language === null || $from.parentOffset !== $from.parent.content.size) {
-          return false
-        }
+          const language = readOpeningCodeFenceLanguage($from.parent.textContent)
 
-        const insertPosition = $from.before()
+          if (language === null || $from.parentOffset !== $from.parent.content.size) {
+            return null
+          }
 
-        return this.editor.commands.command(({ tr }) => {
-          tr.replaceRangeWith(
+          const insertPosition = $from.before()
+          const specialNodeType = newState.schema.nodes.wysiwygSpecialFencedBlock
+          const replacementNode = language === 'mermaid' || language === 'sandpack'
+            ? specialNodeType?.create({
+                kind: language,
+                source: ''
+              })
+            : this.type.create({
+                openingFence: `\`\`\`${language}`,
+                source: '',
+                closingFence: '```'
+              })
+
+          if (!replacementNode) {
+            return null
+          }
+
+          const transaction = newState.tr.replaceRangeWith(
             insertPosition,
             $from.after(),
-            this.type.create({
-              openingFence: `\`\`\`${language}`,
-              source: '',
-              closingFence: '```'
-            })
+            replacementNode
           )
-          tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
-          return true
-        })
-      }
-    }
+          transaction.setSelection(NodeSelection.create(transaction.doc, insertPosition))
+          return transaction
+        }
+      })
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockNodeView)

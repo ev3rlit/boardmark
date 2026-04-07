@@ -118,18 +118,30 @@ describe('WysiwygMarkdownBridge', () => {
     })
   })
 
-  it('promotes ``` + Enter into a structured code block and treats the full fence as editable text', async () => {
-    render(<SurfaceHarness markdown="```" />)
+  it('promotes ``` into a structured code block as soon as the paragraph matches an opening fence', () => {
+    const editor = createTransientWysiwygEditor('')
 
-    const editor = await screen.findByRole('textbox', { name: 'Surface editor' })
-    fireEvent.focus(editor)
-    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+    try {
+      editor.commands.insertContent('```')
+
+      expect(editor.state.doc.firstChild?.type.name).toBe('wysiwygCodeBlock')
+      expect(editor.getMarkdown()).toContain('```')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('renders a new code block with full fence height and editable raw markdown', async () => {
+    render(<SurfaceHarness markdown={'```\n\n```'} />)
 
     const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    fireEvent.focus(codeMarkdown)
 
     await waitFor(() => {
       expect(codeMarkdown).toHaveFocus()
       expect(codeMarkdown.selectionStart).toBe(3)
+      expect(codeMarkdown.rows).toBeGreaterThanOrEqual(3)
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
     })
@@ -144,6 +156,42 @@ describe('WysiwygMarkdownBridge', () => {
       expect(screen.getByTestId('markdown-value').textContent).toContain('~~~tsx')
       expect(screen.getByTestId('markdown-value').textContent).toContain('const ready = true')
       expect(screen.getByTestId('markdown-value').textContent).toContain('\n~~~\n')
+    })
+  })
+
+  it('keeps focus inside an existing raw code block when completing special fence names', async () => {
+    const { rerender } = render(<SurfaceHarness markdown={'```sandpac\n\n```'} />)
+
+    const sandpackBlock = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    fireEvent.focus(sandpackBlock)
+    fireEvent.change(sandpackBlock, {
+      target: {
+        value: '```sandpack\n\n```'
+      }
+    })
+
+    await waitFor(() => {
+      expect(sandpackBlock).toHaveFocus()
+      expect(screen.queryByRole('textbox', { name: 'sandpack source' })).toBeNull()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```sandpack')
+    })
+
+    rerender(<SurfaceHarness markdown={'```mermai\n\n```'} />)
+
+    const mermaidBlock = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    fireEvent.focus(mermaidBlock)
+    fireEvent.change(mermaidBlock, {
+      target: {
+        value: '```mermaid\n\n```'
+      }
+    })
+
+    await waitFor(() => {
+      expect(mermaidBlock).toHaveFocus()
+      expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```mermaid')
     })
   })
 
