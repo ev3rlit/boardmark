@@ -20,10 +20,17 @@ import {
 
 type WysiwygNavigationMeta =
   | { type: 'clear-source-entry' }
-  | { position: number; type: 'request-source-entry' }
+  | {
+      caretPlacement: 'end' | 'start'
+      position: number
+      type: 'request-source-entry'
+    }
 
 type WysiwygNavigationState = {
-  pendingSourceEntry: number | null
+  pendingSourceEntry: null | {
+    caretPlacement: 'end' | 'start'
+    position: number
+  }
 }
 
 type WysiwygEditorNavigationCallbacks = {
@@ -53,7 +60,7 @@ export const WysiwygEditorNavigation = Extension.create<{
 })
 
 export function clearPendingSourceEntry(view: EditorView) {
-  if (readPendingSourceEntryPosition(view.state) === null) {
+  if (readPendingSourceEntry(view.state) === null) {
     return
   }
 
@@ -90,11 +97,20 @@ export function moveVerticalSelection(
 }
 
 export function readPendingSourceEntryPosition(state: EditorState) {
+  return readPendingSourceEntry(state)?.position ?? null
+}
+
+export function readPendingSourceEntry(state: EditorState) {
   return wysiwygEditorNavigationPluginKey.getState(state)?.pendingSourceEntry ?? null
 }
 
-export function requestPendingSourceEntry(transaction: Transaction, position: number) {
+export function requestPendingSourceEntry(
+  transaction: Transaction,
+  position: number,
+  caretPlacement: 'end' | 'start' = 'start'
+) {
   setNavigationMeta(transaction, {
+    caretPlacement,
     position,
     type: 'request-source-entry'
   })
@@ -104,7 +120,7 @@ export function requestPendingSourceEntry(transaction: Transaction, position: nu
 export function requestSourceEntryForNode(view: EditorView, position: number) {
   const transaction = view.state.tr
   transaction.setSelection(NodeSelection.create(transaction.doc, position))
-  requestPendingSourceEntry(transaction, position)
+  requestPendingSourceEntry(transaction, position, 'start')
   view.dispatch(transaction)
 }
 
@@ -122,7 +138,10 @@ function createWysiwygEditorNavigationPlugin(
         let pendingSourceEntry = pluginState.pendingSourceEntry
 
         if (meta?.type === 'request-source-entry') {
-          pendingSourceEntry = meta.position
+          pendingSourceEntry = {
+            caretPlacement: meta.caretPlacement,
+            position: meta.position
+          }
         }
 
         if (meta?.type === 'clear-source-entry') {
@@ -131,7 +150,7 @@ function createWysiwygEditorNavigationPlugin(
 
         if (
           pendingSourceEntry !== null
-          && !isNodeSelectionAtPosition(transaction.selection, pendingSourceEntry)
+          && !isNodeSelectionAtPosition(transaction.selection, pendingSourceEntry.position)
         ) {
           pendingSourceEntry = null
         }
@@ -203,7 +222,11 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
 
   const transaction = view.state.tr
   transaction.setSelection(NodeSelection.create(transaction.doc, adjacentBlock.position))
-  requestPendingSourceEntry(transaction, adjacentBlock.position)
+  requestPendingSourceEntry(
+    transaction,
+    adjacentBlock.position,
+    direction === 'up' ? 'end' : 'start'
+  )
   view.dispatch(transaction)
   return true
 }

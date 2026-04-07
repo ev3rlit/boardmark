@@ -337,6 +337,37 @@ describe('WysiwygMarkdownBridge', () => {
       expect(editor.state.selection).toBeInstanceOf(NodeSelection)
       expect((editor.state.selection as NodeSelection).node.type.name).toBe('wysiwygCodeBlock')
       expect(codeMarkdown).toHaveFocus()
+      expect(codeMarkdown.selectionStart).toBe(5)
+      expect(codeMarkdown.selectionEnd).toBe(5)
+    })
+  })
+
+  it('moves from a paragraph below into a fenced block with ArrowUp and enters near the closing fence', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown={CARET_CODE_BLOCK_ONLY_MARKDOWN}
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.commands.setTextSelection(findParagraphBoundary(editor, 'After paragraph', 'start'))
+    await act(async () => {
+      moveVerticalSelection(editor.view, 'up')
+    })
+
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    await waitFor(() => {
+      expect(editor.state.selection).toBeInstanceOf(NodeSelection)
+      expect((editor.state.selection as NodeSelection).node.type.name).toBe('wysiwygCodeBlock')
+      expect(codeMarkdown).toHaveFocus()
+      expect(codeMarkdown.selectionStart).toBe(codeMarkdown.value.length)
+      expect(codeMarkdown.selectionEnd).toBe(codeMarkdown.value.length)
     })
   })
 

@@ -12,6 +12,7 @@ import { matchesEscapeKey, matchesNudgeDownKey, matchesNudgeUpKey } from '@canva
 import {
   clearPendingSourceEntry,
   moveSelectionFromBlock,
+  readPendingSourceEntry,
   readPendingSourceEntryPosition,
   requestSourceEntryForNode
 } from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
@@ -118,7 +119,7 @@ export function useAutoSizeTextarea(
 }
 
 export function useRawBlockEditingState(input: {
-  caretPosition: number
+  readCaretPosition: (input: { caretPlacement: 'end' | 'start' }) => number
   props: NodeViewProps
   textareaRef: RefObject<HTMLTextAreaElement | null>
 }) {
@@ -148,11 +149,12 @@ export function useRawBlockEditingState(input: {
 
   useEffect(() => {
     const position = readNodePosition(input.props)
+    const pendingSourceEntry = readPendingSourceEntry(input.props.editor.state)
 
     if (
       !input.props.selected
       || position === null
-      || readPendingSourceEntryPosition(input.props.editor.state) !== position
+      || pendingSourceEntry?.position !== position
     ) {
       return
     }
@@ -173,9 +175,14 @@ export function useRawBlockEditingState(input: {
     }
 
     const timeout = window.setTimeout(() => {
+      const pendingSourceEntry = readPendingSourceEntry(input.props.editor.state)
+
       shouldRestoreCaretRef.current = false
       textarea.focus()
-      textarea.setSelectionRange(input.caretPosition, input.caretPosition)
+      const caretPosition = input.readCaretPosition({
+        caretPlacement: pendingSourceEntry?.caretPlacement ?? 'start'
+      })
+      textarea.setSelectionRange(caretPosition, caretPosition)
       clearPendingSourceEntry(input.props.editor.view)
     }, 0)
 
@@ -183,8 +190,9 @@ export function useRawBlockEditingState(input: {
       window.clearTimeout(timeout)
     }
   }, [
-    input.caretPosition,
+    input.readCaretPosition,
     input.props.editor.view,
+    input.props.editor.state,
     input.props.selected,
     input.textareaRef,
     isEditing

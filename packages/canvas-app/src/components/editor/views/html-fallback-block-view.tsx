@@ -22,7 +22,9 @@ export function HtmlFallbackBlockView(
   const blockKind = String(props.node.attrs.kind ?? 'html')
   useAutoSizeTextarea(textareaRef, raw)
   const { isEditing, setIsEditing } = useRawBlockEditingState({
-    caretPosition: raw.length,
+    readCaretPosition({ caretPlacement }) {
+      return caretPlacement === 'end' ? raw.length : raw.length
+    },
     props,
     textareaRef
   })

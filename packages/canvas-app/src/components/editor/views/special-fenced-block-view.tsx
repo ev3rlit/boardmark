@@ -39,7 +39,9 @@ export function SpecialFencedBlockView(
 
   useAutoSizeTextarea(textareaRef, rawMarkdown)
   const { isEditing, setIsEditing } = useRawBlockEditingState({
-    caretPosition: `\`\`\`${kind}`.length,
+    readCaretPosition({ caretPlacement }) {
+      return caretPlacement === 'end' ? rawMarkdown.length : `\`\`\`${kind}`.length
+    },
     props,
     textareaRef
   })

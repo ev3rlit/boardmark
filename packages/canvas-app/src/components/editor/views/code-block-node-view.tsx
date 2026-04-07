@@ -34,7 +34,9 @@ export function CodeBlockNodeView(
 
   useAutoSizeTextarea(textareaRef, rawMarkdown)
   const { isEditing, setIsEditing } = useRawBlockEditingState({
-    caretPosition: openingFence.length,
+    readCaretPosition({ caretPlacement }) {
+      return caretPlacement === 'end' ? rawMarkdown.length : openingFence.length
+    },
     props,
     textareaRef
   })
