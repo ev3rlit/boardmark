@@ -9,8 +9,8 @@ const BOARDMARK_MERMAID_CONFIG = {
   securityLevel: 'strict',
   theme: 'base',
   fontFamily: 'Manrope, sans-serif',
+  htmlLabels: false,
   flowchart: {
-    htmlLabels: false,
     useMaxWidth: false
   },
   themeVariables: {
