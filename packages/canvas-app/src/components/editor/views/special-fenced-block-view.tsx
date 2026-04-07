@@ -47,14 +47,14 @@ export function SpecialFencedBlockView(
   return (
     <NodeViewWrapper className="canvas-wysiwyg-special-block nodrag nopan">
       {isEditing ? (
-        <div className="canvas-wysiwyg-special-block__frame">
+        <div className="canvas-wysiwyg-code-block__frame">
           <textarea
             ref={textareaRef}
-            aria-label={`${kind} fenced source`}
+            aria-label="Code block markdown"
             autoCapitalize="off"
             autoComplete="off"
             autoCorrect="off"
-            className="canvas-wysiwyg-special-block__textarea nodrag nopan nowheel"
+            className="canvas-wysiwyg-code-block__textarea nodrag nopan nowheel"
             data-1p-ignore="true"
             data-bwignore="true"
             data-form-type="other"
@@ -89,7 +89,7 @@ export function SpecialFencedBlockView(
         </div>
       ) : (
         <div
-          className="canvas-wysiwyg-special-block__preview markdown-content nodrag nopan"
+          className="canvas-wysiwyg-code-block__preview markdown-content nodrag nopan"
           onMouseDown={(event) => {
             event.preventDefault()
             setIsEditing(true)

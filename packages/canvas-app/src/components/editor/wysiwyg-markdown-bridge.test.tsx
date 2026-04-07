@@ -76,6 +76,11 @@ const shipped = true
 After paragraph
 `
 
+const TOP_LEVEL_CODE_BLOCK_ONLY_MARKDOWN = `\`\`\`ts
+const shipped = true
+\`\`\`
+`
+
 describe('WysiwygMarkdownBridge', () => {
   it('round-trips the supported baseline subset and custom blocks', () => {
     const bridge = createWysiwygMarkdownBridge()
@@ -123,11 +128,11 @@ describe('WysiwygMarkdownBridge', () => {
 
     render(<SurfaceHarness markdown={TABLE_AND_BLOCKS_MARKDOWN} />)
 
-    const specialSource = await openSpecialBlockEditor('```mermaid')
+    const specialSource = await openCodeBlockEditor('```mermaid')
     fireEvent.keyDown(specialSource, { key: 'Escape', code: 'Escape' })
 
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'mermaid fenced source' })).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull()
     })
 
     const codeMarkdown = await openCodeBlockEditor('```ts')
@@ -261,7 +266,7 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.focus(editor)
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
-    const specialSource = await openSpecialBlockEditor('```mermaid')
+    const specialSource = await openCodeBlockEditor('```mermaid')
 
     await waitFor(() => {
       expect(specialSource).toHaveFocus()
@@ -287,7 +292,7 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.focus(editor)
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
-    const specialSource = await openSpecialBlockEditor('```mermaid')
+    const specialSource = await openCodeBlockEditor('```mermaid')
 
     await waitFor(() => {
       expect(specialSource).toHaveFocus()
@@ -302,10 +307,9 @@ describe('WysiwygMarkdownBridge', () => {
     const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
 
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'mermaid fenced source' })).toBeNull()
+      expect(codeMarkdown).toHaveFocus()
       expect(screen.getByTestId('markdown-value').textContent).toContain('```python')
       expect(codeMarkdown.value).toContain('```python')
-      expect(codeMarkdown).toHaveFocus()
     })
   })
 
@@ -378,12 +382,32 @@ describe('WysiwygMarkdownBridge', () => {
     })
   })
 
+  it('keeps focus inside a fenced block when ArrowUp cannot leave because there is no block above', async () => {
+    render(<SurfaceHarness markdown={TOP_LEVEL_CODE_BLOCK_ONLY_MARKDOWN} />)
+
+    const codeMarkdown = await openCodeBlockEditor('```ts')
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+    })
+
+    codeMarkdown.setSelectionRange(0, 0)
+    await act(async () => {
+      fireEvent.keyDown(codeMarkdown, { key: 'ArrowUp', code: 'ArrowUp' })
+    })
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+      expect(screen.getByRole('textbox', { name: 'Code block markdown' })).toBe(codeMarkdown)
+    })
+  })
+
   it('uses raw source editing for special and html fallback blocks and returns to host on Escape', async () => {
     const onCancel = vi.fn()
     render(<SurfaceHarness markdown={CARET_NAVIGATION_MARKDOWN} onCancel={onCancel} />)
 
-    const specialSource = await openSpecialBlockEditor('```mermaid')
-    expect(specialSource).toHaveAccessibleName('mermaid fenced source')
+    const specialSource = await openCodeBlockEditor('```mermaid')
+    expect(specialSource).toHaveAccessibleName('Code block markdown')
 
     fireEvent.keyDown(specialSource, { key: 'Escape', code: 'Escape' })
 
@@ -472,14 +496,14 @@ async function openCodeBlockEditor(pattern: string) {
 }
 
 async function openSpecialBlockEditor(pattern: string) {
-  const existingEditor = screen.queryByRole('textbox', { name: / source$/ })
+  const existingEditor = screen.queryByRole('textbox', { name: 'Code block markdown' })
 
   if (existingEditor instanceof HTMLTextAreaElement) {
     return existingEditor
   }
 
   fireEvent.mouseDown(await findMarkdownPreview(pattern))
-  return await screen.findByRole('textbox', { name: / source$/ }) as HTMLTextAreaElement
+  return await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
 }
 
 function findParagraphBoundary(

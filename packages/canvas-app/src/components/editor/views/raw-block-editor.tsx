@@ -73,15 +73,21 @@ export function handleRawBlockKeyDown(input: {
 
   if (matchesNudgeUpKey(event) && isTextareaAtStart(event.currentTarget)) {
     event.preventDefault()
-    input.setIsEditing(false)
-    moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'up')
+    const moved = moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'up')
+
+    if (moved) {
+      input.setIsEditing(false)
+    }
     return
   }
 
   if (matchesNudgeDownKey(event) && isTextareaAtEnd(event.currentTarget)) {
     event.preventDefault()
-    input.setIsEditing(false)
-    moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'down')
+    const moved = moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'down')
+
+    if (moved) {
+      input.setIsEditing(false)
+    }
   }
 }
 

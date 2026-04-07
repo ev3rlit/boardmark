@@ -224,6 +224,44 @@ describe('BodyEditorHost', () => {
     expect(onCommit).not.toHaveBeenCalled()
   })
 
+  it('does not commit when a special fenced block converts into a general code block during editing', async () => {
+    const onCommit = vi.fn(async () => undefined)
+
+    renderHost({
+      onCommit,
+      session: {
+        ...ACTIVE_WYSIWYG_SESSION,
+        draftMarkdown: '```mermaid\n\n```'
+      }
+    })
+
+    const preview = await waitFor(() => {
+      const element = document.querySelector('.canvas-wysiwyg-special-block .canvas-wysiwyg-code-block__preview')
+
+      if (!(element instanceof HTMLElement)) {
+        throw new Error('Expected a special fenced block preview to exist.')
+      }
+
+      return element
+    })
+
+    fireEvent.mouseDown(preview)
+
+    const specialSource = await screen.findByRole('textbox', { name: 'Code block markdown' })
+    fireEvent.change(specialSource, {
+      target: {
+        value: '```python\n\n```'
+      }
+    })
+
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' })
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+      expect(onCommit).not.toHaveBeenCalled()
+    })
+  })
+
   it('clamps the toolbar within the viewport when the object is near the edges', async () => {
     const originalInnerWidth = window.innerWidth
     const originalInnerHeight = window.innerHeight

@@ -44,6 +44,7 @@ export function BodyEditorHost({
 }: BodyEditorHostProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const pendingBlurCommitRef = useRef<number | null>(null)
   const [toolbarEditor, setToolbarEditor] = useState<Editor | null>(null)
   const toolbarPosition = useToolbarOverlayPosition({
     anchorRef: session.surface === 'wysiwyg' ? toolbarAnchorRef : undefined,
@@ -66,6 +67,14 @@ export function BodyEditorHost({
     }
   }, [session.surface])
 
+  useEffect(() => {
+    return () => {
+      if (pendingBlurCommitRef.current !== null) {
+        window.clearTimeout(pendingBlurCommitRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div
       className={[
@@ -77,8 +86,14 @@ export function BodyEditorHost({
       }}
       onBlurCapture={(event) => {
         const nextTarget = event.relatedTarget
+        const host = event.currentTarget
 
-        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+        if (pendingBlurCommitRef.current !== null) {
+          window.clearTimeout(pendingBlurCommitRef.current)
+          pendingBlurCommitRef.current = null
+        }
+
+        if (nextTarget instanceof Node && host.contains(nextTarget)) {
           return
         }
 
@@ -89,7 +104,30 @@ export function BodyEditorHost({
           return
         }
 
-        void onCommit()
+        pendingBlurCommitRef.current = window.setTimeout(() => {
+          pendingBlurCommitRef.current = null
+
+          const activeElement = typeof document !== 'undefined' ? document.activeElement : null
+
+          if (activeElement instanceof Node && host.contains(activeElement)) {
+            return
+          }
+
+          if (
+            activeElement instanceof HTMLElement &&
+            activeElement.closest('[data-body-editor-toolbar-root="true"]')
+          ) {
+            return
+          }
+
+          void onCommit()
+        }, 0)
+      }}
+      onFocusCapture={() => {
+        if (pendingBlurCommitRef.current !== null) {
+          window.clearTimeout(pendingBlurCommitRef.current)
+          pendingBlurCommitRef.current = null
+        }
       }}
     >
       {session.surface === 'wysiwyg' ? (
