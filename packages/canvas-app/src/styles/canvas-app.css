@@ -349,6 +349,10 @@ button {
   margin: 0.2rem 0;
 }
 
+.markdown-content :where(li > p) {
+  margin: 0;
+}
+
 .markdown-content :where(li)::marker {
   color: color-mix(in oklab, var(--color-primary) 42%, var(--color-on-surface));
 }
@@ -653,11 +657,16 @@ button {
   }
 }
 
-.markdown-table-wrap {
+.markdown-table-wrap,
+.markdown-content :where(.tableWrapper) {
+  display: block;
   margin: 0 0 0.75rem;
   overflow-x: auto;
   border-radius: 1rem;
   background: color-mix(in oklab, var(--color-surface-lowest) 84%, transparent);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .markdown-content :where(table) {
@@ -666,6 +675,11 @@ button {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.9rem;
+}
+
+.markdown-content :where(.tableWrapper > table) {
+  width: 100% !important;
+  min-width: 100% !important;
 }
 
 .markdown-content :where(th, td) {
@@ -727,7 +741,8 @@ button {
 .note-markdown :where(pre:last-child),
 .note-markdown :where(blockquote:last-child),
 .note-markdown :where(.mermaid-diagram:last-child),
-.note-markdown :where(.markdown-table-wrap:last-child) {
+.note-markdown :where(.markdown-table-wrap:last-child),
+.note-markdown :where(.tableWrapper:last-child) {
   margin-bottom: 0;
 }
 
