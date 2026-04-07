@@ -1,12 +1,12 @@
 # Boardmark Caret Navigation Capability Refactor PRD
 
-| 항목 | 내용 |
-| --- | --- |
-| 문서 버전 | v0.1 |
-| 작성일 | 2026-04-07 |
-| 상태 | Draft |
-| 관련 ADR | `docs/adr/003-caret-navigation-capability-contract.md` |
-| 범위 | WYSIWYG body editor caret navigation 구조 개선 |
+| 항목      | 내용                                                   |
+| --------- | ------------------------------------------------------ |
+| 문서 버전 | v0.1                                                   |
+| 작성일    | 2026-04-07                                             |
+| 상태      | Draft                                                  |
+| 관련 ADR  | `docs/adr/003-caret-navigation-capability-contract.md` |
+| 범위      | WYSIWYG body editor caret navigation 구조 개선         |
 
 ---
 
@@ -167,22 +167,22 @@ flowchart LR
 이번 작업에서 새로 도입하는 public boundary는 작게 유지한다.
 
 ```ts
-type CaretDirection = 'up' | 'down'
-type CaretEntrySide = 'leading' | 'trailing'
+type CaretDirection = "up" | "down";
+type CaretEntrySide = "leading" | "trailing";
 
 type CaretCapability =
-  | { kind: 'text-flow' }
-  | { kind: 'raw-block'; entry: 'boundary-driven' }
-  | { kind: 'grid'; entry: 'cell-driven' }
+  | { kind: "text-flow" }
+  | { kind: "raw-block"; entry: "boundary-driven" }
+  | { kind: "grid"; entry: "cell-driven" };
 
 interface CaretCapabilityRegistry {
-  get(nodeName: string): CaretCapability | null
+  get(nodeName: string): CaretCapability | null;
 }
 
 interface NavigationCoordinator {
-  moveVertically(direction: CaretDirection): boolean
-  enterSelectedUnit(): boolean
-  escapeCurrentUnit(): boolean
+  moveVertically(direction: CaretDirection): boolean;
+  enterSelectedUnit(): boolean;
+  escapeCurrentUnit(): boolean;
 }
 ```
 
