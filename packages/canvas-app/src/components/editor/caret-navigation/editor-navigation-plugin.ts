@@ -214,9 +214,12 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
     return false
   }
 
-  const adjacentBlock = findAdjacentTopLevelBlock(view.state, selection.from, direction)
+  const adjacentBlock = findAdjacentEditableTarget(view.state, {
+    direction,
+    selection
+  })
 
-  if (!adjacentBlock || !isNavigableBlockNodeName(adjacentBlock.node.type.name)) {
+  if (!adjacentBlock || adjacentBlock.kind !== 'block') {
     return false
   }
 
@@ -260,7 +263,10 @@ function moveFromSelectedBlock(
     position: number
   }
 ) {
-  const adjacentBlock = findAdjacentTopLevelBlock(view.state, input.position, input.direction)
+  const adjacentBlock = findAdjacentEditableTarget(view.state, {
+    direction: input.direction,
+    position: input.position
+  })
 
   if (!adjacentBlock) {
     return false
@@ -268,78 +274,95 @@ function moveFromSelectedBlock(
 
   const transaction = view.state.tr
 
-  if (isNavigableBlockNodeName(adjacentBlock.node.type.name)) {
+  if (adjacentBlock.kind === 'block') {
     transaction.setSelection(NodeSelection.create(transaction.doc, adjacentBlock.position))
     view.dispatch(transaction)
     return true
   }
 
-  if (adjacentBlock.node.isTextblock) {
+  if (adjacentBlock.kind === 'text') {
     const textPosition = input.direction === 'down'
-      ? adjacentBlock.position + 1
-      : adjacentBlock.position + adjacentBlock.node.content.size
+      ? adjacentBlock.textStart
+      : adjacentBlock.textEnd
 
     transaction.setSelection(TextSelection.create(transaction.doc, textPosition))
     view.dispatch(transaction)
     return true
   }
-
-  const selection = input.direction === 'down'
-    ? Selection.findFrom(transaction.doc.resolve(adjacentBlock.position), 1, true)
-      ?? Selection.findFrom(transaction.doc.resolve(adjacentBlock.position), 1, false)
-    : Selection.findFrom(
-        transaction.doc.resolve(adjacentBlock.position + adjacentBlock.node.nodeSize),
-        -1,
-        true
-      )
-      ?? Selection.findFrom(
-        transaction.doc.resolve(adjacentBlock.position + adjacentBlock.node.nodeSize),
-        -1,
-        false
-      )
-
-  if (!selection) {
-    return false
-  }
-
-  transaction.setSelection(selection)
-  view.dispatch(transaction)
-  return true
-}
-
-function findAdjacentTopLevelBlock(
-  state: EditorState,
-  position: number,
-  direction: 'down' | 'up'
-) {
-  const blocks = readTopLevelBlocks(state)
-  const currentIndex = blocks.findIndex((block) =>
-    position >= block.position && position < block.position + block.node.nodeSize
-  )
-
-  if (currentIndex === -1) {
-    return null
-  }
-
-  const offset = direction === 'down' ? 1 : -1
-  return blocks[currentIndex + offset] ?? null
 }
 
 function readNavigationMeta(transaction: Transaction) {
   return transaction.getMeta(wysiwygEditorNavigationPluginKey) as WysiwygNavigationMeta | undefined
 }
 
-function readTopLevelBlocks(state: EditorState) {
-  const blocks: Array<{ node: ProseMirrorNode; position: number }> = []
+function findAdjacentEditableTarget(
+  state: EditorState,
+  input:
+    | {
+        direction: 'down' | 'up'
+        position: number
+      }
+    | {
+        direction: 'down' | 'up'
+        selection: TextSelection
+      }
+) {
+  const targets = readEditableTargets(state)
+  const currentIndex = 'position' in input
+    ? targets.findIndex((target) => target.kind === 'block' && target.position === input.position)
+    : targets.findIndex((target) =>
+        target.kind === 'text'
+          && input.selection.from >= target.textStart
+          && input.selection.from <= target.textEnd
+      )
 
-  state.doc.forEach((node, offset) => {
-    blocks.push({
-      node,
-      position: offset
+  if (currentIndex === -1) {
+    return null
+  }
+
+  const offset = input.direction === 'down' ? 1 : -1
+  return targets[currentIndex + offset] ?? null
+}
+
+function readEditableTargets(state: EditorState) {
+  const targets: Array<
+    | {
+        kind: 'block'
+        nodeSize: number
+        position: number
+      }
+    | {
+        kind: 'text'
+        position: number
+        textEnd: number
+        textStart: number
+      }
+  > = []
+
+  state.doc.descendants((node, position) => {
+    if (isNavigableBlockNodeName(node.type.name)) {
+      targets.push({
+        kind: 'block',
+        nodeSize: node.nodeSize,
+        position
+      })
+      return false
+    }
+
+    if (!node.isTextblock) {
+      return true
+    }
+
+    targets.push({
+      kind: 'text',
+      position,
+      textEnd: position + node.nodeSize - 1,
+      textStart: position + 1
     })
+    return false
   })
 
-  return blocks
+  return targets
 }
 
 function setNavigationMeta(
