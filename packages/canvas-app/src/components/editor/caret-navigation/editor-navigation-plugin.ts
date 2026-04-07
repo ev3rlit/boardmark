@@ -9,12 +9,19 @@ import {
   type Selection as ProseMirrorSelection,
   type Transaction
 } from '@tiptap/pm/state'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import { matchesNudgeDownKey, matchesNudgeUpKey } from '@canvas-app/keyboard/key-event-matchers'
 import {
-  isNavigableBlockNodeName,
+  defaultCaretCapabilityProvider
+} from '@canvas-app/components/editor/caret-navigation/block-caret-capabilities'
+import type {
+  CaretCapabilityProvider,
+  EntryPlacement
+} from '@canvas-app/components/editor/caret-navigation/caret-capabilities'
+import { findAdjacentEditableTarget } from '@canvas-app/components/editor/caret-navigation/editable-target-resolver'
+import {
   isNavigableBlockSelection,
+  readSelectionBlockCaretCapability,
   isSelectionInsideTable
 } from '@canvas-app/components/editor/caret-navigation/selection-state'
 
@@ -37,25 +44,34 @@ type WysiwygEditorNavigationCallbacks = {
   onExitToHost?: () => void
 }
 
+type WysiwygEditorNavigationOptions = {
+  callbacks: WysiwygEditorNavigationCallbacks
+  capabilityProvider: CaretCapabilityProvider
+}
+
 const initialNavigationState: WysiwygNavigationState = {
   pendingSourceEntry: null
 }
 
 export const wysiwygEditorNavigationPluginKey = new PluginKey<WysiwygNavigationState>('wysiwygEditorNavigation')
 
-export const WysiwygEditorNavigation = Extension.create<{
-  callbacks: WysiwygEditorNavigationCallbacks
-}>({
+export const WysiwygEditorNavigation = Extension.create<WysiwygEditorNavigationOptions>({
   name: 'wysiwygEditorNavigation',
 
   addOptions() {
     return {
-      callbacks: {}
+      callbacks: {},
+      capabilityProvider: defaultCaretCapabilityProvider
     }
   },
 
   addProseMirrorPlugins() {
-    return [createWysiwygEditorNavigationPlugin(this.options.callbacks)]
+    return [
+      createWysiwygEditorNavigationPlugin(
+        this.options.callbacks,
+        this.options.capabilityProvider
+      )
+    ]
   }
 })
 
@@ -74,12 +90,13 @@ export function clearPendingSourceEntry(view: EditorView) {
 export function moveSelectionFromBlock(
   view: EditorView,
   position: number,
-  direction: 'down' | 'up'
+  direction: 'down' | 'up',
+  capabilityProvider: CaretCapabilityProvider = defaultCaretCapabilityProvider
 ) {
   const handled = moveFromSelectedBlock(view, {
     direction,
     position
-  })
+  }, capabilityProvider)
 
   if (!handled) {
     return false
@@ -91,9 +108,10 @@ export function moveSelectionFromBlock(
 
 export function moveVerticalSelection(
   view: EditorView,
-  direction: 'down' | 'up'
+  direction: 'down' | 'up',
+  capabilityProvider: CaretCapabilityProvider = defaultCaretCapabilityProvider
 ) {
-  return handleVerticalNavigation(view, direction)
+  return handleVerticalNavigation(view, direction, capabilityProvider)
 }
 
 export function readPendingSourceEntryPosition(state: EditorState) {
@@ -125,7 +143,8 @@ export function requestSourceEntryForNode(view: EditorView, position: number) {
 }
 
 function createWysiwygEditorNavigationPlugin(
-  callbacks: WysiwygEditorNavigationCallbacks
+  callbacks: WysiwygEditorNavigationCallbacks,
+  capabilityProvider: CaretCapabilityProvider
 ) {
   return new Plugin<WysiwygNavigationState>({
     key: wysiwygEditorNavigationPluginKey,
@@ -167,20 +186,26 @@ function createWysiwygEditorNavigationPlugin(
     props: {
       handleKeyDown(view, event) {
         if (matchesNudgeUpKey(event)) {
-          return moveVerticalSelection(view, 'up')
+          return moveVerticalSelection(view, 'up', capabilityProvider)
         }
 
         if (matchesNudgeDownKey(event)) {
-          return moveVerticalSelection(view, 'down')
+          return moveVerticalSelection(view, 'down', capabilityProvider)
         }
 
-        if (event.key === 'Enter' && isNavigableBlockSelection(view.state.selection)) {
+        if (
+          event.key === 'Enter'
+          && isNavigableBlockSelection(view.state.selection, capabilityProvider)
+        ) {
           event.preventDefault()
           requestSourceEntryForNode(view, view.state.selection.from)
           return true
         }
 
-        if (event.key === 'Escape' && isNavigableBlockSelection(view.state.selection)) {
+        if (
+          event.key === 'Escape'
+          && isNavigableBlockSelection(view.state.selection, capabilityProvider)
+        ) {
           event.preventDefault()
           callbacks.onExitToHost?.()
           return true
@@ -192,18 +217,24 @@ function createWysiwygEditorNavigationPlugin(
   })
 }
 
-function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
+function handleVerticalNavigation(
+  view: EditorView,
+  direction: 'down' | 'up',
+  capabilityProvider: CaretCapabilityProvider
+) {
   const { selection } = view.state
 
   if (isSelectionInsideTable(selection)) {
     return false
   }
 
-  if (selection instanceof NodeSelection && isNavigableBlockNodeName(selection.node.type.name)) {
+  const selectedBlockCapability = readSelectionBlockCaretCapability(selection, capabilityProvider)
+
+  if (selection instanceof NodeSelection && selectedBlockCapability !== null) {
     return moveFromSelectedBlock(view, {
       direction,
       position: selection.from
-    })
+    }, capabilityProvider)
   }
 
   if (
@@ -217,7 +248,7 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
   const adjacentBlock = findAdjacentEditableTarget(view.state, {
     direction,
     selection
-  })
+  }, capabilityProvider)
 
   if (!adjacentBlock || adjacentBlock.kind !== 'block') {
     return false
@@ -225,11 +256,15 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
 
   const transaction = view.state.tr
   transaction.setSelection(NodeSelection.create(transaction.doc, adjacentBlock.position))
-  requestPendingSourceEntry(
-    transaction,
-    adjacentBlock.position,
-    direction === 'up' ? 'end' : 'start'
-  )
+
+  if (adjacentBlock.capability.kind === 'raw-block') {
+    requestPendingSourceEntry(
+      transaction,
+      adjacentBlock.position,
+      mapEntryPlacementToCaretPlacement(adjacentBlock.capability.entryPlacement(direction))
+    )
+  }
+
   view.dispatch(transaction)
   return true
 }
@@ -261,12 +296,13 @@ function moveFromSelectedBlock(
   input: {
     direction: 'down' | 'up'
     position: number
-  }
+  },
+  capabilityProvider: CaretCapabilityProvider
 ) {
   const adjacentBlock = findAdjacentEditableTarget(view.state, {
     direction: input.direction,
     position: input.position
-  })
+  }, capabilityProvider)
 
   if (!adjacentBlock) {
     return false
@@ -291,78 +327,14 @@ function moveFromSelectedBlock(
   }
 }
 
+function mapEntryPlacementToCaretPlacement(
+  placement: EntryPlacement
+): 'end' | 'start' {
+  return placement === 'leading' ? 'start' : 'end'
+}
+
 function readNavigationMeta(transaction: Transaction) {
   return transaction.getMeta(wysiwygEditorNavigationPluginKey) as WysiwygNavigationMeta | undefined
-}
-
-function findAdjacentEditableTarget(
-  state: EditorState,
-  input:
-    | {
-        direction: 'down' | 'up'
-        position: number
-      }
-    | {
-        direction: 'down' | 'up'
-        selection: TextSelection
-      }
-) {
-  const targets = readEditableTargets(state)
-  const currentIndex = 'position' in input
-    ? targets.findIndex((target) => target.kind === 'block' && target.position === input.position)
-    : targets.findIndex((target) =>
-        target.kind === 'text'
-          && input.selection.from >= target.textStart
-          && input.selection.from <= target.textEnd
-      )
-
-  if (currentIndex === -1) {
-    return null
-  }
-
-  const offset = input.direction === 'down' ? 1 : -1
-  return targets[currentIndex + offset] ?? null
-}
-
-function readEditableTargets(state: EditorState) {
-  const targets: Array<
-    | {
-        kind: 'block'
-        nodeSize: number
-        position: number
-      }
-    | {
-        kind: 'text'
-        position: number
-        textEnd: number
-        textStart: number
-      }
-  > = []
-
-  state.doc.descendants((node, position) => {
-    if (isNavigableBlockNodeName(node.type.name)) {
-      targets.push({
-        kind: 'block',
-        nodeSize: node.nodeSize,
-        position
-      })
-      return false
-    }
-
-    if (!node.isTextblock) {
-      return true
-    }
-
-    targets.push({
-      kind: 'text',
-      position,
-      textEnd: position + node.nodeSize - 1,
-      textStart: position + 1
-    })
-    return false
-  })
-
-  return targets
 }
 
 function setNavigationMeta(

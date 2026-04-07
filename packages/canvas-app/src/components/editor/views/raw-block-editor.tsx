@@ -9,11 +9,11 @@ import {
 } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { matchesEscapeKey, matchesNudgeDownKey, matchesNudgeUpKey } from '@canvas-app/keyboard/key-event-matchers'
+import { rawBlockCaretCapability } from '@canvas-app/components/editor/caret-navigation/block-caret-capabilities'
 import {
   clearPendingSourceEntry,
   moveSelectionFromBlock,
   readPendingSourceEntry,
-  readPendingSourceEntryPosition,
   requestSourceEntryForNode
 } from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
 import {
@@ -72,7 +72,15 @@ export function handleRawBlockKeyDown(input: {
     return
   }
 
-  if (matchesNudgeUpKey(event) && isTextareaAtStart(event.currentTarget)) {
+  if (
+    matchesNudgeUpKey(event)
+    && rawBlockCaretCapability.exitsAtBoundary({
+      direction: 'up',
+      selectionEnd: event.currentTarget.selectionEnd,
+      selectionStart: event.currentTarget.selectionStart,
+      valueLength: event.currentTarget.value.length
+    })
+  ) {
     event.preventDefault()
     const moved = moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'up')
 
@@ -82,7 +90,15 @@ export function handleRawBlockKeyDown(input: {
     return
   }
 
-  if (matchesNudgeDownKey(event) && isTextareaAtEnd(event.currentTarget)) {
+  if (
+    matchesNudgeDownKey(event)
+    && rawBlockCaretCapability.exitsAtBoundary({
+      direction: 'down',
+      selectionEnd: event.currentTarget.selectionEnd,
+      selectionStart: event.currentTarget.selectionStart,
+      valueLength: event.currentTarget.value.length
+    })
+  ) {
     event.preventDefault()
     const moved = moveSelectionFromBlock(input.viewProps.editor.view, input.position, 'down')
 
@@ -207,13 +223,4 @@ export function useRawBlockEditingState(input: {
 export function readNodePosition(props: NodeViewProps) {
   const position = props.getPos()
   return typeof position === 'number' ? position : null
-}
-
-function isTextareaAtEnd(textarea: HTMLTextAreaElement) {
-  return textarea.selectionStart === textarea.selectionEnd
-    && textarea.selectionStart === textarea.value.length
-}
-
-function isTextareaAtStart(textarea: HTMLTextAreaElement) {
-  return textarea.selectionStart === 0 && textarea.selectionEnd === 0
 }

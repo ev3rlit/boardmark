@@ -90,6 +90,17 @@ const BLOCKQUOTE_CODE_BLOCK_MARKDOWN = `asdfsaf
 after quote
 `
 
+const LIST_CODE_BLOCK_MARKDOWN = `before list
+
+- intro
+
+  \`\`\`typescript
+  hello list
+  \`\`\`
+
+after list
+`
+
 describe('WysiwygMarkdownBridge', () => {
   it('round-trips the supported baseline subset and custom blocks', () => {
     const bridge = createWysiwygMarkdownBridge()
@@ -394,6 +405,35 @@ describe('WysiwygMarkdownBridge', () => {
     const editor = await waitForEditor(editorRef)
 
     editor.commands.setTextSelection(findParagraphBoundary(editor, 'after quote', 'start'))
+    await act(async () => {
+      moveVerticalSelection(editor.view, 'up')
+    })
+
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    await waitFor(() => {
+      expect(editor.state.selection).toBeInstanceOf(NodeSelection)
+      expect((editor.state.selection as NodeSelection).node.type.name).toBe('wysiwygCodeBlock')
+      expect(codeMarkdown).toHaveFocus()
+      expect(codeMarkdown.value).toContain('```typescript')
+      expect(codeMarkdown.selectionStart).toBe(codeMarkdown.value.length)
+    })
+  })
+
+  it('enters a fenced code block inside a list from the paragraph below with ArrowUp', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown={LIST_CODE_BLOCK_MARKDOWN}
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.commands.setTextSelection(findParagraphBoundary(editor, 'after list', 'start'))
     await act(async () => {
       moveVerticalSelection(editor.view, 'up')
     })
