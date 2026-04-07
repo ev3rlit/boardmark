@@ -82,7 +82,7 @@ export function WysiwygEditorSurface({
     },
     onUpdate({ editor: nextEditor }) {
       startTransition(() => {
-        onMarkdownChange(nextEditor.getMarkdown())
+        onMarkdownChange(bridge.toMarkdown(nextEditor.getJSON()))
       })
     }
   })

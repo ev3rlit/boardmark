@@ -54,13 +54,15 @@ export function createWysiwygMarkdownBridge(
   return {
     extensions,
     fromMarkdown(markdown) {
-      return manager.parse(markdown)
+      return manager.parse(normalizeDirectiveEndingBoundaries(markdown))
     },
     toMarkdown(content) {
-      return manager.serialize(content)
+      return normalizeDirectiveEndingBoundaries(manager.serialize(content))
     },
     roundTrip(markdown) {
-      return manager.serialize(manager.parse(markdown))
+      return normalizeDirectiveEndingBoundaries(
+        manager.serialize(manager.parse(normalizeDirectiveEndingBoundaries(markdown)))
+      )
     }
   }
 }
@@ -111,9 +113,42 @@ export function createTransientWysiwygEditor(markdown: string) {
   return new Editor({
     element: document.createElement('div'),
     extensions: createWysiwygExtensions(),
-    content: markdown,
+    content: normalizeDirectiveEndingBoundaries(markdown),
     contentType: 'markdown'
   })
+}
+
+function normalizeDirectiveEndingBoundaries(markdown: string) {
+  const normalized = markdown.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+
+  let lastContentLineIndex = lines.length - 1
+
+  while (lastContentLineIndex >= 0 && lines[lastContentLineIndex]!.trim().length === 0) {
+    lastContentLineIndex -= 1
+  }
+
+  if (lastContentLineIndex < 0) {
+    return normalized
+  }
+
+  const lastContentLine = lines[lastContentLineIndex]!
+
+  if (!isWrappedDirectiveEndingLine(lastContentLine)) {
+    return normalized
+  }
+
+  lines[lastContentLineIndex] = ':::'
+
+  if (lastContentLineIndex > 0 && lines[lastContentLineIndex - 1]!.trim().length > 0) {
+    lines.splice(lastContentLineIndex, 0, '')
+  }
+
+  return lines.join('\n')
+}
+
+function isWrappedDirectiveEndingLine(line: string) {
+  return /^[ \t]*(?:(?:>\s*)|(?:(?:[-+*]|\d+[.)])\s+))+:::\s*$/.test(line)
 }
 
 const WysiwygCodeBlock = Node.create({
