@@ -5,12 +5,15 @@ import { Markdown, MarkdownManager } from '@tiptap/markdown'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
 import {
   buildFencedMarkdown,
   buildRawFencedMarkdown,
   ensureTrailingNewline
 } from '@canvas-app/components/editor/wysiwyg-block-helpers'
+import {
+  requestPendingSourceEntry,
+  WysiwygEditorNavigation
+} from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
 import { CodeBlockNodeView } from '@canvas-app/components/editor/views/code-block-node-view'
 import { HtmlFallbackBlockView } from '@canvas-app/components/editor/views/html-fallback-block-view'
 import { SpecialFencedBlockView } from '@canvas-app/components/editor/views/special-fenced-block-view'
@@ -33,7 +36,7 @@ const SPECIAL_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-special-block'
 const HTML_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-html-block'
 
 type WysiwygMarkdownBridgeCallbacks = {
-  onBlockModeChange?: (mode: CanvasEditingBlockMode) => void
+  onExitToHost?: () => void
 }
 
 export type WysiwygMarkdownBridge = {
@@ -75,10 +78,13 @@ export function createWysiwygExtensions(
   callbacks: WysiwygMarkdownBridgeCallbacks = {}
 ): AnyExtension[] {
   const specialBlockCallbacks = {
-    onBlockModeChange: callbacks.onBlockModeChange
+    onExitToHost: callbacks.onExitToHost
   }
 
   return [
+    WysiwygEditorNavigation.configure({
+      callbacks: specialBlockCallbacks
+    }),
     StarterKit.configure({
       codeBlock: false,
       horizontalRule: false,
@@ -97,7 +103,9 @@ export function createWysiwygExtensions(
     TableRow,
     TableHeader,
     TableCell,
-    WysiwygCodeBlock,
+    WysiwygCodeBlock.configure({
+      callbacks: specialBlockCallbacks
+    }),
     WysiwygSpecialFencedBlock.configure({
       callbacks: specialBlockCallbacks
     }),
@@ -163,6 +171,11 @@ const WysiwygCodeBlock = Node.create({
   selectable: true,
   isolating: true,
   defining: true,
+  addOptions() {
+    return {
+      callbacks: {} as WysiwygMarkdownBridgeCallbacks
+    }
+  },
   addAttributes() {
     return {
       openingFence: {
@@ -253,7 +266,12 @@ const WysiwygCodeBlock = Node.create({
     ]
   },
   addNodeView() {
-    return ReactNodeViewRenderer(CodeBlockNodeView)
+    return ReactNodeViewRenderer((props) => (
+      <CodeBlockNodeView
+        {...props}
+        callbacks={this.options.callbacks}
+      />
+    ))
   }
 })
 

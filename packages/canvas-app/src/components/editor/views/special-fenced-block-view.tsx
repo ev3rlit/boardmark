@@ -1,107 +1,56 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
-import { NodeSelection, Selection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 import { MarkdownContent } from '@boardmark/ui'
-import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
-import { buildFencedMarkdown } from '@canvas-app/components/editor/wysiwyg-block-helpers'
+import {
+  requestPendingSourceEntry
+} from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
+import {
+  buildFencedMarkdown,
+  buildRawFencedMarkdown,
+  parseRawFencedMarkdown
+} from '@canvas-app/components/editor/wysiwyg-block-helpers'
+import {
+  buildRawBlockSourceAttributes,
+  handleRawBlockKeyDown,
+  readNodePosition,
+  requestRawBlockSourceEntry,
+  useAutoSizeTextarea,
+  useRawBlockEditingState
+} from '@canvas-app/components/editor/views/raw-block-editor'
+import { readOpeningCodeFenceLanguage } from '@canvas-app/markdown/fenced-block-guards'
 
 type SpecialBlockCallbacks = {
-  onBlockModeChange?: (mode: CanvasEditingBlockMode) => void
+  onExitToHost?: () => void
 }
 
 export function SpecialFencedBlockView(
   props: NodeViewProps & { callbacks?: SpecialBlockCallbacks }
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const [draftKind, setDraftKind] = useState('mermaid')
   const kind = String(props.node.attrs.kind ?? 'mermaid') as 'mermaid' | 'sandpack'
   const source = String(props.node.attrs.source ?? '')
+  const rawMarkdown = buildRawFencedMarkdown({
+    openingFence: `\`\`\`${kind}`,
+    source,
+    closingFence: '```'
+  })
 
-  useEffect(() => {
-    props.callbacks?.onBlockModeChange?.(
-      props.selected
-        ? {
-            status: 'special-fenced-source',
-            blockKind: kind
-          }
-        : { status: 'none' }
-    )
-  }, [kind, props.callbacks, props.selected])
-
-  useEffect(() => {
-    setDraftKind(kind)
-  }, [kind])
-
-  useEffect(() => {
-    if (!props.selected) {
-      return
-    }
-
-    const textarea = textareaRef.current
-
-    if (!textarea || document.activeElement === textarea) {
-      return
-    }
-
-    const timeout = window.setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(source.length, source.length)
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [props.selected, source.length])
+  useAutoSizeTextarea(textareaRef, rawMarkdown)
+  const { isEditing, setIsEditing } = useRawBlockEditingState({
+    caretPosition: `\`\`\`${kind}`.length,
+    props,
+    textareaRef
+  })
 
   return (
     <NodeViewWrapper className="canvas-wysiwyg-special-block nodrag nopan">
-      {props.selected ? (
+      {isEditing ? (
         <div className="canvas-wysiwyg-special-block__frame">
-          <label className="canvas-wysiwyg-special-block__fence">
-            <span>{'```'}</span>
-            <input
-              aria-label="Special fenced block language"
-              autoCapitalize="off"
-              autoComplete="off"
-              autoCorrect="off"
-              className="canvas-wysiwyg-special-block__kind-input nodrag nopan"
-              data-1p-ignore="true"
-              data-bwignore="true"
-              data-form-type="other"
-              data-lpignore="true"
-              spellCheck={false}
-              value={draftKind}
-              onChange={(event) => {
-                setDraftKind(event.target.value)
-              }}
-              onBlur={(event) => {
-                commitSpecialBlockLanguageChange(event.currentTarget.value, props)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
-                  return
-                }
-
-                if (event.key !== 'Escape') {
-                  return
-                }
-
-                event.preventDefault()
-                focusEditorAfterNode(props)
-              }}
-              list="canvas-wysiwyg-special-block-kinds"
-            />
-            <datalist id="canvas-wysiwyg-special-block-kinds">
-              <option value="mermaid" />
-              <option value="sandpack" />
-            </datalist>
-          </label>
           <textarea
             ref={textareaRef}
-            aria-label={`${kind} source`}
+            aria-label={`${kind} fenced source`}
             autoCapitalize="off"
             autoComplete="off"
             autoCorrect="off"
@@ -111,31 +60,40 @@ export function SpecialFencedBlockView(
             data-form-type="other"
             data-lpignore="true"
             spellCheck={false}
-            value={source}
+            {...buildRawBlockSourceAttributes('special', kind)}
+            rows={Math.max(rawMarkdown.split(/\r\n|\r|\n/).length, 3)}
+            value={rawMarkdown}
+            onBlur={() => {
+              setIsEditing(false)
+            }}
             onChange={(event) => {
-              props.updateAttributes({
-                source: event.target.value
-              })
+              updateSpecialBlockMarkdown(event.target.value, props)
+            }}
+            onFocus={() => {
+              setIsEditing(true)
             }}
             onKeyDown={(event) => {
-              if (event.key !== 'Escape') {
-                return
-              }
-
-              event.preventDefault()
-              focusEditorAfterNode(props)
+              handleRawBlockKeyDown({
+                event,
+                onEscapeToHost: props.callbacks?.onExitToHost,
+                onValueChange(nextValue) {
+                  updateSpecialBlockMarkdown(nextValue, props)
+                },
+                position: readNodePosition(props),
+                setIsEditing,
+                value: rawMarkdown,
+                viewProps: props
+              })
             }}
           />
-          <div className="canvas-wysiwyg-special-block__fence canvas-wysiwyg-special-block__fence--closing" aria-hidden="true">
-            {'```'}
-          </div>
         </div>
       ) : (
         <div
           className="canvas-wysiwyg-special-block__preview markdown-content nodrag nopan"
           onMouseDown={(event) => {
             event.preventDefault()
-            selectCurrentNode(props)
+            setIsEditing(true)
+            requestRawBlockSourceEntry(props)
           }}
         >
           <MarkdownContent content={buildFencedMarkdown(kind, source)} />
@@ -145,33 +103,24 @@ export function SpecialFencedBlockView(
   )
 }
 
-function normalizeSpecialBlockKind(value: string): 'mermaid' | 'sandpack' | null {
-  const normalizedValue = value.trim().toLowerCase()
-
-  if (normalizedValue === 'mermaid' || normalizedValue === 'sandpack') {
-    return normalizedValue
-  }
-
-  return null
-}
-
-function commitSpecialBlockLanguageChange(
-  nextLanguage: string,
+function updateSpecialBlockMarkdown(
+  rawMarkdown: string,
   props: NodeViewProps
 ) {
-  const normalizedLanguage = nextLanguage.trim()
-  const normalizedKind = normalizeSpecialBlockKind(normalizedLanguage)
+  const parsedMarkdown = parseRawFencedMarkdown(rawMarkdown)
+  const language = readOpeningCodeFenceLanguage(parsedMarkdown.openingFence)
 
-  if (normalizedKind) {
+  if (language === 'mermaid' || language === 'sandpack') {
     props.updateAttributes({
-      kind: normalizedKind
+      kind: language,
+      source: parsedMarkdown.source
     })
     return
   }
 
-  const position = props.getPos()
+  const position = readNodePosition(props)
 
-  if (typeof position !== 'number') {
+  if (position === null) {
     return
   }
 
@@ -180,36 +129,13 @@ function commitSpecialBlockLanguageChange(
       position,
       position + props.node.nodeSize,
       props.editor.schema.nodes.wysiwygCodeBlock.create({
-        openingFence: `\`\`\`${normalizedLanguage}`,
-        source: String(props.node.attrs.source ?? ''),
-        closingFence: '```'
+        openingFence: parsedMarkdown.openingFence,
+        source: parsedMarkdown.source,
+        closingFence: parsedMarkdown.closingFence
       })
     )
     tr.setSelection(NodeSelection.create(tr.doc, position))
-    return true
-  })
-}
-
-function selectCurrentNode(props: NodeViewProps) {
-  const position = props.getPos()
-
-  if (typeof position !== 'number') {
-    return
-  }
-
-  props.editor.commands.setNodeSelection(position)
-}
-
-function focusEditorAfterNode(props: NodeViewProps) {
-  const position = props.getPos()
-
-  if (typeof position !== 'number') {
-    return
-  }
-
-  props.editor.commands.command(({ tr }) => {
-    const resolvedPosition = tr.doc.resolve(Math.min(position + props.node.nodeSize, tr.doc.content.size))
-    tr.setSelection(Selection.near(resolvedPosition, 1))
+    requestPendingSourceEntry(tr, position)
     return true
   })
 }

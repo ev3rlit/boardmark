@@ -43,6 +43,7 @@ export type CanvasEditingFlushState =
 
 export type CanvasEditingBlockMode =
   | { status: 'none' }
+  | { status: 'code-fenced-source' }
   | {
       blockKind: 'mermaid' | 'sandpack'
       status: 'special-fenced-source'

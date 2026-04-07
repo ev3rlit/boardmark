@@ -192,6 +192,38 @@ describe('BodyEditorHost', () => {
     expect(toolbarShell).toHaveAttribute('data-placement', 'below')
   })
 
+  it('routes block-local Escape through onCancel without triggering blur commit', async () => {
+    const onCancel = vi.fn()
+    const onCommit = vi.fn(async () => undefined)
+
+    renderHost({
+      onCancel,
+      onCommit,
+      session: {
+        ...ACTIVE_WYSIWYG_SESSION,
+        draftMarkdown: '```ts\nconst shipped = true\n```'
+      }
+    })
+
+    const preview = await waitFor(() => {
+      const element = document.querySelector('.canvas-wysiwyg-code-block__preview')
+
+      if (!(element instanceof HTMLElement)) {
+        throw new Error('Expected a code block preview to exist.')
+      }
+
+      return element
+    })
+
+    fireEvent.mouseDown(preview)
+
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' })
+    fireEvent.keyDown(codeMarkdown, { key: 'Escape', code: 'Escape' })
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onCommit).not.toHaveBeenCalled()
+  })
+
   it('clamps the toolbar within the viewport when the object is near the edges', async () => {
     const originalInnerWidth = window.innerWidth
     const originalInnerHeight = window.innerHeight
@@ -256,10 +288,12 @@ describe('BodyEditorHost', () => {
 
 function renderHost({
   anchorRef = createDefaultAnchorRef(),
+  onCancel = () => undefined,
   onCommit = async () => undefined,
   session
 }: {
   anchorRef?: ReturnType<typeof createAnchorRef>
+  onCancel?: () => void
   onCommit?: () => Promise<unknown>
   session: CanvasEditingSessionState
 }) {
@@ -269,7 +303,7 @@ function renderHost({
         ariaLabel="Edit welcome"
         editable
         onBlockModeChange={() => undefined}
-        onCancel={() => undefined}
+        onCancel={onCancel}
         onCommit={onCommit}
         onInteractionChange={() => undefined}
         onMarkdownChange={() => undefined}

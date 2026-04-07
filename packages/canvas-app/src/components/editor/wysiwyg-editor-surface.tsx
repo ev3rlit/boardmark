@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useMemo } from 'react'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import { readEditorDerivedBlockMode } from '@canvas-app/components/editor/caret-navigation/selection-state'
 import type {
   CanvasEditingBlockMode,
   CanvasEditingInteractionState
@@ -31,8 +32,8 @@ export function WysiwygEditorSurface({
   onMarkdownChange
 }: WysiwygEditorSurfaceProps) {
   const bridge = useMemo(() => createWysiwygMarkdownBridge({
-    onBlockModeChange
-  }), [onBlockModeChange])
+    onExitToHost: onCancel
+  }), [onCancel])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -60,16 +61,6 @@ export function WysiwygEditorSurface({
         event.preventDefault()
         window.open(target.href, '_blank', 'noopener,noreferrer')
         return true
-      },
-      handleDOMEvents: {
-        blur: () => {
-          onInteractionChange('inactive')
-          return false
-        },
-        focus: () => {
-          onInteractionChange('active')
-          return false
-        }
       },
       handleKeyDown(_view, event) {
         if (!matchesEscapeKey(event)) {
@@ -129,9 +120,52 @@ export function WysiwygEditorSurface({
     }
   }, [editor, onEditorChange])
 
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    const updateBlockMode = () => {
+      if (editor.isDestroyed) {
+        return
+      }
+
+      onBlockModeChange(
+        readEditorDerivedBlockMode(editor.view.dom, document.activeElement)
+      )
+    }
+    const handleFocusOut = () => {
+      requestAnimationFrame(updateBlockMode)
+    }
+
+    updateBlockMode()
+    editor.on('selectionUpdate', updateBlockMode)
+    editor.view.dom.addEventListener('focusin', updateBlockMode)
+    editor.view.dom.addEventListener('focusout', handleFocusOut)
+
+    return () => {
+      editor.off('selectionUpdate', updateBlockMode)
+      editor.view.dom.removeEventListener('focusin', updateBlockMode)
+      editor.view.dom.removeEventListener('focusout', handleFocusOut)
+      onBlockModeChange({ status: 'none' })
+    }
+  }, [editor, onBlockModeChange])
+
   return (
     <div
       className="canvas-wysiwyg-surface nowheel"
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget
+
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+          return
+        }
+
+        onInteractionChange('inactive')
+      }}
+      onFocusCapture={() => {
+        onInteractionChange('active')
+      }}
       onWheelCapture={(event) => {
         event.stopPropagation()
       }}

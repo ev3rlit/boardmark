@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import type { Editor } from '@tiptap/react'
+import { moveVerticalSelection } from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
 import { WysiwygEditorSurface } from '@canvas-app/components/editor/wysiwyg-editor-surface'
 import {
   createTransientWysiwygEditor,
@@ -47,6 +49,31 @@ flowchart TD
 \`\`\`
 
 <div class="boardmark-html-fallback">raw</div>
+`
+
+const CARET_NAVIGATION_MARKDOWN = `Before paragraph
+
+\`\`\`ts
+const shipped = true
+\`\`\`
+
+\`\`\`mermaid
+flowchart TD
+  A[Start] --> B[Ship]
+\`\`\`
+
+<div class="boardmark-html-fallback">raw</div>
+
+After paragraph
+`
+
+const CARET_CODE_BLOCK_ONLY_MARKDOWN = `Before paragraph
+
+\`\`\`ts
+const shipped = true
+\`\`\`
+
+After paragraph
 `
 
 describe('WysiwygMarkdownBridge', () => {
@@ -100,7 +127,7 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.keyDown(specialSource, { key: 'Escape', code: 'Escape' })
 
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'mermaid fenced source' })).toBeNull()
     })
 
     const codeMarkdown = await openCodeBlockEditor('```ts')
@@ -198,26 +225,22 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
     const specialSource = await openSpecialBlockEditor('```mermaid')
-    const languageInput = await screen.findByLabelText('Special fenced block language')
 
     await waitFor(() => {
       expect(specialSource).toHaveFocus()
       expect(screen.getByTestId('markdown-value').textContent).toContain('```mermaid')
     })
 
-    fireEvent.change(languageInput, {
+    fireEvent.change(specialSource, {
       target: {
-        value: 'sandpack'
+        value: '```sandpack\n\n```'
       }
     })
-    fireEvent.keyDown(languageInput, { key: 'Enter', code: 'Enter' })
 
     await waitFor(() => {
       expect(screen.getByTestId('markdown-value').textContent).toContain('```sandpack')
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
     })
-
-    expect(languageInput).toHaveValue('sandpack')
   })
 
   it('converts a special fenced block into a general code block when the language becomes non-special', async () => {
@@ -228,29 +251,143 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
     const specialSource = await openSpecialBlockEditor('```mermaid')
-    const specialLanguageInput = await screen.findByLabelText('Special fenced block language')
 
-    expect(specialSource).toHaveFocus()
+    await waitFor(() => {
+      expect(specialSource).toHaveFocus()
+    })
 
-    fireEvent.change(specialLanguageInput, {
+    fireEvent.change(specialSource, {
       target: {
-        value: 'python'
+        value: '```python\n\n```'
       }
     })
-    fireEvent.keyDown(specialLanguageInput, { key: 'Enter', code: 'Enter' })
 
     const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
 
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
+      expect(screen.queryByRole('textbox', { name: 'mermaid fenced source' })).toBeNull()
       expect(screen.getByTestId('markdown-value').textContent).toContain('```python')
       expect(codeMarkdown.value).toContain('```python')
       expect(codeMarkdown).toHaveFocus()
     })
   })
+
+  it('moves from a paragraph into a fenced block with ArrowDown and keeps preview selection until source entry', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown={CARET_CODE_BLOCK_ONLY_MARKDOWN}
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+
+    editor.commands.setTextSelection(findParagraphBoundary(editor, 'Before paragraph', 'end'))
+    await act(async () => {
+      moveVerticalSelection(editor.view, 'down')
+    })
+
+    await waitFor(() => {
+      expect(editor.state.selection).toBeInstanceOf(NodeSelection)
+      expect((editor.state.selection as NodeSelection).node.type.name).toBe('wysiwygCodeBlock')
+      expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull()
+    })
+  })
+
+  it('enters source editing from preview clicks and exits fenced blocks at vertical boundaries', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown={CARET_CODE_BLOCK_ONLY_MARKDOWN}
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+    const codeMarkdown = await openCodeBlockEditor('```ts')
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+    })
+
+    codeMarkdown.setSelectionRange(0, 0)
+    await act(async () => {
+      fireEvent.keyDown(codeMarkdown, { key: 'ArrowUp', code: 'ArrowUp' })
+    })
+
+    await waitFor(() => {
+      expect(editor.state.selection).toBeInstanceOf(TextSelection)
+      expect(editor.state.selection.$from.parent.textContent).toBe('Before paragraph')
+      expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull()
+    })
+
+    const reopenedCodeMarkdown = await openCodeBlockEditor('```ts')
+    reopenedCodeMarkdown.setSelectionRange(reopenedCodeMarkdown.value.length, reopenedCodeMarkdown.value.length)
+    await act(async () => {
+      fireEvent.keyDown(reopenedCodeMarkdown, { key: 'ArrowDown', code: 'ArrowDown' })
+    })
+
+    await waitFor(() => {
+      expect(editor.state.selection).toBeInstanceOf(TextSelection)
+      expect(editor.state.selection.$from.parent.textContent).toBe('After paragraph')
+      expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull()
+    })
+  })
+
+  it('uses raw source editing for special and html fallback blocks and returns to host on Escape', async () => {
+    const onCancel = vi.fn()
+    render(<SurfaceHarness markdown={CARET_NAVIGATION_MARKDOWN} onCancel={onCancel} />)
+
+    const specialSource = await openSpecialBlockEditor('```mermaid')
+    expect(specialSource).toHaveAccessibleName('mermaid fenced source')
+
+    fireEvent.keyDown(specialSource, { key: 'Escape', code: 'Escape' })
+
+    await waitFor(() => {
+      expect(onCancel).toHaveBeenCalledTimes(1)
+    })
+
+    const htmlPreview = await screen.findByText('<div class="boardmark-html-fallback">raw</div>')
+    fireEvent.mouseDown(htmlPreview)
+
+    const htmlSource = await screen.findByRole('textbox', { name: 'HTML fallback source' })
+    expect(htmlSource).toHaveFocus()
+
+    fireEvent.keyDown(htmlSource, { key: 'Escape', code: 'Escape' })
+
+    await waitFor(() => {
+      expect(onCancel).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('does not use ArrowRight to leave a block selection', async () => {
+    render(<SurfaceHarness markdown={CARET_NAVIGATION_MARKDOWN} />)
+
+    const codeMarkdown = await openCodeBlockEditor('```ts')
+    codeMarkdown.setSelectionRange(3, 3)
+
+    await act(async () => {
+      fireEvent.keyDown(codeMarkdown, { key: 'ArrowRight', code: 'ArrowRight' })
+    })
+
+    expect(screen.getByRole('textbox', { name: 'Code block markdown' })).toBe(codeMarkdown)
+  })
 })
 
-function SurfaceHarness({ markdown }: { markdown: string }) {
+function SurfaceHarness({
+  markdown,
+  onCancel = () => undefined,
+  onEditorChange
+}: {
+  markdown: string
+  onCancel?: () => void
+  onEditorChange?: (editor: Editor | null) => void
+}) {
   const [value, setValue] = useState(markdown)
 
   return (
@@ -259,7 +396,8 @@ function SurfaceHarness({ markdown }: { markdown: string }) {
         ariaLabel="Surface editor"
         markdown={value}
         onBlockModeChange={() => undefined}
-        onCancel={() => undefined}
+        onCancel={onCancel}
+        onEditorChange={onEditorChange}
         onInteractionChange={() => undefined}
         onMarkdownChange={setValue}
       />
@@ -303,6 +441,37 @@ async function openSpecialBlockEditor(pattern: string) {
 
   fireEvent.mouseDown(await findMarkdownPreview(pattern))
   return await screen.findByRole('textbox', { name: / source$/ }) as HTMLTextAreaElement
+}
+
+function findParagraphBoundary(
+  editor: Editor,
+  paragraphText: string,
+  edge: 'end' | 'start'
+) {
+  let boundaryPosition: number | null = null
+
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== 'paragraph' || node.textContent !== paragraphText) {
+      return true
+    }
+
+    boundaryPosition = edge === 'start' ? position + 1 : position + node.nodeSize - 1
+    return false
+  })
+
+  if (boundaryPosition === null) {
+    throw new Error(`Expected paragraph "${paragraphText}" to exist.`)
+  }
+
+  return boundaryPosition
+}
+
+async function waitForEditor(editorRef: { current: Editor | null }) {
+  await waitFor(() => {
+    expect(editorRef.current).not.toBeNull()
+  })
+
+  return editorRef.current as Editor
 }
 
 function setSelectionInsideTable(
