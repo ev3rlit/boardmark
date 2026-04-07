@@ -1177,7 +1177,10 @@ button {
   overflow: hidden;
 }
 
-.canvas-wysiwyg-code-block__header,
+.canvas-wysiwyg-code-block {
+  background: transparent;
+}
+
 .canvas-wysiwyg-special-block__header,
 .canvas-wysiwyg-html-block__header {
   align-items: center;
@@ -1187,7 +1190,6 @@ button {
   padding: 0.85rem 1rem;
 }
 
-.canvas-wysiwyg-code-block__badge,
 .canvas-wysiwyg-special-block__badge,
 .canvas-wysiwyg-html-block__badge {
   color: var(--color-primary);
@@ -1199,37 +1201,12 @@ button {
   text-transform: uppercase;
 }
 
-.canvas-wysiwyg-code-block__hint,
 .canvas-wysiwyg-special-block__title,
 .canvas-wysiwyg-html-block__title {
   color: var(--color-on-surface-variant);
   font-size: 0.75rem;
 }
 
-.canvas-wysiwyg-code-block__body {
-  display: grid;
-  gap: 0;
-  grid-template-columns: auto 1fr;
-}
-
-.canvas-wysiwyg-code-block__gutter {
-  background: color-mix(in oklab, var(--color-surface-low) 86%, white);
-  color: var(--color-on-surface-variant);
-  display: flex;
-  flex-direction: column;
-  font-family: 'IBM Plex Mono', 'Menlo', monospace;
-  font-size: 0.75rem;
-  gap: 0.35rem;
-  padding: 1rem 0.6rem 1rem 0.9rem;
-  text-align: right;
-  user-select: none;
-}
-
-.canvas-wysiwyg-code-block__editor {
-  position: relative;
-}
-
-.canvas-wysiwyg-code-block__highlight,
 .canvas-wysiwyg-code-block__textarea,
 .canvas-wysiwyg-special-block__textarea,
 .canvas-wysiwyg-html-block__textarea {
@@ -1238,44 +1215,117 @@ button {
   line-height: 1.65;
 }
 
-.canvas-wysiwyg-code-block__highlight {
-  min-height: 100%;
-  overflow: auto;
-  padding: 1rem 1rem 1rem 0.2rem;
+.canvas-wysiwyg-code-block__frame {
+  padding: 0.95rem 1rem 0.8rem;
+  border-radius: 1rem;
+  background: rgba(43, 52, 55, 0.92);
+  color: #f2f4f5;
 }
 
-.canvas-wysiwyg-code-block__highlight pre {
-  margin: 0;
+.canvas-wysiwyg-code-block__fence {
+  align-items: center;
+  color: color-mix(in oklab, white 74%, var(--color-on-surface-variant));
+  display: flex;
+  font-family: 'IBM Plex Mono', 'Menlo', monospace;
+  font-size: 0.82rem;
+  gap: 0.05rem;
+  line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.canvas-wysiwyg-code-block__fence--closing {
+  margin-top: 0;
 }
 
 .canvas-wysiwyg-code-block__textarea {
   background: transparent;
   border: 0;
-  color: transparent;
-  caret-color: var(--color-on-surface);
-  inset: 0;
-  min-height: 100%;
+  color: inherit;
+  display: block;
+  min-height: 1.65rem;
   outline: none;
   overflow: hidden;
-  padding: 1rem 1rem 1rem 0.2rem;
-  position: absolute;
+  padding: 0;
   resize: none;
+  white-space: pre-wrap;
   width: 100%;
+}
+
+.canvas-wysiwyg-code-block__textarea::selection {
+  background: color-mix(in oklab, var(--color-primary) 18%, white);
+}
+
+.canvas-wysiwyg-code-block__textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.canvas-wysiwyg-code-block__textarea,
+.canvas-wysiwyg-code-block__fence {
+  tab-size: 2;
+}
+
+.canvas-wysiwyg-code-block__language-input,
+.canvas-wysiwyg-special-block__kind-input {
+  background: transparent;
+  border: 0;
+  color: color-mix(in oklab, white 94%, var(--color-primary));
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  min-width: 1ch;
+  outline: none;
+  padding: 0;
+}
+
+.canvas-wysiwyg-code-block__language-input::selection,
+.canvas-wysiwyg-special-block__kind-input::selection {
+  background: color-mix(in oklab, var(--color-primary) 24%, transparent);
+}
+
+.canvas-wysiwyg-code-block__language-input::placeholder,
+.canvas-wysiwyg-special-block__kind-input::placeholder {
+  color: color-mix(in oklab, white 52%, var(--color-on-surface-variant));
+}
+
+.canvas-wysiwyg-code-block__textarea {
+  resize: none;
 }
 
 .canvas-wysiwyg-special-block__preview {
   padding: 0 1rem 1rem;
 }
 
+.canvas-wysiwyg-special-block__frame {
+  padding: 0.95rem 1rem 0.8rem;
+}
+
+.canvas-wysiwyg-special-block__fence {
+  align-items: center;
+  color: var(--color-on-surface-variant);
+  display: flex;
+  font-family: 'IBM Plex Mono', 'Menlo', monospace;
+  font-size: 0.82rem;
+  gap: 0.05rem;
+  line-height: 1.65;
+}
+
+.canvas-wysiwyg-special-block__fence--closing {
+  margin-top: 0;
+}
+
+.canvas-wysiwyg-special-block__kind-input {
+  width: 8.8ch;
+}
+
 .canvas-wysiwyg-special-block__textarea,
 .canvas-wysiwyg-html-block__textarea {
-  background: color-mix(in oklab, var(--color-surface-low) 72%, white);
+  background: transparent;
   border: 0;
   color: var(--color-on-surface);
-  min-height: 11rem;
+  min-height: 10rem;
   outline: none;
-  padding: 1rem;
-  resize: vertical;
+  padding: 0;
+  resize: none;
   width: 100%;
 }

@@ -59,6 +59,14 @@ describe('WysiwygMarkdownBridge', () => {
     expect(bridge.roundTrip(TABLE_AND_BLOCKS_MARKDOWN)).toMatch(/\|\s*Capability\s*\|\s*Status\s*\|\s*Notes\s*\|/)
   })
 
+  it('normalizes trailing ::: out of list and blockquote children', () => {
+    const bridge = createWysiwygMarkdownBridge()
+
+    expect(bridge.roundTrip('- item\n- :::')).toBe('- item\n\n:::')
+    expect(bridge.roundTrip('> quote\n:::')).toBe('> quote\n\n:::')
+    expect(bridge.roundTrip('> quote\n> :::')).toBe('> quote\n\n:::')
+  })
+
   it('supports table commands through the production bridge editor', () => {
     const editor = createTransientWysiwygEditor(TABLE_AND_BLOCKS_MARKDOWN)
 
@@ -116,12 +124,55 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
     const codeSource = await screen.findByRole('textbox', { name: 'Code block source' })
+    const codeLanguage = await screen.findByRole('textbox', { name: 'Code block language' })
 
     await waitFor(() => {
       expect(codeSource).toHaveFocus()
       expect(screen.getByTestId('markdown-value').textContent).toContain('```ts')
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
     })
+
+    fireEvent.change(codeLanguage, {
+      target: {
+        value: 'tsx'
+      }
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```tsx')
+    })
+
+    expect(codeLanguage).toHaveValue('tsx')
+    expect(codeSource.closest('.canvas-wysiwyg-code-block')).toHaveTextContent('```')
+  })
+
+  it('promotes ```mermaid + Enter into a special fenced block and lets the language change', async () => {
+    render(<SurfaceHarness markdown="```mermaid" />)
+
+    const editor = await screen.findByRole('textbox', { name: 'Surface editor' })
+    fireEvent.focus(editor)
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+
+    const specialSource = await screen.findByRole('textbox', { name: 'mermaid source' })
+    const languageInput = await screen.findByLabelText('Special fenced block language')
+
+    await waitFor(() => {
+      expect(specialSource).toHaveFocus()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```mermaid')
+    })
+
+    fireEvent.change(languageInput, {
+      target: {
+        value: 'sandpack'
+      }
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```sandpack')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```')
+    })
+
+    expect(languageInput).toHaveValue('sandpack')
   })
 })
 
