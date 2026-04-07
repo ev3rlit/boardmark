@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportCodeBlockImage, exportMermaidBlockImage } from './image-export'
 
-const { toBlobMock } = vi.hoisted(() => ({
+const {
+  canvgFromStringMock,
+  canvgRenderMock,
+  canvasContextScaleMock,
+  canvasContextFillRectMock,
+  toBlobMock
+} = vi.hoisted(() => ({
+  canvgFromStringMock: vi.fn(),
+  canvgRenderMock: vi.fn(),
+  canvasContextScaleMock: vi.fn(),
+  canvasContextFillRectMock: vi.fn(),
   toBlobMock: vi.fn()
 }))
 
@@ -9,31 +19,28 @@ vi.mock('html-to-image', () => ({
   toBlob: toBlobMock
 }))
 
+vi.mock('canvg', () => ({
+  Canvg: {
+    fromString: canvgFromStringMock
+  }
+}))
+
 describe('fenced block image export', () => {
   beforeEach(() => {
+    canvgFromStringMock.mockReset()
+    canvgRenderMock.mockReset()
+    canvasContextScaleMock.mockReset()
+    canvasContextFillRectMock.mockReset()
     toBlobMock.mockReset()
     toBlobMock.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    canvgRenderMock.mockResolvedValue(undefined)
+    canvgFromStringMock.mockReturnValue({
+      render: canvgRenderMock
+    })
     Object.defineProperty(window, 'devicePixelRatio', {
       configurable: true,
       value: 2
     })
-    vi.stubGlobal(
-      'Image',
-      class {
-        onerror: (() => void) | null = null
-        onload: (() => void) | null = null
-        private value = ''
-
-        set src(nextSrc: string) {
-          this.value = nextSrc
-          this.onload?.()
-        }
-
-        get src() {
-          return this.value
-        }
-      }
-    )
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:mermaid-svg')
@@ -43,8 +50,9 @@ describe('fenced block image export', () => {
       value: vi.fn(() => undefined)
     })
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      scale: canvasContextScaleMock,
       drawImage: vi.fn(),
-      fillRect: vi.fn(),
+      fillRect: canvasContextFillRectMock,
       fillStyle: ''
     } as unknown as CanvasRenderingContext2D)
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
@@ -121,8 +129,9 @@ describe('fenced block image export', () => {
     const viewport = document.createElement('div')
     viewport.className = 'mermaid-diagram__viewport'
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-    svg.setAttribute('width', '320')
-    svg.setAttribute('height', '200')
+    svg.setAttribute('width', '188')
+    svg.setAttribute('height', '296')
+    svg.setAttribute('viewBox', '0 0 640 960')
     viewport.append(svg)
     root.append(viewport)
 
@@ -134,7 +143,19 @@ describe('fenced block image export', () => {
     expect(result.fileName).toBe('boardmark-mermaid-diagram.png')
     expect(result.mimeType).toBe('image/png')
     expect(result.blob.size).toBeGreaterThan(0)
-    expect(URL.createObjectURL).toHaveBeenCalled()
+    expect(canvgFromStringMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('<svg'),
+      expect.objectContaining({
+        ignoreAnimation: true,
+        ignoreDimensions: true,
+        ignoreMouse: true
+      })
+    )
+    expect(canvgRenderMock).toHaveBeenCalledTimes(1)
+    expect(canvasContextScaleMock).toHaveBeenCalledWith(2, 2)
+    expect(canvasContextFillRectMock).toHaveBeenCalledWith(0, 0, 640, 960)
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
   })
 
   it('rejects Mermaid export when the surface is not ready', async () => {

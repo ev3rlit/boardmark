@@ -11,8 +11,12 @@ export type FencedBlockImageExportResult = {
 }
 
 type HtmlToImageModule = typeof import('html-to-image')
+type CanvgModule = typeof import('canvg')
 
 let htmlToImagePromise: Promise<HtmlToImageModule> | null = null
+let canvgPromise: Promise<CanvgModule> | null = null
+const MIN_MERMAID_EXPORT_SCALE = 2
+const MAX_MERMAID_EXPORT_SCALE = 3
 
 export async function exportCodeBlockImage(
   request: FencedBlockImageExportRequest
@@ -65,37 +69,39 @@ export async function exportMermaidBlockImage(
 
   const width = readSvgCaptureWidth(svgElement, rootElement)
   const height = readSvgCaptureHeight(svgElement, rootElement)
+  const exportScale = readMermaidExportScale()
   const serialized = serializeMermaidSvg(svgElement, width, height)
-  const imageUrl = URL.createObjectURL(
-    new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' })
-  )
-  const image = await loadImageFromUrl(imageUrl)
 
-  try {
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.ceil(width * exportScale))
+  canvas.height = Math.max(1, Math.ceil(height * exportScale))
 
-    const context = canvas.getContext('2d')
+  const context = canvas.getContext('2d')
 
-    if (!context) {
-      throw new Error('Mermaid export could not create a 2D canvas context.')
-    }
+  if (!context) {
+    throw new Error('Mermaid export could not create a 2D canvas context.')
+  }
 
-    context.fillStyle = readMermaidBackgroundColor(rootElement)
-    context.fillRect(0, 0, width, height)
-    context.drawImage(image, 0, 0, width, height)
+  context.scale(exportScale, exportScale)
+  context.fillStyle = readMermaidBackgroundColor(rootElement)
+  context.fillRect(0, 0, width, height)
 
-    return {
-      blob: requirePngBlob(
-        await canvasToBlob(canvas, 'image/png'),
-        'Mermaid export returned no PNG image.'
-      ),
-      fileName: 'boardmark-mermaid-diagram.png',
-      mimeType: 'image/png'
-    }
-  } finally {
-    URL.revokeObjectURL(imageUrl)
+  const { Canvg } = await loadCanvg()
+  const renderer = Canvg.fromString(context, serialized, {
+    ignoreAnimation: true,
+    ignoreDimensions: true,
+    ignoreMouse: true
+  })
+
+  await renderer.render()
+
+  return {
+    blob: requirePngBlob(
+      await canvasToBlob(canvas, 'image/png'),
+      'Mermaid export returned no PNG image.'
+    ),
+    fileName: 'boardmark-mermaid-diagram.png',
+    mimeType: 'image/png'
   }
 }
 
@@ -171,35 +177,56 @@ function readMermaidBackgroundColor(rootElement: HTMLElement) {
 }
 
 function readSvgCaptureWidth(svgElement: SVGElement, rootElement: HTMLElement) {
+  const viewBoxSize = readSvgViewBoxSize(svgElement)
   const widthAttribute = Number(svgElement.getAttribute('width'))
-
-  if (Number.isFinite(widthAttribute) && widthAttribute > 0) {
-    return Math.ceil(widthAttribute)
-  }
-
   const bounds = svgElement.getBoundingClientRect()
-
-  if (bounds.width > 0) {
-    return Math.ceil(bounds.width)
-  }
-
-  return readElementCaptureWidth(rootElement)
+  return Math.max(
+    viewBoxSize?.width ?? 0,
+    Number.isFinite(widthAttribute) && widthAttribute > 0 ? widthAttribute : 0,
+    bounds.width > 0 ? bounds.width : 0,
+    readElementCaptureWidth(rootElement)
+  )
 }
 
 function readSvgCaptureHeight(svgElement: SVGElement, rootElement: HTMLElement) {
+  const viewBoxSize = readSvgViewBoxSize(svgElement)
   const heightAttribute = Number(svgElement.getAttribute('height'))
-
-  if (Number.isFinite(heightAttribute) && heightAttribute > 0) {
-    return Math.ceil(heightAttribute)
-  }
-
   const bounds = svgElement.getBoundingClientRect()
+  return Math.max(
+    viewBoxSize?.height ?? 0,
+    Number.isFinite(heightAttribute) && heightAttribute > 0 ? heightAttribute : 0,
+    bounds.height > 0 ? bounds.height : 0,
+    readElementCaptureHeight(rootElement)
+  )
+}
 
-  if (bounds.height > 0) {
-    return Math.ceil(bounds.height)
+function readSvgViewBoxSize(svgElement: SVGElement) {
+  const viewBox = svgElement.getAttribute('viewBox')
+
+  if (!viewBox) {
+    return null
   }
 
-  return readElementCaptureHeight(rootElement)
+  const parts = viewBox
+    .trim()
+    .split(/[,\s]+/)
+    .map((part) => Number(part))
+
+  if (parts.length !== 4 || parts.some((value) => !Number.isFinite(value))) {
+    return null
+  }
+
+  const width = parts[2]
+  const height = parts[3]
+
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  return {
+    height: Math.ceil(height),
+    width: Math.ceil(width)
+  }
 }
 
 function serializeMermaidSvg(svgElement: SVGElement, width: number, height: number) {
@@ -231,6 +258,17 @@ async function loadHtmlToImage() {
   return htmlToImagePromise
 }
 
+async function loadCanvg() {
+  if (!canvgPromise) {
+    canvgPromise = import('canvg').catch((error) => {
+      canvgPromise = null
+      throw error
+    })
+  }
+
+  return canvgPromise
+}
+
 function readPixelRatio() {
   if (typeof window === 'undefined') {
     return 1
@@ -239,21 +277,19 @@ function readPixelRatio() {
   return Math.max(1, Math.ceil(window.devicePixelRatio || 1))
 }
 
+function readMermaidExportScale() {
+  return Math.max(
+    MIN_MERMAID_EXPORT_SCALE,
+    Math.min(MAX_MERMAID_EXPORT_SCALE, readPixelRatio())
+  )
+}
+
 function requirePngBlob(blob: Blob | null, fallbackMessage: string) {
   if (!blob || blob.size === 0) {
     throw new Error(fallbackMessage)
   }
 
   return blob
-}
-
-function loadImageFromUrl(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error(`Could not decode exported image "${src}".`))
-    image.src = src
-  })
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string) {

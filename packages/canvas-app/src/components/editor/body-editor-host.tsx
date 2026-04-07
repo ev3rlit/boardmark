@@ -107,7 +107,14 @@ export function BodyEditorHost({
         <textarea
           ref={textareaRef}
           aria-label={ariaLabel}
+          autoCapitalize="off"
+          autoComplete="off"
+          autoCorrect="off"
           className="canvas-body-editor-host__textarea nodrag nopan"
+          data-1p-ignore="true"
+          data-bwignore="true"
+          data-form-type="other"
+          data-lpignore="true"
           spellCheck={false}
           value={session.draftMarkdown}
           onFocus={() => onInteractionChange('active')}

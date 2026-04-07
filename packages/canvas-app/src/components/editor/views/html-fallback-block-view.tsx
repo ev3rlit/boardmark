@@ -20,7 +20,14 @@ export function HtmlFallbackBlockView(
       </div>
       <textarea
         aria-label="HTML fallback source"
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
         className="canvas-wysiwyg-html-block__textarea nodrag nopan"
+        data-1p-ignore="true"
+        data-bwignore="true"
+        data-form-type="other"
+        data-lpignore="true"
         spellCheck={false}
         value={raw}
         onFocus={() => {

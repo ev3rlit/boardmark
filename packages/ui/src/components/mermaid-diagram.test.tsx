@@ -72,12 +72,14 @@ A[Start] -->`} />
   })
 
   it('shows export image affordance only after the diagram is ready', async () => {
+    const exportImageMock = vi.fn().mockResolvedValue({ status: 'saved' as const })
+
     render(
       <MarkdownContentImageActionsProvider
         actions={{
           canCopyImageToClipboard: () => true,
           copyImageToClipboard: vi.fn().mockResolvedValue(undefined),
-          exportImage: vi.fn().mockResolvedValue({ status: 'saved' as const })
+          exportImage: exportImageMock
         }}
       >
         <MermaidDiagram source={`flowchart TD
@@ -92,6 +94,20 @@ A[Start] --> B[Ship]`} />
     expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Export JPG' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Copy image to clipboard' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export PNG' }))
+
+    await waitFor(() => {
+      expect(exportMermaidBlockImageMock).toHaveBeenCalledTimes(1)
+      expect(exportImageMock).toHaveBeenCalledWith(
+        {
+          blob: expect.any(Blob),
+          fileName: 'boardmark-mermaid-diagram.png',
+          mimeType: 'image/png'
+        },
+        'png'
+      )
+    })
   })
 
   it('hides export affordance for loading and error Mermaid states', async () => {

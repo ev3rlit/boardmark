@@ -17,6 +17,7 @@
     "@codesandbox/sandpack-react": "^2.20.0",
     "@types/js-yaml": "^4.0.9",
     "@xyflow/react": "^12.8.5",
+    "canvg": "^4.0.3",
     "electron": "^35.1.5",
     "html-to-image": "^1.11.11",
     "js-yaml": "^4.1.1",
