@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
 import { MarkdownContent } from '@boardmark/ui'
 import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
 import { buildFencedMarkdown } from '@canvas-app/components/editor/wysiwyg-block-helpers'
@@ -101,18 +102,18 @@ export function SpecialFencedBlockView(
                 spellCheck={false}
                 value={draftKind}
                 onChange={(event) => {
-                  const nextDraftKind = event.target.value
-                  setDraftKind(nextDraftKind)
-                  const normalizedKind = normalizeSpecialBlockKind(nextDraftKind)
-
-                  if (normalizedKind) {
-                    props.updateAttributes({
-                      kind: normalizedKind
-                    })
-                  }
+                  setDraftKind(event.target.value)
                 }}
-                onBlur={() => {
-                  setDraftKind(kind)
+                onBlur={(event) => {
+                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') {
+                    return
+                  }
+
+                  event.preventDefault()
+                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
                 }}
                 list="canvas-wysiwyg-special-block-kinds"
               />
@@ -164,4 +165,38 @@ function normalizeSpecialBlockKind(value: string): 'mermaid' | 'sandpack' | null
   }
 
   return null
+}
+
+function commitSpecialBlockLanguageChange(
+  nextLanguage: string,
+  props: NodeViewProps
+) {
+  const normalizedLanguage = nextLanguage.trim()
+  const normalizedKind = normalizeSpecialBlockKind(normalizedLanguage)
+
+  if (normalizedKind) {
+    props.updateAttributes({
+      kind: normalizedKind
+    })
+    return
+  }
+
+  const position = props.getPos()
+
+  if (typeof position !== 'number') {
+    return
+  }
+
+  props.editor.commands.command(({ tr }) => {
+    tr.replaceRangeWith(
+      position,
+      position + props.node.nodeSize,
+      props.editor.schema.nodes.wysiwygCodeBlock.create({
+        language: normalizedLanguage,
+        source: String(props.node.attrs.source ?? '')
+      })
+    )
+    tr.setSelection(NodeSelection.create(tr.doc, position))
+    return true
+  })
 }

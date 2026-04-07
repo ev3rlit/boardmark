@@ -166,6 +166,7 @@ describe('WysiwygMarkdownBridge', () => {
         value: 'sandpack'
       }
     })
+    fireEvent.keyDown(languageInput, { key: 'Enter', code: 'Enter' })
 
     await waitFor(() => {
       expect(screen.getByTestId('markdown-value').textContent).toContain('```sandpack')
@@ -173,6 +174,33 @@ describe('WysiwygMarkdownBridge', () => {
     })
 
     expect(languageInput).toHaveValue('sandpack')
+  })
+
+  it('converts a special fenced block into a general code block when the language becomes non-special', async () => {
+    render(<SurfaceHarness markdown="```mermaid" />)
+
+    const editor = await screen.findByRole('textbox', { name: 'Surface editor' })
+    fireEvent.focus(editor)
+    fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
+
+    const specialLanguageInput = await screen.findByLabelText('Special fenced block language')
+
+    fireEvent.change(specialLanguageInput, {
+      target: {
+        value: 'python'
+      }
+    })
+    fireEvent.keyDown(specialLanguageInput, { key: 'Enter', code: 'Enter' })
+
+    const codeSource = await screen.findByRole('textbox', { name: 'Code block source' })
+    const codeLanguage = await screen.findByRole('textbox', { name: 'Code block language' })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```python')
+      expect(codeLanguage).toHaveValue('python')
+      expect(codeSource).toHaveFocus()
+    })
   })
 })
 
