@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { MarkdownContent } from '@boardmark/ui'
 import {
   buildRawFencedMarkdown,
   parseRawFencedMarkdown
@@ -22,27 +23,42 @@ export function CodeBlockNodeView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="canvas-wysiwyg-code-block nodrag nopan">
-      <div className="canvas-wysiwyg-code-block__frame">
-        <textarea
-          ref={textareaRef}
-          aria-label="Code block markdown"
-          autoCapitalize="off"
-          autoComplete="off"
-          autoCorrect="off"
-          className="canvas-wysiwyg-code-block__textarea nodrag nopan nowheel"
-          data-1p-ignore="true"
-          data-bwignore="true"
-          data-form-type="other"
-          data-lpignore="true"
-          spellCheck={false}
-          rows={Math.max(rawMarkdown.split(/\r\n|\r|\n/).length, 3)}
-          value={rawMarkdown}
-          onChange={(event) => {
-            props.updateAttributes(parseRawFencedMarkdown(event.target.value))
+      {props.selected ? (
+        <div className="canvas-wysiwyg-code-block__frame">
+          <textarea
+            ref={textareaRef}
+            aria-label="Code block markdown"
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            className="canvas-wysiwyg-code-block__textarea nodrag nopan nowheel"
+            data-1p-ignore="true"
+            data-bwignore="true"
+            data-form-type="other"
+            data-lpignore="true"
+            spellCheck={false}
+            rows={Math.max(rawMarkdown.split(/\r\n|\r|\n/).length, 3)}
+            value={rawMarkdown}
+            onChange={(event) => {
+              props.updateAttributes(parseRawFencedMarkdown(event.target.value))
+            }}
+            onKeyDown={(event) => handleCodeTextareaKeyDown(event, props)}
+          />
+        </div>
+      ) : (
+        <div
+          className="canvas-wysiwyg-code-block__preview nodrag nopan"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            selectCurrentNode(props)
           }}
-          onKeyDown={(event) => handleCodeTextareaKeyDown(event, props)}
-        />
-      </div>
+        >
+          <MarkdownContent
+            className="markdown-content"
+            content={ensurePreviewMarkdown(rawMarkdown)}
+          />
+        </div>
+      )}
     </NodeViewWrapper>
   )
 }
@@ -119,4 +135,18 @@ function useAutoFocusSelectedCodeBlock(
       window.clearTimeout(timeout)
     }
   }, [selected, caretPosition, textareaRef])
+}
+
+function selectCurrentNode(props: NodeViewProps) {
+  const position = props.getPos()
+
+  if (typeof position !== 'number') {
+    return
+  }
+
+  props.editor.commands.setNodeSelection(position)
+}
+
+function ensurePreviewMarkdown(markdown: string) {
+  return markdown.endsWith('\n') ? markdown : `${markdown}\n`
 }

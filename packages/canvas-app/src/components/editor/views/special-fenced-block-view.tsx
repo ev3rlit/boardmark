@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, Selection } from '@tiptap/pm/state'
 import { MarkdownContent } from '@boardmark/ui'
 import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
 import { buildFencedMarkdown } from '@canvas-app/components/editor/wysiwyg-block-helpers'
@@ -15,33 +15,26 @@ export function SpecialFencedBlockView(
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [draftKind, setDraftKind] = useState('mermaid')
-  const [mode, setMode] = useState<'preview' | 'source'>(() => {
-    return props.selected ? 'source' : 'preview'
-  })
   const kind = String(props.node.attrs.kind ?? 'mermaid') as 'mermaid' | 'sandpack'
   const source = String(props.node.attrs.source ?? '')
 
-  const switchMode = (nextMode: 'preview' | 'source') => {
-    setMode(nextMode)
-  }
-
   useEffect(() => {
     props.callbacks?.onBlockModeChange?.(
-      mode === 'source'
+      props.selected
         ? {
             status: 'special-fenced-source',
             blockKind: kind
           }
         : { status: 'none' }
     )
-  }, [kind, mode, props.callbacks])
+  }, [kind, props.callbacks, props.selected])
 
   useEffect(() => {
     setDraftKind(kind)
   }, [kind])
 
   useEffect(() => {
-    if (mode !== 'source') {
+    if (!props.selected) {
       return
     }
 
@@ -59,99 +52,94 @@ export function SpecialFencedBlockView(
     return () => {
       window.clearTimeout(timeout)
     }
-  }, [mode, source.length])
+  }, [props.selected, source.length])
 
   return (
     <NodeViewWrapper className="canvas-wysiwyg-special-block nodrag nopan">
-      {mode === 'preview' ? (
-        <>
-          <div className="canvas-wysiwyg-special-block__header">
-            <div>
-              <span className="canvas-wysiwyg-special-block__badge">{kind}</span>
-              <span className="canvas-wysiwyg-special-block__title">
-                {kind === 'mermaid' ? 'Preview shell with source toggle' : 'Sandpack preview shell'}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="canvas-wysiwyg-inline-button"
-              onClick={() => switchMode('source')}
-            >
-              Edit source
-            </button>
-          </div>
-          <div className="canvas-wysiwyg-special-block__preview markdown-content">
-            <MarkdownContent content={buildFencedMarkdown(kind, source)} />
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="canvas-wysiwyg-special-block__frame">
-            <label className="canvas-wysiwyg-special-block__fence">
-              <span>{'```'}</span>
-              <input
-                aria-label="Special fenced block language"
-                autoCapitalize="off"
-                autoComplete="off"
-                autoCorrect="off"
-                className="canvas-wysiwyg-special-block__kind-input nodrag nopan"
-                data-1p-ignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                data-lpignore="true"
-                spellCheck={false}
-                value={draftKind}
-                onChange={(event) => {
-                  setDraftKind(event.target.value)
-                }}
-                onBlur={(event) => {
-                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter') {
-                    return
-                  }
-
-                  event.preventDefault()
-                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
-                }}
-                list="canvas-wysiwyg-special-block-kinds"
-              />
-              <datalist id="canvas-wysiwyg-special-block-kinds">
-                <option value="mermaid" />
-                <option value="sandpack" />
-              </datalist>
-            </label>
-            <textarea
-              ref={textareaRef}
-              aria-label={`${kind} source`}
+      {props.selected ? (
+        <div className="canvas-wysiwyg-special-block__frame">
+          <label className="canvas-wysiwyg-special-block__fence">
+            <span>{'```'}</span>
+            <input
+              aria-label="Special fenced block language"
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              className="canvas-wysiwyg-special-block__textarea nodrag nopan nowheel"
+              className="canvas-wysiwyg-special-block__kind-input nodrag nopan"
               data-1p-ignore="true"
               data-bwignore="true"
               data-form-type="other"
               data-lpignore="true"
               spellCheck={false}
-              value={source}
+              value={draftKind}
               onChange={(event) => {
-                props.updateAttributes({
-                  source: event.target.value
-                })
+                setDraftKind(event.target.value)
+              }}
+              onBlur={(event) => {
+                commitSpecialBlockLanguageChange(event.currentTarget.value, props)
               }}
               onKeyDown={(event) => {
-                if (event.key === 'Escape') {
+                if (event.key === 'Enter') {
                   event.preventDefault()
-                  switchMode('preview')
+                  commitSpecialBlockLanguageChange(event.currentTarget.value, props)
+                  return
                 }
+
+                if (event.key !== 'Escape') {
+                  return
+                }
+
+                event.preventDefault()
+                focusEditorAfterNode(props)
               }}
+              list="canvas-wysiwyg-special-block-kinds"
             />
-            <div className="canvas-wysiwyg-special-block__fence canvas-wysiwyg-special-block__fence--closing" aria-hidden="true">
-              {'```'}
-            </div>
+            <datalist id="canvas-wysiwyg-special-block-kinds">
+              <option value="mermaid" />
+              <option value="sandpack" />
+            </datalist>
+          </label>
+          <textarea
+            ref={textareaRef}
+            aria-label={`${kind} source`}
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            className="canvas-wysiwyg-special-block__textarea nodrag nopan nowheel"
+            data-1p-ignore="true"
+            data-bwignore="true"
+            data-form-type="other"
+            data-lpignore="true"
+            spellCheck={false}
+            value={source}
+            onChange={(event) => {
+              props.updateAttributes({
+                source: event.target.value
+              })
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') {
+                return
+              }
+
+              event.preventDefault()
+              focusEditorAfterNode(props)
+            }}
+          />
+          <div className="canvas-wysiwyg-special-block__fence canvas-wysiwyg-special-block__fence--closing" aria-hidden="true">
+            {'```'}
           </div>
-        </>
+        </div>
+      ) : (
+        <div
+          className="canvas-wysiwyg-special-block__preview markdown-content nodrag nopan"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            selectCurrentNode(props)
+          }}
+        >
+          <MarkdownContent content={buildFencedMarkdown(kind, source)} />
+        </div>
       )}
     </NodeViewWrapper>
   )
@@ -198,6 +186,30 @@ function commitSpecialBlockLanguageChange(
       })
     )
     tr.setSelection(NodeSelection.create(tr.doc, position))
+    return true
+  })
+}
+
+function selectCurrentNode(props: NodeViewProps) {
+  const position = props.getPos()
+
+  if (typeof position !== 'number') {
+    return
+  }
+
+  props.editor.commands.setNodeSelection(position)
+}
+
+function focusEditorAfterNode(props: NodeViewProps) {
+  const position = props.getPos()
+
+  if (typeof position !== 'number') {
+    return
+  }
+
+  props.editor.commands.command(({ tr }) => {
+    const resolvedPosition = tr.doc.resolve(Math.min(position + props.node.nodeSize, tr.doc.content.size))
+    tr.setSelection(Selection.near(resolvedPosition, 1))
     return true
   })
 }

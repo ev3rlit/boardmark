@@ -96,17 +96,14 @@ describe('WysiwygMarkdownBridge', () => {
 
     render(<SurfaceHarness markdown={TABLE_AND_BLOCKS_MARKDOWN} />)
 
-    const toggle = await screen.findByRole('button', { name: 'Edit source' })
-    fireEvent.click(toggle)
-
-    const specialSource = await screen.findByRole('textbox', { name: 'mermaid source' })
+    const specialSource = await openSpecialBlockEditor('```mermaid')
     fireEvent.keyDown(specialSource, { key: 'Escape', code: 'Escape' })
 
     await waitFor(() => {
       expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
     })
 
-    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+    const codeMarkdown = await openCodeBlockEditor('```ts')
     const codeLineStart = codeMarkdown.value.indexOf('const')
 
     codeMarkdown.focus()
@@ -134,9 +131,7 @@ describe('WysiwygMarkdownBridge', () => {
   it('renders a new code block with full fence height and editable raw markdown', async () => {
     render(<SurfaceHarness markdown={'```\n\n```'} />)
 
-    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
-
-    fireEvent.focus(codeMarkdown)
+    const codeMarkdown = await openCodeBlockEditor('```')
 
     await waitFor(() => {
       expect(codeMarkdown).toHaveFocus()
@@ -162,7 +157,7 @@ describe('WysiwygMarkdownBridge', () => {
   it('keeps focus inside an existing raw code block when completing special fence names', async () => {
     const { rerender } = render(<SurfaceHarness markdown={'```sandpac\n\n```'} />)
 
-    const sandpackBlock = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+    const sandpackBlock = await openCodeBlockEditor('```sandpac')
 
     fireEvent.focus(sandpackBlock)
     fireEvent.change(sandpackBlock, {
@@ -179,7 +174,7 @@ describe('WysiwygMarkdownBridge', () => {
 
     rerender(<SurfaceHarness markdown={'```mermai\n\n```'} />)
 
-    const mermaidBlock = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+    const mermaidBlock = await openCodeBlockEditor('```mermai')
 
     fireEvent.focus(mermaidBlock)
     fireEvent.change(mermaidBlock, {
@@ -202,7 +197,7 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.focus(editor)
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
-    const specialSource = await screen.findByRole('textbox', { name: 'mermaid source' })
+    const specialSource = await openSpecialBlockEditor('```mermaid')
     const languageInput = await screen.findByLabelText('Special fenced block language')
 
     await waitFor(() => {
@@ -232,7 +227,10 @@ describe('WysiwygMarkdownBridge', () => {
     fireEvent.focus(editor)
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
+    const specialSource = await openSpecialBlockEditor('```mermaid')
     const specialLanguageInput = await screen.findByLabelText('Special fenced block language')
+
+    expect(specialSource).toHaveFocus()
 
     fireEvent.change(specialLanguageInput, {
       target: {
@@ -268,6 +266,43 @@ function SurfaceHarness({ markdown }: { markdown: string }) {
       <pre data-testid="markdown-value">{value}</pre>
     </>
   )
+}
+
+async function findMarkdownPreview(pattern: string) {
+  await waitFor(() => {
+    expect(screen.getAllByTestId('markdown-content').length).toBeGreaterThan(0)
+  })
+
+  const previews = screen.getAllByTestId('markdown-content')
+  const match = previews.find((preview) => preview.textContent?.includes(pattern))
+
+  if (!match) {
+    throw new Error(`Expected a markdown preview containing "${pattern}" to exist.`)
+  }
+
+  return match
+}
+
+async function openCodeBlockEditor(pattern: string) {
+  const existingEditor = screen.queryByRole('textbox', { name: 'Code block markdown' })
+
+  if (existingEditor instanceof HTMLTextAreaElement) {
+    return existingEditor
+  }
+
+  fireEvent.mouseDown(await findMarkdownPreview(pattern))
+  return await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+}
+
+async function openSpecialBlockEditor(pattern: string) {
+  const existingEditor = screen.queryByRole('textbox', { name: / source$/ })
+
+  if (existingEditor instanceof HTMLTextAreaElement) {
+    return existingEditor
+  }
+
+  fireEvent.mouseDown(await findMarkdownPreview(pattern))
+  return await screen.findByRole('textbox', { name: / source$/ }) as HTMLTextAreaElement
 }
 
 function setSelectionInsideTable(
