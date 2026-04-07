@@ -106,44 +106,45 @@ describe('WysiwygMarkdownBridge', () => {
       expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
     })
 
-    const codeSource = await screen.findByRole('textbox', { name: 'Code block source' }) as HTMLTextAreaElement
-    codeSource.focus()
-    codeSource.setSelectionRange(0, 0)
-    fireEvent.keyDown(codeSource, { key: 'Tab', code: 'Tab' })
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+    const codeLineStart = codeMarkdown.value.indexOf('const')
+
+    codeMarkdown.focus()
+    codeMarkdown.setSelectionRange(codeLineStart, codeLineStart)
+    fireEvent.keyDown(codeMarkdown, { key: 'Tab', code: 'Tab' })
 
     await waitFor(() => {
-      expect(codeSource.value.startsWith('  const shipped = true')).toBe(true)
+      expect(codeMarkdown.value).toContain('\n  const shipped = true\n')
     })
   })
 
-  it('promotes ``` + Enter into a structured code block and focuses the source textarea', async () => {
-    render(<SurfaceHarness markdown="```ts" />)
+  it('promotes ``` + Enter into a structured code block and treats the full fence as editable text', async () => {
+    render(<SurfaceHarness markdown="```" />)
 
     const editor = await screen.findByRole('textbox', { name: 'Surface editor' })
     fireEvent.focus(editor)
     fireEvent.keyDown(editor, { key: 'Enter', code: 'Enter' })
 
-    const codeSource = await screen.findByRole('textbox', { name: 'Code block source' })
-    const codeLanguage = await screen.findByRole('textbox', { name: 'Code block language' })
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
 
     await waitFor(() => {
-      expect(codeSource).toHaveFocus()
-      expect(screen.getByTestId('markdown-value').textContent).toContain('```ts')
+      expect(codeMarkdown).toHaveFocus()
+      expect(codeMarkdown.selectionStart).toBe(4)
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```')
       expect(screen.getByTestId('markdown-value').textContent).toContain('```')
     })
 
-    fireEvent.change(codeLanguage, {
+    fireEvent.change(codeMarkdown, {
       target: {
-        value: 'tsx'
+        value: '~~~tsx\nconst ready = true\n~~~'
       }
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('markdown-value').textContent).toContain('```tsx')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('~~~tsx')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('const ready = true')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('\n~~~\n')
     })
-
-    expect(codeLanguage).toHaveValue('tsx')
-    expect(codeSource.closest('.canvas-wysiwyg-code-block')).toHaveTextContent('```')
   })
 
   it('promotes ```mermaid + Enter into a special fenced block and lets the language change', async () => {
@@ -192,14 +193,13 @@ describe('WysiwygMarkdownBridge', () => {
     })
     fireEvent.keyDown(specialLanguageInput, { key: 'Enter', code: 'Enter' })
 
-    const codeSource = await screen.findByRole('textbox', { name: 'Code block source' })
-    const codeLanguage = await screen.findByRole('textbox', { name: 'Code block language' })
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
 
     await waitFor(() => {
       expect(screen.queryByRole('textbox', { name: 'mermaid source' })).toBeNull()
       expect(screen.getByTestId('markdown-value').textContent).toContain('```python')
-      expect(codeLanguage).toHaveValue('python')
-      expect(codeSource).toHaveFocus()
+      expect(codeMarkdown.value).toContain('```python')
+      expect(codeMarkdown).toHaveFocus()
     })
   })
 })

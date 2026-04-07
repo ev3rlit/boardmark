@@ -1,43 +1,31 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import {
+  buildRawFencedMarkdown,
+  parseRawFencedMarkdown
+} from '@canvas-app/components/editor/wysiwyg-block-helpers'
 
 export function CodeBlockNodeView(props: NodeViewProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const language = String(props.node.attrs.language ?? '')
+  const openingFence = String(props.node.attrs.openingFence ?? '```')
   const source = String(props.node.attrs.source ?? '')
+  const closingFence = String(props.node.attrs.closingFence ?? '```')
+  const rawMarkdown = buildRawFencedMarkdown({
+    openingFence,
+    source,
+    closingFence
+  })
 
-  useAutoSizeTextarea(textareaRef, source)
-  useAutoFocusSelectedCodeBlock(textareaRef, props.selected, source.length)
+  useAutoSizeTextarea(textareaRef, rawMarkdown)
+  useAutoFocusSelectedCodeBlock(textareaRef, props.selected, openingFence.length + 1)
 
   return (
-    <NodeViewWrapper className="canvas-wysiwyg-code-block nodrag nopan" data-language={language || 'plain'}>
+    <NodeViewWrapper className="canvas-wysiwyg-code-block nodrag nopan">
       <div className="canvas-wysiwyg-code-block__frame">
-        <label className="canvas-wysiwyg-code-block__fence">
-          <span>{'```'}</span>
-          <input
-            aria-label="Code block language"
-            autoCapitalize="off"
-            autoComplete="off"
-            autoCorrect="off"
-            className="canvas-wysiwyg-code-block__language-input nodrag nopan"
-            data-1p-ignore="true"
-            data-bwignore="true"
-            data-form-type="other"
-            data-lpignore="true"
-            spellCheck={false}
-            style={readLanguageInputStyle(language)}
-            value={language}
-            onChange={(event) => {
-              props.updateAttributes({
-                language: event.target.value
-              })
-            }}
-          />
-        </label>
         <textarea
           ref={textareaRef}
-          aria-label="Code block source"
+          aria-label="Code block markdown"
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
@@ -47,36 +35,15 @@ export function CodeBlockNodeView(props: NodeViewProps) {
           data-form-type="other"
           data-lpignore="true"
           spellCheck={false}
-          value={source}
+          value={rawMarkdown}
           onChange={(event) => {
-            props.updateAttributes({
-              source: event.target.value
-            })
-          }}
-          onClick={() => {
-            const position = props.getPos()
-
-            if (typeof position === 'number') {
-              props.editor.commands.setNodeSelection(position)
-            }
+            props.updateAttributes(parseRawFencedMarkdown(event.target.value))
           }}
           onKeyDown={(event) => handleCodeTextareaKeyDown(event, props)}
         />
-        <div
-          className="canvas-wysiwyg-code-block__fence canvas-wysiwyg-code-block__fence--closing"
-          aria-hidden="true"
-        >
-          {`\`\`\``}
-        </div>
       </div>
     </NodeViewWrapper>
   )
-}
-
-function readLanguageInputStyle(language: string): CSSProperties {
-  return {
-    width: `${Math.max(language.length, 1) + 0.35}ch`
-  }
 }
 
 function handleCodeTextareaKeyDown(
@@ -92,12 +59,14 @@ function handleCodeTextareaKeyDown(
   const textarea = event.currentTarget
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
-  const source = String(props.node.attrs.source ?? '')
-  const nextValue = `${source.slice(0, start)}  ${source.slice(end)}`
-
-  props.updateAttributes({
-    source: nextValue
+  const rawMarkdown = buildRawFencedMarkdown({
+    openingFence: String(props.node.attrs.openingFence ?? '```'),
+    source: String(props.node.attrs.source ?? ''),
+    closingFence: String(props.node.attrs.closingFence ?? '```')
   })
+  const nextValue = `${rawMarkdown.slice(0, start)}  ${rawMarkdown.slice(end)}`
+
+  props.updateAttributes(parseRawFencedMarkdown(nextValue))
 
   requestAnimationFrame(() => {
     textarea.setSelectionRange(start + 2, start + 2)
@@ -123,7 +92,7 @@ function useAutoSizeTextarea(
 function useAutoFocusSelectedCodeBlock(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   selected: boolean,
-  sourceLength: number
+  caretPosition: number
 ) {
   useEffect(() => {
     if (!selected) {
@@ -142,11 +111,11 @@ function useAutoFocusSelectedCodeBlock(
       }
 
       textarea.focus()
-      textarea.setSelectionRange(sourceLength, sourceLength)
+      textarea.setSelectionRange(caretPosition, caretPosition)
     }, 0)
 
     return () => {
       window.clearTimeout(timeout)
     }
-  }, [selected, sourceLength, textareaRef])
+  }, [selected, caretPosition, textareaRef])
 }

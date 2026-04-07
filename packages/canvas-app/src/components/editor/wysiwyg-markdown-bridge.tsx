@@ -6,7 +6,11 @@ import { NodeSelection } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { CanvasEditingBlockMode } from '@canvas-app/store/canvas-store-types'
-import { buildFencedMarkdown, ensureTrailingNewline } from '@canvas-app/components/editor/wysiwyg-block-helpers'
+import {
+  buildFencedMarkdown,
+  buildRawFencedMarkdown,
+  ensureTrailingNewline
+} from '@canvas-app/components/editor/wysiwyg-block-helpers'
 import { CodeBlockNodeView } from '@canvas-app/components/editor/views/code-block-node-view'
 import { HtmlFallbackBlockView } from '@canvas-app/components/editor/views/html-fallback-block-view'
 import { SpecialFencedBlockView } from '@canvas-app/components/editor/views/special-fenced-block-view'
@@ -161,11 +165,14 @@ const WysiwygCodeBlock = Node.create({
   defining: true,
   addAttributes() {
     return {
-      language: {
-        default: ''
+      openingFence: {
+        default: '```'
       },
       source: {
         default: ''
+      },
+      closingFence: {
+        default: '```'
       }
     }
   },
@@ -184,12 +191,17 @@ const WysiwygCodeBlock = Node.create({
     }
 
     return helpers.createNode('wysiwygCodeBlock', {
-      language: codeToken.lang ?? '',
-      source: codeToken.text ?? ''
+      openingFence: `\`\`\`${codeToken.lang ?? ''}`,
+      source: codeToken.text ?? '',
+      closingFence: '```'
     })
   },
   renderMarkdown(node) {
-    return buildFencedMarkdown(node.attrs?.language ?? '', node.attrs?.source ?? '')
+    return `${buildRawFencedMarkdown({
+      openingFence: String(node.attrs?.openingFence ?? '```'),
+      source: String(node.attrs?.source ?? ''),
+      closingFence: String(node.attrs?.closingFence ?? '```')
+    })}\n`
   },
   addKeyboardShortcuts() {
     return {
@@ -214,8 +226,9 @@ const WysiwygCodeBlock = Node.create({
             insertPosition,
             $from.after(),
             this.type.create({
-              language,
-              source: ''
+              openingFence: `\`\`\`${language}`,
+              source: '',
+              closingFence: '```'
             })
           )
           tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
@@ -272,6 +285,39 @@ const WysiwygSpecialFencedBlock = Node.create({
   },
   renderMarkdown(node) {
     return buildFencedMarkdown(node.attrs?.kind ?? 'mermaid', node.attrs?.source ?? '')
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { selection } = this.editor.state
+        const { $from, empty } = selection
+
+        if (!empty || $from.parent.type.name !== 'paragraph') {
+          return false
+        }
+
+        const kind = readOpeningCodeFenceLanguage($from.parent.textContent)
+
+        if ((kind !== 'mermaid' && kind !== 'sandpack') || $from.parentOffset !== $from.parent.content.size) {
+          return false
+        }
+
+        const insertPosition = $from.before()
+
+        return this.editor.commands.command(({ tr }) => {
+          tr.replaceRangeWith(
+            insertPosition,
+            $from.after(),
+            this.type.create({
+              kind,
+              source: ''
+            })
+          )
+          tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
+          return true
+        })
+      }
+    }
   },
   addNodeView() {
     return ReactNodeViewRenderer((props) => (

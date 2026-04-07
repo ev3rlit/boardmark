@@ -192,8 +192,9 @@ function commitSpecialBlockLanguageChange(
       position,
       position + props.node.nodeSize,
       props.editor.schema.nodes.wysiwygCodeBlock.create({
-        language: normalizedLanguage,
-        source: String(props.node.attrs.source ?? '')
+        openingFence: `\`\`\`${normalizedLanguage}`,
+        source: String(props.node.attrs.source ?? ''),
+        closingFence: '```'
       })
     )
     tr.setSelection(NodeSelection.create(tr.doc, position))
