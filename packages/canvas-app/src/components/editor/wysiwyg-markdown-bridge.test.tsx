@@ -155,6 +155,43 @@ describe('WysiwygMarkdownBridge', () => {
     }
   })
 
+  it('enters raw source immediately after ``` promotion and keeps subsequent typing inside the block', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown=""
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+
+    await act(async () => {
+      editor.commands.insertContent('```')
+    })
+
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+      expect(codeMarkdown.value).toContain('```')
+    })
+
+    fireEvent.change(codeMarkdown, {
+      target: {
+        value: '```ts\nx\n```'
+      }
+    })
+
+    await waitFor(() => {
+      expect(codeMarkdown).toHaveFocus()
+      expect(screen.getByTestId('markdown-value').textContent).toContain('```ts')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('x')
+    })
+  })
+
   it('renders a new code block with full fence height and editable raw markdown', async () => {
     render(<SurfaceHarness markdown={'```\n\n```'} />)
 
@@ -272,7 +309,7 @@ describe('WysiwygMarkdownBridge', () => {
     })
   })
 
-  it('moves from a paragraph into a fenced block with ArrowDown and keeps preview selection until source entry', async () => {
+  it('moves from a paragraph into a fenced block with ArrowDown and enters raw source editing immediately', async () => {
     const editorRef = { current: null as Editor | null }
     render(
       <SurfaceHarness
@@ -290,10 +327,12 @@ describe('WysiwygMarkdownBridge', () => {
       moveVerticalSelection(editor.view, 'down')
     })
 
+    const codeMarkdown = await screen.findByRole('textbox', { name: 'Code block markdown' }) as HTMLTextAreaElement
+
     await waitFor(() => {
       expect(editor.state.selection).toBeInstanceOf(NodeSelection)
       expect((editor.state.selection as NodeSelection).node.type.name).toBe('wysiwygCodeBlock')
-      expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull()
+      expect(codeMarkdown).toHaveFocus()
     })
   })
 

@@ -260,6 +260,7 @@ const WysiwygCodeBlock = Node.create({
             replacementNode
           )
           transaction.setSelection(NodeSelection.create(transaction.doc, insertPosition))
+          requestPendingSourceEntry(transaction, insertPosition)
           return transaction
         }
       })
@@ -347,6 +348,7 @@ const WysiwygSpecialFencedBlock = Node.create({
             })
           )
           tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
+          requestPendingSourceEntry(tr, insertPosition)
           return true
         })
       }

@@ -187,7 +187,11 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
     })
   }
 
-  if (!(selection instanceof TextSelection) || !selection.empty || !isTextSelectionAtVerticalBoundary(selection, direction)) {
+  if (
+    !(selection instanceof TextSelection)
+    || !selection.empty
+    || !isTextSelectionAtVerticalBoundary(view, selection, direction)
+  ) {
     return false
   }
 
@@ -199,6 +203,7 @@ function handleVerticalNavigation(view: EditorView, direction: 'down' | 'up') {
 
   const transaction = view.state.tr
   transaction.setSelection(NodeSelection.create(transaction.doc, adjacentBlock.position))
+  requestPendingSourceEntry(transaction, adjacentBlock.position)
   view.dispatch(transaction)
   return true
 }
@@ -208,12 +213,21 @@ function isNodeSelectionAtPosition(selection: ProseMirrorSelection, position: nu
 }
 
 function isTextSelectionAtVerticalBoundary(
+  view: EditorView,
   selection: TextSelection,
   direction: 'down' | 'up'
 ) {
-  return direction === 'up'
+  const logicalBoundary = direction === 'up'
     ? selection.$head.parentOffset === 0
     : selection.$head.parentOffset === selection.$head.parent.content.size
+
+  try {
+    return view.endOfTextblock(direction) || logicalBoundary
+  } catch {
+    // jsdom does not implement enough layout APIs for ProseMirror geometry checks.
+  }
+
+  return logicalBoundary
 }
 
 function moveFromSelectedBlock(

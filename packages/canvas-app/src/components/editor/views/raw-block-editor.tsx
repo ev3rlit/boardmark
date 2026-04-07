@@ -2,6 +2,7 @@ import {
   useEffect,
   useLayoutEffect,
   useReducer,
+  useRef,
   useState,
   type KeyboardEvent,
   type RefObject
@@ -117,6 +118,7 @@ export function useRawBlockEditingState(input: {
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [transactionVersion, bumpTransactionVersion] = useReducer((value: number) => value + 1, 0)
+  const shouldRestoreCaretRef = useRef(false)
 
   useEffect(() => {
     const handleTransaction = () => {
@@ -149,11 +151,12 @@ export function useRawBlockEditingState(input: {
       return
     }
 
+    shouldRestoreCaretRef.current = true
     setIsEditing(true)
   }, [input.props.editor.state, input.props.selected, input.props, transactionVersion])
 
   useEffect(() => {
-    if (!input.props.selected || !isEditing) {
+    if (!input.props.selected || !isEditing || !shouldRestoreCaretRef.current) {
       return
     }
 
@@ -164,7 +167,7 @@ export function useRawBlockEditingState(input: {
     }
 
     const timeout = window.setTimeout(() => {
-      setIsEditing(true)
+      shouldRestoreCaretRef.current = false
       textarea.focus()
       textarea.setSelectionRange(input.caretPosition, input.caretPosition)
       clearPendingSourceEntry(input.props.editor.view)
@@ -178,8 +181,7 @@ export function useRawBlockEditingState(input: {
     input.props.editor.view,
     input.props.selected,
     input.textareaRef,
-    isEditing,
-    transactionVersion
+    isEditing
   ])
 
   return {
