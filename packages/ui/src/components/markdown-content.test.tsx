@@ -214,6 +214,45 @@ const delayed = true
     })
   })
 
+  it('does not remount markdown images when the markdown content rerenders with the same resolver', async () => {
+    const imageResolver = vi.fn().mockResolvedValue({
+      status: 'resolved',
+      src: 'blob:resolved-image'
+    })
+
+    const { rerender } = render(
+      <MarkdownContent
+        className="markdown-content"
+        content="![Boardmark asset](./images/boardmark.png)"
+        imageResolver={imageResolver}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Boardmark asset' })).toHaveAttribute(
+        'src',
+        'blob:resolved-image'
+      )
+    })
+    expect(imageResolver).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <MarkdownContent
+        className="markdown-content note-markdown"
+        content="![Boardmark asset](./images/boardmark.png)"
+        imageResolver={imageResolver}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('img', { name: 'Boardmark asset' })).toHaveAttribute(
+        'src',
+        'blob:resolved-image'
+      )
+    })
+    expect(imageResolver).toHaveBeenCalledTimes(1)
+  })
+
   it('renders the raw info string as the language badge for plain fallback blocks', async () => {
     highlightCodeBlockMock.mockResolvedValue({
       kind: 'plain',

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState, type ComponentProps } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -65,7 +65,7 @@ export function MarkdownContent({
   className,
   imageResolver
 }: MarkdownContentProps) {
-  const markdownComponents = {
+  const markdownComponents = useMemo(() => ({
     ...defaultMarkdownComponents,
     img(props: ComponentProps<'img'>) {
       return (
@@ -75,7 +75,7 @@ export function MarkdownContent({
         />
       )
     }
-  } satisfies Components
+  } satisfies Components), [imageResolver])
 
   return (
     <div className={className}>
