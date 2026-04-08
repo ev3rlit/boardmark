@@ -11,11 +11,13 @@ import {
   SelectionMode,
   applyNodeChanges,
   getBezierPath,
+  useInternalNode,
   useReactFlow,
   type Connection,
   type Edge,
   type EdgeProps,
   type EdgeTypes,
+  type InternalNode,
   type Node,
   type NodeProps,
   type NodeTypes
@@ -42,6 +44,11 @@ import {
   applyNodeChangesToStore,
   filterSelectionChanges
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
+import {
+  readEdgeAnchorPath,
+  type EdgeAnchorBounds,
+  type EdgeAnchorPath
+} from '@canvas-app/components/scene/edges/edge-anchor-geometry'
 import {
   canCanvasMutateSelection,
   isEditingEdgeLabel,
@@ -662,18 +669,22 @@ function CanvasComponentNode({
   )
 }
 
-function CanvasMarkdownEdge({
+export function CanvasMarkdownEdge({
   id,
+  source,
   sourceX,
   sourceY,
+  sourcePosition,
+  target,
   targetX,
   targetY,
-  sourcePosition,
   targetPosition,
   data,
   store
 }: EdgeProps<Edge<CanvasFlowEdgeData>> & { store: CanvasStore }) {
   const hostAnchorRef = useRef<HTMLDivElement | null>(null)
+  const sourceNode = useInternalNode<Node<CanvasFlowNodeData>>(source)
+  const targetNode = useInternalNode<Node<CanvasFlowNodeData>>(target)
   const edgeData = (data ?? {}) as CanvasFlowEdgeData
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
@@ -685,14 +696,19 @@ function CanvasMarkdownEdge({
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = isEditingEdgeLabel(editingState, id)
   const activeSession = isEditing && editingState.status === 'active' ? editingState : null
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition
+  const edgeAnchorPath = readEdgeAnchorPath({
+    fallback: {
+      sourcePosition,
+      sourceX,
+      sourceY,
+      targetPosition,
+      targetX,
+      targetY
+    },
+    sourceBounds: readInternalNodeBounds(sourceNode),
+    targetBounds: readInternalNodeBounds(targetNode)
   })
+  const [edgePath, labelX, labelY] = getBezierPath(edgeAnchorPath)
 
   return (
     <>
@@ -755,6 +771,26 @@ function CanvasMarkdownEdge({
       </EdgeLabelRenderer>
     </>
   )
+}
+
+function readInternalNodeBounds(internalNode: InternalNode<Node<CanvasFlowNodeData>> | undefined): EdgeAnchorBounds | undefined {
+  if (!internalNode) {
+    return undefined
+  }
+
+  const width = internalNode.measured.width ?? internalNode.width ?? internalNode.initialWidth
+  const height = internalNode.measured.height ?? internalNode.height ?? internalNode.initialHeight
+
+  if (typeof width !== 'number' || typeof height !== 'number') {
+    return undefined
+  }
+
+  return {
+    x: internalNode.internals.positionAbsolute.x,
+    y: internalNode.internals.positionAbsolute.y,
+    width,
+    height
+  }
 }
 
 async function handleConnection(
