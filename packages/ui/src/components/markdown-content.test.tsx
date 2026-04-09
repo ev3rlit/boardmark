@@ -149,6 +149,45 @@ describe('MarkdownContent', () => {
     expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
   })
 
+  it('preserves extra blank lines between blocks as visible empty paragraphs', () => {
+    const { container } = render(
+      <MarkdownContent content={'# 제목\n\n\n본문'} />
+    )
+
+    const paragraphs = container.querySelectorAll('p')
+
+    expect(paragraphs).toHaveLength(2)
+    expect(paragraphs[0]?.textContent).toBe('\u00A0')
+    expect(paragraphs[1]?.textContent).toBe('본문')
+  })
+
+  it('treats a WYSIWYG-serialized empty paragraph as a single visible blank line', () => {
+    const { container } = render(
+      <MarkdownContent content={'A\n\n\n\nB'} />
+    )
+
+    const paragraphs = container.querySelectorAll('p')
+
+    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs[0]?.textContent).toBe('A')
+    expect(paragraphs[1]?.textContent).toBe('\u00A0')
+    expect(paragraphs[2]?.textContent).toBe('B')
+  })
+
+  it('does not inject empty paragraphs inside fenced code blocks', async () => {
+    render(
+      <MarkdownContent
+        content={`\`\`\`ts
+
+const shipped = true
+\`\`\``}
+      />
+    )
+
+    expect(await screen.findByText('const')).toBeInTheDocument()
+    expect(screen.queryByText('\u00A0')).toBeNull()
+  })
+
   it('renders mermaid fenced blocks through the diagram component and preserves other code blocks', async () => {
     const { container } = render(
       <MarkdownContent

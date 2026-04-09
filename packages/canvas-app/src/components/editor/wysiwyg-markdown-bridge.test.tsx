@@ -105,6 +105,12 @@ const SOFT_LINE_BREAK_MARKDOWN = `first line
 second line`
 
 describe('WysiwygMarkdownBridge', () => {
+  it('round-trips bold inline code without collapsing the code mark into literal asterisks', () => {
+    const bridge = createWysiwygMarkdownBridge()
+
+    expect(bridge.roundTrip('**`initialDelaySeconds`**')).toBe('**`initialDelaySeconds`**')
+  })
+
   it('round-trips the supported baseline subset and custom blocks', () => {
     const bridge = createWysiwygMarkdownBridge()
 
@@ -204,6 +210,34 @@ describe('WysiwygMarkdownBridge', () => {
     } finally {
       editor.destroy()
     }
+  })
+
+  it('serializes bold around inline code when WYSIWYG applies bold to a code span', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown="`initialDelaySeconds`"
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+    const codeSelection = findTextSelection(editor, 'initialDelaySeconds')
+
+    await act(async () => {
+      editor.view.dispatch(
+        editor.state.tr.setSelection(
+          TextSelection.create(editor.state.doc, codeSelection.from, codeSelection.to)
+        )
+      )
+      expect(editor.commands.toggleBold()).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('markdown-value').textContent).toBe('**`initialDelaySeconds`**')
+    })
   })
 
   it('enters raw source immediately after ``` promotion and keeps subsequent typing inside the block', async () => {
@@ -670,6 +704,28 @@ function findParagraphBoundary(
   }
 
   return boundaryPosition
+}
+
+function findTextSelection(editor: Editor, text: string): { from: number; to: number } {
+  let selection: { from: number; to: number } | null = null
+
+  editor.state.doc.descendants((node, position) => {
+    if (!node.isText || node.text !== text) {
+      return true
+    }
+
+    selection = {
+      from: position,
+      to: position + text.length
+    }
+    return false
+  })
+
+  if (selection === null) {
+    throw new Error(`Expected text "${text}" to exist in the editor document.`)
+  }
+
+  return selection
 }
 
 async function waitForEditor(editorRef: { current: Editor | null }) {

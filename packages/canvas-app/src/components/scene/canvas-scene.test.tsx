@@ -727,6 +727,49 @@ Boardmark Viewer
     expect(await screen.findByRole('textbox', { name: 'Edit welcome' })).toBeInTheDocument()
   })
 
+  it('keeps visible line breaks after committing note edits back into preview rendering', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::`)
+
+    const { container } = render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    const note = await screen.findByText('Boardmark Viewer')
+
+    await act(async () => {
+      fireEvent.doubleClick(note)
+    })
+
+    expect(await screen.findByRole('textbox', { name: 'Edit welcome' })).toBeInTheDocument()
+
+    await act(async () => {
+      store.getState().updateEditingMarkdown('Line 1  \nLine 2')
+      await store.getState().commitInlineEditing()
+    })
+
+    const previewParagraph = container.querySelector('.note-markdown p')
+
+    expect(previewParagraph).not.toBeNull()
+    expect(previewParagraph?.querySelector('br')).not.toBeNull()
+    expect(previewParagraph?.textContent).toBe('Line 1\nLine 2')
+  })
+
   it('rerenders only the edited node selectors while node editing state changes', async () => {
     const store = await createHydratedCanvasStore(`---
 type: canvas

@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@tiptap/core": "^3.22.2",
+    "@tiptap/extension-code": "^3.22.2",
     "@tiptap/extension-link": "^3.22.2",
     "@tiptap/extension-table": "^3.22.2",
     "@tiptap/markdown": "^3.22.2",

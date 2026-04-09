@@ -1,4 +1,5 @@
 import { Editor, Node, mergeAttributes, type AnyExtension, type JSONContent } from '@tiptap/core'
+import Code from '@tiptap/extension-code'
 import Link from '@tiptap/extension-link'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
@@ -34,6 +35,10 @@ type MarkdownHtmlToken = {
 const CODE_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-code-block'
 const SPECIAL_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-special-block'
 const HTML_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-html-block'
+const WysiwygInlineCode = Code.extend({
+  priority: 90,
+  excludes: ''
+})
 
 type WysiwygMarkdownBridgeCallbacks = {
   onExitToHost?: () => void
@@ -66,11 +71,17 @@ export function createWysiwygMarkdownBridge(
       )
     },
     toMarkdown(content) {
-      return normalizeDirectiveEndingBoundaries(manager.serialize(content))
+      return normalizeDirectiveEndingBoundaries(
+        manager.serialize(normalizeInlineMarkOrderInContent(content))
+      )
     },
     roundTrip(markdown) {
       return normalizeDirectiveEndingBoundaries(
-        manager.serialize(manager.parse(normalizeDirectiveEndingBoundaries(markdown)))
+        manager.serialize(
+          normalizeInlineMarkOrderInContent(
+            manager.parse(normalizeDirectiveEndingBoundaries(markdown))
+          )
+        )
       )
     }
   }
@@ -88,11 +99,13 @@ export function createWysiwygExtensions(
       callbacks: specialBlockCallbacks
     }),
     StarterKit.configure({
+      code: false,
       codeBlock: false,
       horizontalRule: false,
       link: false,
       strike: false
     }),
+    WysiwygInlineCode,
     Link.configure({
       autolink: false,
       enableClickSelection: true,
@@ -171,6 +184,48 @@ function normalizeSoftLineBreaksInContent(content: JSONContent): JSONContent {
     ...content,
     content: normalizeSoftLineBreaksInNodes(content.content)
   }
+}
+
+function normalizeInlineMarkOrderInContent(content: JSONContent): JSONContent {
+  return normalizeInlineMarkOrderInNode(content)
+}
+
+function normalizeInlineMarkOrderInNode(node: JSONContent): JSONContent {
+  return {
+    ...node,
+    content: normalizeInlineMarkOrderInNodes(node.content),
+    marks: normalizeInlineMarkOrderInMarks(node.marks)
+  }
+}
+
+function normalizeInlineMarkOrderInNodes(
+  nodes: JSONContent[] | undefined
+): JSONContent[] | undefined {
+  if (!nodes) {
+    return nodes
+  }
+
+  return nodes.map((node) => normalizeInlineMarkOrderInNode(node))
+}
+
+function normalizeInlineMarkOrderInMarks(
+  marks: JSONContent['marks']
+): JSONContent['marks'] {
+  if (!marks || marks.length < 2) {
+    return marks
+  }
+
+  return [...marks].sort((left, right) => {
+    if (left.type === 'code' && right.type !== 'code') {
+      return -1
+    }
+
+    if (left.type !== 'code' && right.type === 'code') {
+      return 1
+    }
+
+    return 0
+  })
 }
 
 function normalizeSoftLineBreaksInNodes(
