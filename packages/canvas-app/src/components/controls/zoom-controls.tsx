@@ -1,25 +1,33 @@
 import { Minus, Plus } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
 import { useStore } from 'zustand'
+import type { CanvasMatchedInput } from '@canvas-app/input/canvas-input-types'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ZoomControlsProps = {
+  dispatchCanvasInput: (input: CanvasMatchedInput) => boolean
   store: CanvasStore
 }
 
-export function ZoomControls({ store }: ZoomControlsProps) {
-  const setViewport = useStore(store, (state) => state.setViewport)
+export function ZoomControls({ dispatchCanvasInput, store }: ZoomControlsProps) {
   const viewport = useStore(store, (state) => state.viewport)
-  const reactFlow = useReactFlow()
 
   return (
     <div className="viewer-control-group">
       <button
         aria-label="Zoom out"
         className="viewer-control-button"
-        onClick={async () => {
-          await reactFlow.zoomOut({ duration: 160 })
-          setViewport(reactFlow.getViewport())
+        onClick={() => {
+          dispatchCanvasInput({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'viewport-zoom',
+              source: 'keyboard',
+              mode: 'step',
+              direction: 'out',
+              target: null
+            },
+            preventDefault: false
+          })
         }}
         type="button"
       >
@@ -35,9 +43,18 @@ export function ZoomControls({ store }: ZoomControlsProps) {
       <button
         aria-label="Zoom in"
         className="viewer-control-button"
-        onClick={async () => {
-          await reactFlow.zoomIn({ duration: 160 })
-          setViewport(reactFlow.getViewport())
+        onClick={() => {
+          dispatchCanvasInput({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'viewport-zoom',
+              source: 'keyboard',
+              mode: 'step',
+              direction: 'in',
+              target: null
+            },
+            preventDefault: false
+          })
         }}
         type="button"
       >

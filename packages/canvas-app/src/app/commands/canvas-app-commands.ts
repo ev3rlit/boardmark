@@ -1,5 +1,9 @@
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
 import type { CanvasEditingState } from '@canvas-app/store/canvas-store'
+import type {
+  CanvasPointerInteractionState,
+  CanvasTemporaryPanState
+} from '@canvas-app/store/canvas-store-types'
 import type { CanvasViewport } from '@boardmark/canvas-domain'
 import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
 import {
@@ -21,9 +25,11 @@ export type CanvasAppCommandContext = CanvasSelectionSnapshot & {
   deleteSelection: () => Promise<void>
   editingState: CanvasEditingState
   objectContextMenuOpen: boolean
+  pointerInteractionState: CanvasPointerInteractionState
+  temporaryPanState: CanvasTemporaryPanState
   redo: () => Promise<void>
   setObjectContextMenu: (value: null) => void
-  setPanShortcutActive: (active: boolean) => void
+  setTemporaryPanState: (state: CanvasTemporaryPanState) => void
   setViewport: (viewport: CanvasViewport) => void
   undo: () => Promise<void>
   viewport: CanvasViewport
@@ -40,7 +46,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
       return canCanvasMutateSelection(context.editingState)
     },
     execute(context) {
-      context.setPanShortcutActive(true)
+      context.setTemporaryPanState('active')
     }
   },
   'deactivate-pan-shortcut': {
@@ -48,7 +54,7 @@ const CANVAS_APP_COMMANDS: Record<CanvasAppCommandId, CanvasAppCommand> = {
       return true
     },
     execute(context) {
-      context.setPanShortcutActive(false)
+      context.setTemporaryPanState('inactive')
     }
   },
   'delete-selection': {

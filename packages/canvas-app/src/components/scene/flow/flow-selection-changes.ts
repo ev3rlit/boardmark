@@ -19,6 +19,31 @@ export function filterSelectionChanges<T extends { type: string }>(
   return changes.filter((change) => change.type !== 'select')
 }
 
+export function readSelectionChangeEntries<T extends { type: string }>(
+  changes: T[]
+) {
+  return changes
+    .filter((change): change is T & { id: string; selected?: boolean } => {
+      return change.type === 'select' && 'id' in change
+    })
+    .map((change) => ({
+      id: change.id,
+      selected: Boolean(change.selected)
+    }))
+}
+
+export function readNodeSelectionChangeResult(
+  changes: NodeChange<Node<CanvasFlowNodeData>>[]
+) {
+  return readSelectionChangeEntries(changes)
+}
+
+export function readEdgeSelectionChangeResult(
+  changes: EdgeChange<Edge<CanvasFlowEdgeData>>[]
+) {
+  return readSelectionChangeEntries(changes)
+}
+
 export function applyNodeChangesToStore({
   changes,
   groups,
@@ -62,6 +87,47 @@ export function applyNodeChangesToStore({
   }
 }
 
+export function applyNodeSelectionChanges({
+  changes,
+  groups,
+  replaceSelection,
+  selectedEdgeIds,
+  selectedNodeIds
+}: {
+  changes: Array<{
+    id: string
+    selected: boolean
+  }>
+  groups: CanvasGroup[]
+  replaceSelection: (input: {
+    groupIds: string[]
+    nodeIds: string[]
+    edgeIds: string[]
+  }) => void
+  selectedEdgeIds: string[]
+  selectedNodeIds: string[]
+}) {
+  const nextSelectedNodeIds = new Set(selectedNodeIds)
+
+  for (const change of changes) {
+    if (change.selected) {
+      nextSelectedNodeIds.add(change.id)
+    } else {
+      nextSelectedNodeIds.delete(change.id)
+    }
+  }
+
+  const normalized = normalizeTopLevelNodeSelection([...nextSelectedNodeIds], groups)
+
+  replaceSelection({
+    groupIds: normalized.groupIds,
+    nodeIds: normalized.nodeIds,
+    edgeIds: selectedEdgeIds
+  })
+}
+
+export const applyNodeSelectionChangeResult = applyNodeSelectionChanges
+
 export function applyEdgeChangesToStore({
   changes,
   replaceSelection,
@@ -104,6 +170,45 @@ export function applyEdgeChangesToStore({
     })
   }
 }
+
+export function applyEdgeSelectionChanges({
+  changes,
+  replaceSelection,
+  selectedGroupIds,
+  selectedNodeIds,
+  selectedEdgeIds
+}: {
+  changes: Array<{
+    id: string
+    selected: boolean
+  }>
+  replaceSelection: (input: {
+    groupIds: string[]
+    nodeIds: string[]
+    edgeIds: string[]
+  }) => void
+  selectedGroupIds: string[]
+  selectedNodeIds: string[]
+  selectedEdgeIds: string[]
+}) {
+  const nextSelectedEdgeIds = new Set(selectedEdgeIds)
+
+  for (const change of changes) {
+    if (change.selected) {
+      nextSelectedEdgeIds.add(change.id)
+    } else {
+      nextSelectedEdgeIds.delete(change.id)
+    }
+  }
+
+  replaceSelection({
+    groupIds: selectedGroupIds,
+    nodeIds: selectedNodeIds,
+    edgeIds: [...nextSelectedEdgeIds]
+  })
+}
+
+export const applyEdgeSelectionChangeResult = applyEdgeSelectionChanges
 
 export function normalizeTopLevelNodeSelection(nodeIds: string[], groups: CanvasGroup[]) {
   const normalizedGroupIds = new Set<string>()

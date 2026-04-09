@@ -16,7 +16,8 @@ import {
   applyFlowNodeGeometryDrafts,
   applyNodeChangesToStore,
   mergeFlowNodes,
-  readFlowNodes
+  readFlowNodes,
+  shouldDispatchPointerPanePanLifecycle
 } from '@canvas-app/components/scene/canvas-scene'
 import {
   normalizeTopLevelNodeSelection,
@@ -611,6 +612,13 @@ Boardmark Viewer
     })
 
     expect(store.getState().viewport.zoom).toBe(1.02)
+  })
+
+  it('accepts only pointer-originated pane pan lifecycle events', () => {
+    expect(shouldDispatchPointerPanePanLifecycle(new MouseEvent('mousedown'), true)).toBe(true)
+    expect(shouldDispatchPointerPanePanLifecycle(new WheelEvent('wheel'), true)).toBe(false)
+    expect(shouldDispatchPointerPanePanLifecycle(null, true)).toBe(false)
+    expect(shouldDispatchPointerPanePanLifecycle(new MouseEvent('mousedown'), false)).toBe(false)
   })
 
   it('updates the store viewport on gesture pinch input', async () => {
@@ -1289,15 +1297,17 @@ function readSceneAppCommandContext(store: CanvasStore) {
     groups: state.groups,
     nodes: state.nodes,
     objectContextMenuOpen: false,
+    pointerInteractionState: state.pointerInteractionState,
     redo: state.redo,
-    selectedEdgeIds: state.selectedEdgeIds,
-    selectedGroupIds: state.selectedGroupIds,
-    selectedNodeIds: state.selectedNodeIds,
-    setObjectContextMenu: () => undefined,
-    setPanShortcutActive: state.setPanShortcutActive,
-    setViewport: state.setViewport,
-    undo: state.undo,
-    viewport: state.viewport
+      selectedEdgeIds: state.selectedEdgeIds,
+      selectedGroupIds: state.selectedGroupIds,
+      selectedNodeIds: state.selectedNodeIds,
+      setObjectContextMenu: () => undefined,
+      setTemporaryPanState: state.setTemporaryPanState,
+      temporaryPanState: state.temporaryPanState,
+      setViewport: state.setViewport,
+      undo: state.undo,
+      viewport: state.viewport
   })
 }
 
@@ -1333,11 +1343,19 @@ function readSceneDispatchContext(store: CanvasStore) {
 
   return {
     appCommandContext: readSceneAppCommandContext(store),
+    clearSelection: state.clearSelection,
     commitNodeMove: state.commitNodeMove,
     commitNodeResize: state.commitNodeResize,
     nudgeSelection: state.nudgeSelection,
+    openObjectContextMenu: () => undefined,
+    openPaneContextMenu: () => undefined,
     objectCommandContext: readSceneObjectCommandContext(store),
-    reconnectEdge: state.reconnectEdge
+    replaceSelection: state.replaceSelection,
+    reconnectEdge: state.reconnectEdge,
+    selectEdgeFromCanvas: state.selectEdgeFromCanvas,
+    selectNodeFromCanvas: state.selectNodeFromCanvas,
+    setPointerInteractionState: state.setPointerInteractionState,
+    setTemporaryPanState: state.setTemporaryPanState
   }
 }
 
@@ -1352,7 +1370,7 @@ function readSceneInputContext(
     appCommandContext: readSceneAppCommandContext(store),
     eventTarget,
     objectCommandContext: readSceneObjectCommandContext(store),
-    panShortcutActive: state.panShortcutActive,
+    temporaryPanState: state.temporaryPanState,
     supportsMultiSelect,
     toolMode: state.toolMode
   })

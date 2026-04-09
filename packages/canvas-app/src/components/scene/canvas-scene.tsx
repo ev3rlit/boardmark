@@ -46,7 +46,9 @@ import {
 import {
   applyEdgeChangesToStore,
   applyNodeChangesToStore,
-  filterSelectionChanges
+  filterSelectionChanges,
+  readEdgeSelectionChangeResult,
+  readNodeSelectionChangeResult
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
 import {
   readEdgeAnchorPath,
@@ -65,7 +67,7 @@ import type {
   CanvasMatchedInput,
   CanvasPointerCapabilities
 } from '@canvas-app/input/canvas-input-types'
-import { type CanvasStore } from '@canvas-app/store/canvas-store'
+import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type CanvasSceneProps = {
   dispatchCanvasInput: (
@@ -112,8 +114,6 @@ const DEFAULT_POINTER_CAPABILITIES: CanvasPointerCapabilities = {
 export function CanvasScene({
   dispatchCanvasInput = () => false,
   dispatchCanvasInputAsync = async () => false,
-  onObjectContextMenu,
-  onPaneContextMenu,
   pointerCapabilities = DEFAULT_POINTER_CAPABILITIES,
   store,
   supportsMultiSelect = false
@@ -126,16 +126,16 @@ export function CanvasScene({
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
+  const activeToolMode = useStore(store, readActiveToolMode)
+  const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const setViewportSize = useStore(store, (state) => state.setViewportSize)
-  const clearSelection = useStore(store, (state) => state.clearSelection)
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
-  const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
-  const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const gestureScaleRef = useRef(1)
+  const panePanLifecycleActiveRef = useRef(false)
 
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
   const baseFlowNodes = useMemo(
@@ -353,7 +353,9 @@ export function CanvasScene({
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
         className={[
           'boardmark-flow',
-          pointerCapabilities.panOnDrag ? 'boardmark-flow--pan' : ''
+          activeToolMode === 'pan' || pointerInteractionState.status === 'pane-pan'
+            ? 'boardmark-flow--pan'
+            : ''
         ].join(' ').trim()}
         nodes={flowNodes}
         edges={flowEdges}
@@ -372,7 +374,15 @@ export function CanvasScene({
         zoomOnDoubleClick={false}
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
-        onPaneClick={() => clearSelection()}
+        onPaneClick={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-pane-click'
+            },
+            preventDefault: false
+          })
+        }}
         onPaneMouseMove={(event) => {
           setLastCanvasPointer(
             reactFlow.screenToFlowPosition({
@@ -383,50 +393,147 @@ export function CanvasScene({
         }}
         onPaneContextMenu={(event) => {
           event.preventDefault()
-          onPaneContextMenu?.({
-            x: event.clientX,
-            y: event.clientY
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-pane-context-menu',
+              x: event.clientX,
+              y: event.clientY
+            },
+            preventDefault: false
           })
         }}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
-        onNodesChange={(changes) => {
-          const nextChanges = filterSelectionChanges(changes, pointerCapabilities.elementsSelectable)
-
-          setFlowNodes((currentFlowNodes) => applyNodeChanges(nextChanges, currentFlowNodes))
-          applyNodeChangesToStore({
-            changes: nextChanges,
-            groups,
-            replaceSelection,
-            selectedEdgeIds,
-            selectedNodeIds
+        onSelectionStart={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-selection-box-start'
+            },
+            preventDefault: false
           })
+        }}
+        onSelectionDragStart={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-selection-box-drag-start'
+            },
+            preventDefault: false
+          })
+        }}
+        onSelectionDragStop={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-selection-box-end'
+            },
+            preventDefault: false
+          })
+        }}
+        onSelectionEnd={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-selection-box-end'
+            },
+            preventDefault: false
+          })
+        }}
+        onNodesChange={(changes) => {
+          const flowChanges = filterSelectionChanges(changes, pointerCapabilities.elementsSelectable)
+          const storeChanges = filterSelectionChanges(changes, false)
+          const selectionChanges = readNodeSelectionChangeResult(changes)
+
+          setFlowNodes((currentFlowNodes) => applyNodeChanges(flowChanges, currentFlowNodes))
+
+          if (selectionChanges.length > 0) {
+            void dispatchCanvasInputAsync({
+              allowEditableTarget: true,
+              intent: {
+                kind: 'pointer-node-selection-change',
+                changes: selectionChanges
+              },
+              preventDefault: false
+            })
+          }
+
+          if (storeChanges.length > 0) {
+            applyNodeChangesToStore({
+              changes: storeChanges,
+              groups,
+              replaceSelection,
+              selectedEdgeIds,
+              selectedNodeIds
+            })
+          }
         }}
         onEdgesChange={(changes) => {
-          applyEdgeChangesToStore({
-            changes: filterSelectionChanges(changes, pointerCapabilities.elementsSelectable),
-            replaceSelection,
-            selectedGroupIds,
-            selectedNodeIds,
-            selectedEdgeIds
-          })
+          const storeChanges = filterSelectionChanges(changes, false)
+          const selectionChanges = readEdgeSelectionChangeResult(changes)
+
+          if (selectionChanges.length > 0) {
+            void dispatchCanvasInputAsync({
+              allowEditableTarget: true,
+              intent: {
+                kind: 'pointer-edge-selection-change',
+                changes: selectionChanges
+              },
+              preventDefault: false
+            })
+          }
+
+          if (storeChanges.length > 0) {
+            applyEdgeChangesToStore({
+              changes: storeChanges,
+              replaceSelection,
+              selectedGroupIds,
+              selectedNodeIds,
+              selectedEdgeIds
+            })
+          }
         }}
         onNodeClick={(event, node) => {
-          if (!pointerCapabilities.elementsSelectable) {
-            return
-          }
-
-          selectNodeFromCanvas(node.id, event.shiftKey)
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-node-click',
+              additive: event.shiftKey,
+              nodeId: node.id
+            },
+            preventDefault: false
+          })
         }}
         onEdgeClick={(event, edge) => {
-          if (!pointerCapabilities.elementsSelectable) {
-            return
-          }
-
-          selectEdgeFromCanvas(edge.id, event.shiftKey)
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-edge-click',
+              additive: event.shiftKey,
+              edgeId: edge.id
+            },
+            preventDefault: false
+          })
+        }}
+        onNodeDragStart={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-node-drag-start'
+            },
+            preventDefault: false
+          })
         }}
         onNodeDragStop={(_event, node) => {
           void (async () => {
             try {
+              await dispatchCanvasInputAsync({
+                allowEditableTarget: true,
+                intent: {
+                  kind: 'pointer-node-drag-end'
+                },
+                preventDefault: false
+              })
               await dispatchCanvasInputAsync({
                 allowEditableTarget: true,
                 intent: {
@@ -443,26 +550,30 @@ export function CanvasScene({
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault()
-
-          if (!isNodeIncludedInCurrentSelection(groups, selectedGroupIds, selectedNodeIds, node.id)) {
-            selectNodeFromCanvas(node.id, event.shiftKey)
-          }
-
-          onObjectContextMenu?.({
-            x: event.clientX,
-            y: event.clientY
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-node-context-menu',
+              additive: event.shiftKey,
+              nodeId: node.id,
+              x: event.clientX,
+              y: event.clientY
+            },
+            preventDefault: false
           })
         }}
         onEdgeContextMenu={(event, edge) => {
           event.preventDefault()
-
-          if (!selectedEdgeIds.includes(edge.id)) {
-            selectEdgeFromCanvas(edge.id, event.shiftKey)
-          }
-
-          onObjectContextMenu?.({
-            x: event.clientX,
-            y: event.clientY
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-edge-context-menu',
+              additive: event.shiftKey,
+              edgeId: edge.id,
+              x: event.clientX,
+              y: event.clientY
+            },
+            preventDefault: false
           })
         }}
         onConnect={(connection) => {
@@ -480,6 +591,58 @@ export function CanvasScene({
               edgeId: oldEdge.id,
               from: connection.source,
               to: connection.target
+            },
+            preventDefault: false
+          })
+        }}
+        onReconnectStart={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-edge-reconnect-start'
+            },
+            preventDefault: false
+          })
+        }}
+        onReconnectEnd={() => {
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-edge-reconnect-end'
+            },
+            preventDefault: false
+          })
+        }}
+        onMoveStart={(event) => {
+          if (!shouldDispatchPointerPanePanLifecycle(event, pointerCapabilities.panOnDrag)) {
+            return
+          }
+
+          panePanLifecycleActiveRef.current = true
+
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-pane-pan-start'
+            },
+            preventDefault: false
+          }).then((handled) => {
+            if (!handled) {
+              panePanLifecycleActiveRef.current = false
+            }
+          })
+        }}
+        onMoveEnd={() => {
+          if (!panePanLifecycleActiveRef.current) {
+            return
+          }
+
+          panePanLifecycleActiveRef.current = false
+
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-pane-pan-end'
             },
             preventDefault: false
           })
@@ -503,6 +666,25 @@ export function CanvasScene({
         />
       </ReactFlow>
     </div>
+  )
+}
+
+export function shouldDispatchPointerPanePanLifecycle(
+  event: MouseEvent | TouchEvent | null | undefined,
+  panOnDrag: boolean
+) {
+  if (!panOnDrag || !event) {
+    return false
+  }
+
+  if (typeof WheelEvent !== 'undefined' && event instanceof WheelEvent) {
+    return false
+  }
+
+  return (
+    event.type.startsWith('mouse') ||
+    event.type.startsWith('pointer') ||
+    event.type.startsWith('touch')
   )
 }
 
@@ -872,21 +1054,6 @@ async function handleConnection(
   }
 
   await createEdgeFromConnection(connection.source, connection.target)
-}
-
-function isNodeIncludedInCurrentSelection(
-  groups: CanvasGroup[],
-  selectedGroupIds: string[],
-  selectedNodeIds: string[],
-  nodeId: string
-) {
-  if (selectedNodeIds.includes(nodeId)) {
-    return true
-  }
-
-  const containingGroup = groups.find((group) => group.members.nodeIds.includes(nodeId))
-
-  return containingGroup ? selectedGroupIds.includes(containingGroup.id) : false
 }
 
 function readBuiltInRenderer(component: string) {

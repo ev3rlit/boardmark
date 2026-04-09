@@ -103,13 +103,13 @@ describe('canvas-input-resolver', () => {
 
     expect(resolveCanvasInput(startInput, readInputContext(store, startInput))).toBeNull()
     expect(resolveCanvasInput(endInput, readInputContext(store, endInput))).toEqual({
-      kind: 'set-pan-shortcut-active',
-      active: false,
-      preventDefault: false
+      kind: 'update-interaction-machine-state',
+      pointerInteractionState: { status: 'idle' },
+      temporaryPanState: 'inactive'
     })
   })
 
-  it('derives pointer capabilities from effective tool mode and editing state', async () => {
+  it('derives pointer capabilities from deferred temporary pan without switching the active tool', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
@@ -127,15 +127,41 @@ describe('canvas-input-resolver', () => {
       selectionOnDrag: true
     })
 
-    store.getState().setPanShortcutActive(true)
+    store.getState().setTemporaryPanState('deferred')
 
     expect(readCanvasPointerCapabilities(readInputContext(store, null))).toEqual({
       edgesReconnectable: false,
-      elementsSelectable: false,
+      elementsSelectable: true,
       nodesConnectable: false,
       nodesDraggable: false,
       panOnDrag: true,
       selectionOnDrag: false
+    })
+  })
+
+  it('consumes deferred temporary pan on the next pane pan start', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: TEMPLATE_SOURCE
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().setTemporaryPanState('deferred')
+
+    expect(resolveCanvasInput({
+      allowEditableTarget: true,
+      intent: {
+        kind: 'pointer-pane-pan-start'
+      },
+      preventDefault: false
+    }, readInputContext(store, null))).toEqual({
+      kind: 'update-interaction-machine-state',
+      pointerInteractionState: {
+        status: 'pane-pan',
+        source: 'temporary-pan'
+      },
+      temporaryPanState: 'active'
     })
   })
 })
@@ -167,10 +193,17 @@ describe('canvas-input-dispatcher', () => {
 
   it('dispatches pointer-side effects through the shared dispatcher context', async () => {
     const setViewport = vi.fn()
-    const setPanShortcutActive = vi.fn()
+    const setTemporaryPanState = vi.fn()
     const commitNodeResize = vi.fn(async () => undefined)
     const reconnectEdge = vi.fn(async () => undefined)
     const nudgeSelection = vi.fn(async () => undefined)
+    const clearSelection = vi.fn()
+    const openObjectContextMenu = vi.fn()
+    const openPaneContextMenu = vi.fn()
+    const replaceSelection = vi.fn()
+    const selectEdgeFromCanvas = vi.fn()
+    const selectNodeFromCanvas = vi.fn()
+    const setPointerInteractionState = vi.fn()
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
@@ -183,22 +216,31 @@ describe('canvas-input-dispatcher', () => {
       ...store.getState(),
       objectContextMenuOpen: false,
       setObjectContextMenu: () => undefined,
-      setPanShortcutActive,
+      setTemporaryPanState,
+      temporaryPanState: store.getState().temporaryPanState,
       setViewport
     })
     const objectCommandContext = createCanvasObjectCommandContext(store.getState())
 
     dispatchCanvasResolvedInput({
-      kind: 'set-pan-shortcut-active',
-      active: true,
-      preventDefault: true
+      kind: 'update-interaction-machine-state',
+      pointerInteractionState: { status: 'idle' },
+      temporaryPanState: 'active'
     }, {
       appCommandContext,
+      clearSelection,
       commitNodeMove: vi.fn(async () => undefined),
       commitNodeResize,
       nudgeSelection,
+      openObjectContextMenu,
+      openPaneContextMenu,
       objectCommandContext,
-      reconnectEdge
+      replaceSelection,
+      reconnectEdge,
+      selectEdgeFromCanvas,
+      selectNodeFromCanvas,
+      setPointerInteractionState,
+      setTemporaryPanState
     })
 
     await Promise.resolve(dispatchCanvasResolvedInput({
@@ -212,11 +254,19 @@ describe('canvas-input-dispatcher', () => {
       }
     }, {
       appCommandContext,
+      clearSelection,
       commitNodeMove: vi.fn(async () => undefined),
       commitNodeResize,
       nudgeSelection,
+      openObjectContextMenu,
+      openPaneContextMenu,
       objectCommandContext,
-      reconnectEdge
+      replaceSelection,
+      reconnectEdge,
+      selectEdgeFromCanvas,
+      selectNodeFromCanvas,
+      setPointerInteractionState,
+      setTemporaryPanState
     }))
 
     await Promise.resolve(dispatchCanvasResolvedInput({
@@ -226,14 +276,45 @@ describe('canvas-input-dispatcher', () => {
       to: 'overview'
     }, {
       appCommandContext,
+      clearSelection,
       commitNodeMove: vi.fn(async () => undefined),
       commitNodeResize,
       nudgeSelection,
+      openObjectContextMenu,
+      openPaneContextMenu,
       objectCommandContext,
-      reconnectEdge
+      replaceSelection,
+      reconnectEdge,
+      selectEdgeFromCanvas,
+      selectNodeFromCanvas,
+      setPointerInteractionState,
+      setTemporaryPanState
     }))
 
-    expect(setPanShortcutActive).toHaveBeenCalledWith(true)
+    dispatchCanvasResolvedInput({
+      kind: 'open-node-context-menu',
+      additive: false,
+      nodeId: 'welcome',
+      x: 120,
+      y: 180
+    }, {
+      appCommandContext,
+      clearSelection,
+      commitNodeMove: vi.fn(async () => undefined),
+      commitNodeResize,
+      nudgeSelection,
+      openObjectContextMenu,
+      openPaneContextMenu,
+      objectCommandContext,
+      replaceSelection,
+      reconnectEdge,
+      selectEdgeFromCanvas,
+      selectNodeFromCanvas,
+      setPointerInteractionState,
+      setTemporaryPanState
+    })
+
+    expect(setTemporaryPanState).toHaveBeenCalledWith('active')
     expect(commitNodeResize).toHaveBeenCalledWith('welcome', {
       x: 80,
       y: 72,
@@ -241,6 +322,11 @@ describe('canvas-input-dispatcher', () => {
       height: 240
     })
     expect(reconnectEdge).toHaveBeenCalledWith('edge-1', 'welcome', 'overview')
+    expect(selectNodeFromCanvas).toHaveBeenCalledWith('welcome', false)
+    expect(openObjectContextMenu).toHaveBeenCalledWith({
+      x: 120,
+      y: 180
+    })
   })
 })
 
@@ -271,11 +357,13 @@ function readInputContext(store: ReturnType<typeof createCanvasStore>, input: Ca
     appCommandContext: createCanvasAppCommandContext({
       ...state,
       objectContextMenuOpen: false,
-      setObjectContextMenu: () => undefined
+      setObjectContextMenu: () => undefined,
+      setTemporaryPanState: state.setTemporaryPanState,
+      temporaryPanState: state.temporaryPanState
     }),
     eventTarget: input && 'target' in input.intent ? input.intent.target : null,
     objectCommandContext: createCanvasObjectCommandContext(state),
-    panShortcutActive: state.panShortcutActive,
+    temporaryPanState: state.temporaryPanState,
     supportsMultiSelect: true,
     toolMode: state.toolMode
   })

@@ -30,7 +30,6 @@ import {
   isEdgeLocked,
   isNodeLocked
 } from '@canvas-app/store/canvas-object-selection'
-import { readActiveToolMode } from '@canvas-app/store/canvas-store'
 import { CanvasScene } from '@canvas-app/components/scene/canvas-scene'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
 import { HistoryControls } from '@canvas-app/components/controls/history-controls'
@@ -67,8 +66,9 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const revealSelectedImageSource = useStore(store, (state) => state.revealSelectedImageSource)
   const setDropActive = useStore(store, (state) => state.setDropActive)
   const setDropError = useStore(store, (state) => state.setDropError)
-  const setPanShortcutActive = useStore(store, (state) => state.setPanShortcutActive)
+  const setTemporaryPanState = useStore(store, (state) => state.setTemporaryPanState)
   const setViewport = useStore(store, (state) => state.setViewport)
+  const clearSelection = useStore(store, (state) => state.clearSelection)
   const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
@@ -81,10 +81,14 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const duplicateSelection = useStore(store, (state) => state.duplicateSelection)
   const arrangeSelection = useStore(store, (state) => state.arrangeSelection)
   const groupSelection = useStore(store, (state) => state.groupSelection)
+  const replaceSelection = useStore(store, (state) => state.replaceSelection)
   const setSelectionLocked = useStore(store, (state) => state.setSelectionLocked)
   const ungroupSelection = useStore(store, (state) => state.ungroupSelection)
   const nudgeSelection = useStore(store, (state) => state.nudgeSelection)
   const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
+  const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
+  const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
+  const setPointerInteractionState = useStore(store, (state) => state.setPointerInteractionState)
   const undo = useStore(store, (state) => state.undo)
   const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
@@ -97,7 +101,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const clipboardState = useStore(store, (state) => state.clipboardState)
   const groupSelectionState = useStore(store, (state) => state.groupSelectionState)
   const nodes = useStore(store, (state) => state.nodes)
-  const panShortcutActive = useStore(store, (state) => state.panShortcutActive)
+  const temporaryPanState = useStore(store, (state) => state.temporaryPanState)
+  const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
   const toolMode = useStore(store, (state) => state.toolMode)
   const viewport = useStore(store, (state) => state.viewport)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
@@ -117,12 +122,14 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       groups,
       nodes,
       objectContextMenuOpen: objectContextMenu !== null,
+      pointerInteractionState,
       redo,
       selectedEdgeIds,
       selectedGroupIds,
       selectedNodeIds,
       setObjectContextMenu,
-      setPanShortcutActive,
+      setTemporaryPanState,
+      temporaryPanState,
       setViewport,
       undo,
       viewport
@@ -135,12 +142,14 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       groups,
       nodes,
       objectContextMenu,
+      pointerInteractionState,
       redo,
       selectedEdgeIds,
       selectedGroupIds,
       selectedNodeIds,
       setObjectContextMenu,
-      setPanShortcutActive,
+      setTemporaryPanState,
+      temporaryPanState,
       setViewport,
       undo,
       viewport
@@ -214,13 +223,27 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     pointerCapabilities
   } = useCanvasInputListeners({
     appCommandContext,
+    clearSelection,
     commitNodeMove,
     commitNodeResize,
     nudgeSelection,
+    openObjectContextMenu: (input) => setObjectContextMenu({
+      kind: 'selection',
+      ...input
+    }),
+    openPaneContextMenu: (input) => setObjectContextMenu({
+      kind: 'canvas',
+      ...input
+    }),
     objectCommandContext,
-    panShortcutActive,
+    replaceSelection,
     reconnectEdge,
+    selectEdgeFromCanvas,
+    selectNodeFromCanvas,
+    setPointerInteractionState,
+    setTemporaryPanState,
     supportsMultiSelect: capabilities.supportsMultiSelect,
+    temporaryPanState,
     toolMode
   })
 
@@ -388,7 +411,10 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
 
           <div className="pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">
             <HistoryControls store={store} />
-            <ZoomControls store={store} />
+            <ZoomControls
+              dispatchCanvasInput={dispatchCanvasInput}
+              store={store}
+            />
           </div>
 
           {alignedObjectContextMenu ? (

@@ -97,6 +97,21 @@ export type CanvasViewportSize = {
   height: number
 }
 
+export type CanvasTemporaryPanState = 'active' | 'deferred' | 'inactive'
+
+export type CanvasPointerInteractionState =
+  | { status: 'idle' }
+  | {
+      phase: 'dragging' | 'pending'
+      status: 'selection-box'
+    }
+  | { status: 'node-drag' }
+  | { status: 'edge-reconnect' }
+  | {
+      source: 'temporary-pan' | 'tool'
+      status: 'pane-pan'
+    }
+
 export type CanvasNodeMove = {
   nodeId: string
   x: number
@@ -184,7 +199,8 @@ export type CanvasStoreState = {
   selectedNodeIds: string[]
   selectedEdgeIds: string[]
   toolMode: ToolMode
-  panShortcutActive: boolean
+  temporaryPanState: CanvasTemporaryPanState
+  pointerInteractionState: CanvasPointerInteractionState
   lastCanvasPointer: CanvasPointer | null
   viewportSize: CanvasViewportSize
   loadState: CanvasLoadState
@@ -220,7 +236,8 @@ export type CanvasStoreState = {
   setViewport: (viewport: CanvasViewport) => void
   setViewportSize: (size: CanvasViewportSize) => void
   setToolMode: (mode: ToolMode) => void
-  setPanShortcutActive: (active: boolean) => void
+  setTemporaryPanState: (state: CanvasTemporaryPanState) => void
+  setPointerInteractionState: (state: CanvasPointerInteractionState) => void
   setLastCanvasPointer: (pointer: CanvasPointer | null) => void
   previewNodeMove: (nodeId: string, x: number, y: number) => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>

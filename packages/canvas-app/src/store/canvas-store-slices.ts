@@ -79,6 +79,25 @@ const FRAME_PRESET = {
 
 const INCOMPLETE_FENCED_BLOCK_MESSAGE = 'Complete the fenced code block before leaving the editor.'
 
+function isSamePointerInteractionState(
+  left: CanvasStoreState['pointerInteractionState'],
+  right: CanvasStoreState['pointerInteractionState']
+) {
+  if (left.status !== right.status) {
+    return false
+  }
+
+  if (left.status === 'selection-box' && right.status === 'selection-box') {
+    return left.phase === right.phase
+  }
+
+  if (left.status === 'pane-pan' && right.status === 'pane-pan') {
+    return left.source === right.source
+  }
+
+  return true
+}
+
 function applyDocumentCommandResult({
   controls,
   get,
@@ -409,7 +428,8 @@ export function createCanvasInteractionSlice() {
     selectedEdgeIds: [],
     groupSelectionState: { status: 'idle' } as const,
     toolMode: 'select' as const,
-    panShortcutActive: false,
+    temporaryPanState: 'inactive' as const,
+    pointerInteractionState: { status: 'idle' } as const,
     lastCanvasPointer: null,
     viewportSize: {
       width: 0,
@@ -452,7 +472,8 @@ export function createCanvasCommandSlice(
   | 'setViewport'
   | 'setViewportSize'
   | 'setToolMode'
-  | 'setPanShortcutActive'
+  | 'setTemporaryPanState'
+  | 'setPointerInteractionState'
   | 'setLastCanvasPointer'
   | 'previewNodeMove'
   | 'commitNodeMove'
@@ -842,13 +863,24 @@ export function createCanvasCommandSlice(
       })
     },
 
-    setPanShortcutActive(active) {
+    setTemporaryPanState(temporaryPanState) {
       set((state) =>
-        state.panShortcutActive === active
+        state.temporaryPanState === temporaryPanState
           ? state
           : {
               ...state,
-              panShortcutActive: active
+              temporaryPanState
+            }
+      )
+    },
+
+    setPointerInteractionState(pointerInteractionState) {
+      set((state) =>
+        isSamePointerInteractionState(state.pointerInteractionState, pointerInteractionState)
+          ? state
+          : {
+              ...state,
+              pointerInteractionState
             }
       )
     },

@@ -13,13 +13,13 @@ export function createCanvasInputContext(input: {
   appCommandContext: CanvasAppCommandContext
   eventTarget: EventTarget | null
   objectCommandContext: CanvasObjectCommandContext
-  panShortcutActive: boolean
   supportsMultiSelect: boolean
+  temporaryPanState: CanvasInputContext['temporaryPanState']
   toolMode: ToolMode
 }): CanvasInputContext {
   return {
     activeToolMode: readActiveToolMode({
-      panShortcutActive: input.panShortcutActive,
+      temporaryPanState: input.temporaryPanState,
       toolMode: input.toolMode
     }),
     appCommandContext: input.appCommandContext,
@@ -27,7 +27,8 @@ export function createCanvasInputContext(input: {
     isEditableTarget: isEditableTarget(input.eventTarget),
     objectCommandContext: input.objectCommandContext,
     objectContextMenuOpen: input.appCommandContext.objectContextMenuOpen,
-    panShortcutActive: input.panShortcutActive,
+    temporaryPanState: input.temporaryPanState,
+    pointerInteractionState: input.appCommandContext.pointerInteractionState,
     selectionSnapshot: input.appCommandContext,
     supportsMultiSelect: input.supportsMultiSelect,
     toolMode: input.toolMode,

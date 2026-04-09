@@ -4,6 +4,10 @@ import {
 import {
   executeCanvasObjectCommand
 } from '@canvas-app/app/commands/canvas-object-commands'
+import {
+  applyEdgeSelectionChangeResult,
+  applyNodeSelectionChangeResult
+} from '@canvas-app/components/scene/flow/flow-selection-changes'
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
 import type {
   CanvasInputDispatchContext,
@@ -27,8 +31,9 @@ export function dispatchCanvasResolvedInput(
     case 'execute-object-command':
       return executeCanvasObjectCommand(input.commandId, context.objectCommandContext)
 
-    case 'set-pan-shortcut-active':
-      context.appCommandContext.setPanShortcutActive(input.active)
+    case 'update-interaction-machine-state':
+      context.appCommandContext.setTemporaryPanState(input.temporaryPanState)
+      context.setPointerInteractionState(input.pointerInteractionState)
       return true
 
     case 'apply-viewport-zoom': {
@@ -61,6 +66,73 @@ export function dispatchCanvasResolvedInput(
 
     case 'commit-edge-reconnect':
       return context.reconnectEdge(input.edgeId, input.from, input.to)
+
+    case 'clear-selection':
+      context.clearSelection()
+      return true
+
+    case 'select-node':
+      context.selectNodeFromCanvas(input.nodeId, input.additive)
+      return true
+
+    case 'select-edge':
+      context.selectEdgeFromCanvas(input.edgeId, input.additive)
+      return true
+
+    case 'open-pane-context-menu':
+      context.openPaneContextMenu({
+        x: input.x,
+        y: input.y
+      })
+      return true
+
+    case 'open-node-context-menu':
+      if (!isNodeIncludedInCurrentSelection(
+        context.appCommandContext.groups,
+        context.appCommandContext.selectedGroupIds,
+        context.appCommandContext.selectedNodeIds,
+        input.nodeId
+      )) {
+        context.selectNodeFromCanvas(input.nodeId, input.additive)
+      }
+
+      context.openObjectContextMenu({
+        x: input.x,
+        y: input.y
+      })
+      return true
+
+    case 'open-edge-context-menu':
+      if (!context.appCommandContext.selectedEdgeIds.includes(input.edgeId)) {
+        context.selectEdgeFromCanvas(input.edgeId, input.additive)
+      }
+
+      context.openObjectContextMenu({
+        x: input.x,
+        y: input.y
+      })
+      return true
+
+    case 'apply-node-selection-change':
+      applyNodeSelectionChangeResult({
+        changes: input.changes,
+        groups: context.appCommandContext.groups,
+        replaceSelection: context.replaceSelection,
+        selectedEdgeIds: context.appCommandContext.selectedEdgeIds,
+        selectedNodeIds: context.appCommandContext.selectedNodeIds
+      })
+      return true
+
+    case 'apply-edge-selection-change':
+      applyEdgeSelectionChangeResult({
+        changes: input.changes,
+        replaceSelection: context.replaceSelection,
+        selectedGroupIds: context.appCommandContext.selectedGroupIds,
+        selectedNodeIds: context.appCommandContext.selectedNodeIds,
+        selectedEdgeIds: context.appCommandContext.selectedEdgeIds
+      })
+      return true
+
   }
 }
 
@@ -128,4 +200,19 @@ function readNextZoom(input: {
   }
 
   return applyZoomStep(input.viewport, input.direction).zoom
+}
+
+function isNodeIncludedInCurrentSelection(
+  groups: CanvasInputDispatchContext['appCommandContext']['groups'],
+  selectedGroupIds: string[],
+  selectedNodeIds: string[],
+  nodeId: string
+) {
+  if (selectedNodeIds.includes(nodeId)) {
+    return true
+  }
+
+  const containingGroup = groups.find((group) => group.members.nodeIds.includes(nodeId))
+
+  return containingGroup ? selectedGroupIds.includes(containingGroup.id) : false
 }

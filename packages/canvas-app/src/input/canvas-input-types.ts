@@ -8,7 +8,12 @@ import type {
   CanvasObjectCommandId
 } from '@canvas-app/app/commands/canvas-object-commands'
 import type { CanvasSelectionSnapshot } from '@canvas-app/store/canvas-object-selection'
-import type { CanvasEditingState, ToolMode } from '@canvas-app/store/canvas-store-types'
+import type {
+  CanvasEditingState,
+  CanvasPointerInteractionState,
+  CanvasTemporaryPanState,
+  ToolMode
+} from '@canvas-app/store/canvas-store-types'
 
 export type CanvasInputIntent =
   | {
@@ -38,6 +43,8 @@ export type CanvasInputIntent =
       state: 'end' | 'start'
       target: EventTarget | null
     }
+  | { kind: 'system-blur' }
+  | { kind: 'system-editing'; state: 'end' | 'start' }
   | {
       kind: 'pointer-node-move-commit'
       nodeId: string
@@ -62,6 +69,61 @@ export type CanvasInputIntent =
       from: string
       to: string
     }
+  | {
+      kind: 'pointer-pane-click'
+    }
+  | {
+      kind: 'pointer-node-click'
+      additive: boolean
+      nodeId: string
+    }
+  | {
+      kind: 'pointer-edge-click'
+      additive: boolean
+      edgeId: string
+    }
+  | {
+      kind: 'pointer-pane-context-menu'
+      x: number
+      y: number
+    }
+  | {
+      kind: 'pointer-node-context-menu'
+      additive: boolean
+      nodeId: string
+      x: number
+      y: number
+    }
+  | {
+      kind: 'pointer-edge-context-menu'
+      additive: boolean
+      edgeId: string
+      x: number
+      y: number
+    }
+  | {
+      kind: 'pointer-node-selection-change'
+      changes: Array<{
+        id: string
+        selected: boolean
+      }>
+    }
+  | {
+      kind: 'pointer-edge-selection-change'
+      changes: Array<{
+        id: string
+        selected: boolean
+      }>
+    }
+  | { kind: 'pointer-selection-box-start' }
+  | { kind: 'pointer-selection-box-drag-start' }
+  | { kind: 'pointer-selection-box-end' }
+  | { kind: 'pointer-node-drag-start' }
+  | { kind: 'pointer-node-drag-end' }
+  | { kind: 'pointer-edge-reconnect-start' }
+  | { kind: 'pointer-edge-reconnect-end' }
+  | { kind: 'pointer-pane-pan-start' }
+  | { kind: 'pointer-pane-pan-end' }
 
 export type CanvasMatchedInput = {
   allowEditableTarget: boolean
@@ -76,7 +138,8 @@ export type CanvasInputContext = {
   isEditableTarget: boolean
   objectCommandContext: CanvasObjectCommandContext
   objectContextMenuOpen: boolean
-  panShortcutActive: boolean
+  temporaryPanState: CanvasTemporaryPanState
+  pointerInteractionState: CanvasPointerInteractionState
   selectionSnapshot: CanvasSelectionSnapshot
   supportsMultiSelect: boolean
   toolMode: ToolMode
@@ -103,9 +166,9 @@ export type CanvasResolvedInput =
       anchorClientY?: number
     }
   | {
-      kind: 'set-pan-shortcut-active'
-      active: boolean
-      preventDefault: boolean
+      kind: 'update-interaction-machine-state'
+      pointerInteractionState: CanvasPointerInteractionState
+      temporaryPanState: CanvasTemporaryPanState
     }
   | {
       kind: 'commit-selection-nudge'
@@ -134,6 +197,52 @@ export type CanvasResolvedInput =
       from: string
       to: string
     }
+  | {
+      kind: 'clear-selection'
+    }
+  | {
+      kind: 'select-node'
+      additive: boolean
+      nodeId: string
+    }
+  | {
+      kind: 'select-edge'
+      additive: boolean
+      edgeId: string
+    }
+  | {
+      kind: 'open-pane-context-menu'
+      x: number
+      y: number
+    }
+  | {
+      kind: 'open-node-context-menu'
+      additive: boolean
+      nodeId: string
+      x: number
+      y: number
+    }
+  | {
+      kind: 'open-edge-context-menu'
+      additive: boolean
+      edgeId: string
+      x: number
+      y: number
+    }
+  | {
+      kind: 'apply-node-selection-change'
+      changes: Array<{
+        id: string
+        selected: boolean
+      }>
+    }
+  | {
+      kind: 'apply-edge-selection-change'
+      changes: Array<{
+        id: string
+        selected: boolean
+      }>
+    }
 
 export type CanvasPointerCapabilities = {
   edgesReconnectable: boolean
@@ -146,6 +255,7 @@ export type CanvasPointerCapabilities = {
 
 export type CanvasInputDispatchContext = {
   appCommandContext: CanvasAppCommandContext
+  clearSelection: () => void
   commitNodeMove: (nodeId: string, x: number, y: number) => Promise<void>
   commitNodeResize: (
     nodeId: string,
@@ -157,8 +267,25 @@ export type CanvasInputDispatchContext = {
     }
   ) => Promise<void>
   nudgeSelection: (dx: number, dy: number) => Promise<void>
+  openObjectContextMenu: (input: {
+    x: number
+    y: number
+  }) => void
+  openPaneContextMenu: (input: {
+    x: number
+    y: number
+  }) => void
   objectCommandContext: CanvasObjectCommandContext
+  replaceSelection: (input: {
+    groupIds: string[]
+    nodeIds: string[]
+    edgeIds: string[]
+  }) => void
   reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
+  selectEdgeFromCanvas: (edgeId: string, additive: boolean) => void
+  selectNodeFromCanvas: (nodeId: string, additive: boolean) => void
+  setPointerInteractionState: (state: CanvasPointerInteractionState) => void
+  setTemporaryPanState: (state: CanvasTemporaryPanState) => void
   viewportBounds?: {
     left: number
     top: number

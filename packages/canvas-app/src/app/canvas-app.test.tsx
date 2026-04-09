@@ -307,6 +307,42 @@ describe('CanvasApp', () => {
     expect(application).not.toHaveClass('boardmark-flow--pan')
   })
 
+  it('keeps deferred temporary pan out of the toolbar and cursor until pane pan becomes active', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+
+    act(() => {
+      store.setState({
+        temporaryPanState: 'deferred',
+        pointerInteractionState: { status: 'idle' }
+      })
+    })
+
+    expect(screen.getByRole('button', { name: 'Select' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Pan' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('application')).not.toHaveClass('boardmark-flow--pan')
+
+    act(() => {
+      store.setState({
+        temporaryPanState: 'active',
+        pointerInteractionState: {
+          status: 'pane-pan',
+          source: 'temporary-pan'
+        }
+      })
+    })
+
+    expect(screen.getByRole('button', { name: 'Pan' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('application')).toHaveClass('boardmark-flow--pan')
+  })
+
   it('does not select objects while pan mode is active', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -484,12 +520,14 @@ main thread
       groups: state.groups,
       nodes: state.nodes,
       objectContextMenuOpen: true,
+      pointerInteractionState: state.pointerInteractionState,
       redo: state.redo,
       selectedEdgeIds: state.selectedEdgeIds,
       selectedGroupIds: state.selectedGroupIds,
       selectedNodeIds: state.selectedNodeIds,
       setObjectContextMenu: () => undefined,
-      setPanShortcutActive: state.setPanShortcutActive,
+      setTemporaryPanState: state.setTemporaryPanState,
+      temporaryPanState: state.temporaryPanState,
       setViewport: state.setViewport,
       undo: state.undo,
       viewport: state.viewport
@@ -711,6 +749,30 @@ main thread
 
     expect(undoButton).toBeEnabled()
     expect(redoButton).toBeEnabled()
+  })
+
+  it('routes zoom control buttons through the shared input pipeline', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    })
+
+    expect(store.getState().viewport.zoom).toBe(1.02)
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
+    })
+
+    expect(store.getState().viewport.zoom).toBe(0.92)
   })
 
   it('dispatches undo and redo shortcuts only when the canvas is idle', async () => {

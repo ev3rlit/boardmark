@@ -24,9 +24,9 @@ import type {
 export type CanvasStore = ReturnType<typeof createCanvasStore>
 
 export function readActiveToolMode(
-  state: Pick<CanvasStoreState, 'toolMode' | 'panShortcutActive'>
+  state: Pick<CanvasStoreState, 'toolMode' | 'temporaryPanState'>
 ): ToolMode {
-  return state.panShortcutActive ? 'pan' : state.toolMode
+  return state.temporaryPanState === 'active' ? 'pan' : state.toolMode
 }
 
 export function createCanvasStore({
