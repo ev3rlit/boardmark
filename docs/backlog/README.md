@@ -5,3 +5,4 @@
 - [`markdown-render-style-plugins/README.md`](./markdown-render-style-plugins/README.md): 마크다운 엔진과 렌더 스타일을 분리하고 기본 스타일 + 교체형 스타일 플러그인을 도입하는 아이디어
 - [`fenced-block-image-export/README.md`](./fenced-block-image-export/README.md): Mermaid, code block, Sandpack 같은 fenced block과 향후 object export를 공통 export 인터페이스로 다루는 아이디어
 - [`object-markdown-copy/README.md`](./object-markdown-copy/README.md): 캔버스 내부 복사와 함께 외부 메모장/툴에 붙여넣기 가능한 plain markdown body 복사를 제공하는 아이디어
+- [`input-pipeline-followup/README.md`](./input-pipeline-followup/README.md): input pipeline V1 이후 남은 connect-line lifecycle 편입과 full pointer capture/ownership graph 후속 작업
