@@ -17,7 +17,8 @@ import {
   applyNodeChangesToStore,
   mergeFlowNodes,
   readFlowNodes,
-  shouldDispatchPointerPanePanLifecycle
+  shouldDispatchPointerPanePanLifecycle,
+  shouldKeepCanvasWheelEventLocal
 } from '@canvas-app/components/scene/canvas-scene'
 import {
   normalizeTopLevelNodeSelection,
@@ -612,6 +613,14 @@ Boardmark Viewer
     })
 
     expect(store.getState().viewport.zoom).toBe(1.02)
+  })
+
+  it('keeps plain wheel local while letting zoom-qualified wheel escape note content', () => {
+    expect(shouldKeepCanvasWheelEventLocal(new WheelEvent('wheel'))).toBe(true)
+    expect(shouldKeepCanvasWheelEventLocal(new WheelEvent('wheel', {
+      ctrlKey: true,
+      deltaY: -120
+    }))).toBe(false)
   })
 
   it('accepts only pointer-originated pane pan lifecycle events', () => {

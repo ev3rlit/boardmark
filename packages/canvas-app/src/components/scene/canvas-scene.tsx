@@ -63,6 +63,7 @@ import {
 } from '@canvas-app/store/canvas-editing-session'
 import { readCanvasGestureInput } from '@canvas-app/input/canvas-gesture-input'
 import { readCanvasWheelInput } from '@canvas-app/input/canvas-wheel-input'
+import { readZoomDirectionFromWheelEvent } from '@canvas-app/keyboard/key-event-matchers'
 import type {
   CanvasMatchedInput,
   CanvasPointerCapabilities
@@ -286,6 +287,10 @@ export function CanvasScene({
     }
 
     const handleWheel = (event: WheelEvent) => {
+      if (!(event.target instanceof Node) || !element.contains(event.target)) {
+        return
+      }
+
       if (event.defaultPrevented) {
         return
       }
@@ -333,12 +338,12 @@ export function CanvasScene({
       gestureScaleRef.current = 1
     }
 
-    element.addEventListener('wheel', handleWheel, { passive: false })
+    window.addEventListener('wheel', handleWheel, { passive: false })
     element.addEventListener('gesturestart', handleGestureStart as EventListener, { passive: false })
     element.addEventListener('gesturechange', handleGestureChange as EventListener, { passive: false })
     element.addEventListener('gestureend', handleGestureEnd as EventListener)
     return () => {
-      element.removeEventListener('wheel', handleWheel)
+      window.removeEventListener('wheel', handleWheel)
       element.removeEventListener('gesturestart', handleGestureStart as EventListener)
       element.removeEventListener('gesturechange', handleGestureChange as EventListener)
       element.removeEventListener('gestureend', handleGestureEnd as EventListener)
@@ -688,6 +693,10 @@ export function shouldDispatchPointerPanePanLifecycle(
   )
 }
 
+export function shouldKeepCanvasWheelEventLocal(event: WheelEvent) {
+  return readZoomDirectionFromWheelEvent(event) === null
+}
+
 function CanvasNoteNode({
   id,
   data,
@@ -777,7 +786,9 @@ function CanvasNoteNode({
           <div
             className="min-h-0 flex-1 overflow-auto nowheel"
             onWheelCapture={(event) => {
-              event.stopPropagation()
+              if (shouldKeepCanvasWheelEventLocal(event.nativeEvent)) {
+                event.stopPropagation()
+              }
             }}
           >
             <MarkdownContent
@@ -1006,7 +1017,9 @@ export function CanvasMarkdownEdge({
               <div
                 className="nowheel"
                 onWheelCapture={(event) => {
-                  event.stopPropagation()
+                  if (shouldKeepCanvasWheelEventLocal(event.nativeEvent)) {
+                    event.stopPropagation()
+                  }
                 }}
               >
                 <MarkdownContent
