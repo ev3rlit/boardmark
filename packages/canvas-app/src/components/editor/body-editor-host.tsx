@@ -10,7 +10,10 @@ import { createPortal } from 'react-dom'
 import type { Editor } from '@tiptap/react'
 import { FloatingToolbar } from '@canvas-app/components/editor/floating-toolbar'
 import { WysiwygEditorSurface } from '@canvas-app/components/editor/wysiwyg-editor-surface'
-import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import {
+  matchesEscapeKey,
+  readZoomDirectionFromWheelEvent
+} from '@canvas-app/keyboard/key-event-matchers'
 import type {
   CanvasEditingBlockMode,
   CanvasEditingInteractionState,
@@ -82,7 +85,9 @@ export function BodyEditorHost({
         session.surface === 'wysiwyg' ? 'canvas-body-editor-host--wysiwyg' : ''
       ].join(' ').trim()}
       onWheelCapture={(event) => {
-        event.stopPropagation()
+        if (readZoomDirectionFromWheelEvent(event.nativeEvent) === null) {
+          event.stopPropagation()
+        }
       }}
       onBlurCapture={(event) => {
         const nextTarget = event.relatedTarget

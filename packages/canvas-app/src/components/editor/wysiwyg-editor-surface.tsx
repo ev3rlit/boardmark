@@ -1,6 +1,9 @@
 import { startTransition, useEffect, useMemo } from 'react'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
-import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import {
+  matchesEscapeKey,
+  readZoomDirectionFromWheelEvent
+} from '@canvas-app/keyboard/key-event-matchers'
 import { readEditorDerivedBlockMode } from '@canvas-app/components/editor/caret-navigation/selection-state'
 import type {
   CanvasEditingBlockMode,
@@ -39,8 +42,7 @@ export function WysiwygEditorSurface({
     immediatelyRender: false,
     editable,
     extensions: bridge.extensions,
-    content: markdown,
-    contentType: 'markdown',
+    content: bridge.fromMarkdown(markdown),
     editorProps: {
       attributes: {
         'aria-label': ariaLabel,
@@ -84,11 +86,9 @@ export function WysiwygEditorSurface({
     }
 
     if (editor.getMarkdown() !== markdown) {
-      editor.commands.setContent(markdown, {
-        contentType: 'markdown'
-      })
+      editor.commands.setContent(bridge.fromMarkdown(markdown))
     }
-  }, [editor, markdown])
+  }, [bridge, editor, markdown])
 
   useEffect(() => {
     if (!editor || !autoFocus) {
@@ -167,7 +167,9 @@ export function WysiwygEditorSurface({
         onInteractionChange('active')
       }}
       onWheelCapture={(event) => {
-        event.stopPropagation()
+        if (readZoomDirectionFromWheelEvent(event.nativeEvent) === null) {
+          event.stopPropagation()
+        }
       }}
     >
       {editor ? <EditorContent editor={editor} /> : null}

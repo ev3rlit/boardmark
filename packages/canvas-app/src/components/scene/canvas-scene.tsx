@@ -28,7 +28,11 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { BuiltInComponentKey, CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
+import {
+  type BuiltInComponentKey,
+  type CanvasGroup,
+  type CanvasNode
+} from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
@@ -50,14 +54,28 @@ import {
   type EdgeAnchorPath
 } from '@canvas-app/components/scene/edges/edge-anchor-geometry'
 import {
-  canCanvasMutateSelection,
-  isEditingEdgeLabel,
-  isEditingNodeBody
+  readActiveEdgeEditingSession,
+  readActiveNodeEditingSession,
+  readEdgeEditingInteractionBlock,
+  readNodeEditingInteractionBlock
 } from '@canvas-app/store/canvas-editing-session'
-import { readUnlockedNodeSelection } from '@canvas-app/store/canvas-object-selection'
-import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
+import { readCanvasGestureInput } from '@canvas-app/input/canvas-gesture-input'
+import { readCanvasWheelInput } from '@canvas-app/input/canvas-wheel-input'
+import type {
+  CanvasMatchedInput,
+  CanvasPointerCapabilities
+} from '@canvas-app/input/canvas-input-types'
+import { type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type CanvasSceneProps = {
+  dispatchCanvasInput: (
+    input: CanvasMatchedInput,
+    options?: { viewportBounds?: { left: number; top: number } }
+  ) => boolean
+  dispatchCanvasInputAsync: (
+    input: CanvasMatchedInput,
+    options?: { viewportBounds?: { left: number; top: number } }
+  ) => Promise<boolean>
   onObjectContextMenu?: (input: {
     x: number
     y: number
@@ -66,6 +84,7 @@ type CanvasSceneProps = {
     x: number
     y: number
   }) => void
+  pointerCapabilities: CanvasPointerCapabilities
   store: CanvasStore
   supportsMultiSelect?: boolean
 }
@@ -75,57 +94,27 @@ type ResizeCallbacks = {
   onResizePreview: (nodeId: string, geometry: CanvasNodeGeometryDraft) => void
 }
 
-type DragCommitAction =
-  | { kind: 'none' }
-  | { kind: 'selection-nudge'; dx: number; dy: number }
-  | { kind: 'single-move'; nodeId: string; x: number; y: number }
+type GestureZoomDomEvent = Event & {
+  clientX: number
+  clientY: number
+  scale: number
+}
 
-export function readDragCommitAction(input: {
-  draggedNodeId: string
-  draggedPosition: {
-    x: number
-    y: number
-  }
-  nodes: CanvasNode[]
-  unlockedSelectionNodeIds: string[]
-}): DragCommitAction {
-  const draggedNode = input.nodes.find((node) => node.id === input.draggedNodeId)
-
-  if (!draggedNode) {
-    return { kind: 'none' }
-  }
-
-  const x = Math.round(input.draggedPosition.x)
-  const y = Math.round(input.draggedPosition.y)
-  const dx = x - draggedNode.at.x
-  const dy = y - draggedNode.at.y
-
-  if (dx === 0 && dy === 0) {
-    return { kind: 'none' }
-  }
-
-  if (
-    input.unlockedSelectionNodeIds.length > 1 &&
-    input.unlockedSelectionNodeIds.includes(input.draggedNodeId)
-  ) {
-    return {
-      kind: 'selection-nudge',
-      dx,
-      dy
-    }
-  }
-
-  return {
-    kind: 'single-move',
-    nodeId: input.draggedNodeId,
-    x,
-    y
-  }
+const DEFAULT_POINTER_CAPABILITIES: CanvasPointerCapabilities = {
+  edgesReconnectable: false,
+  elementsSelectable: false,
+  nodesConnectable: false,
+  nodesDraggable: false,
+  panOnDrag: false,
+  selectionOnDrag: false
 }
 
 export function CanvasScene({
+  dispatchCanvasInput = () => false,
+  dispatchCanvasInputAsync = async () => false,
   onObjectContextMenu,
   onPaneContextMenu,
+  pointerCapabilities = DEFAULT_POINTER_CAPABILITIES,
   store,
   supportsMultiSelect = false
 }: CanvasSceneProps) {
@@ -134,7 +123,6 @@ export function CanvasScene({
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
   const defaultStyle = useStore(store, (state) => state.document?.ast.frontmatter.defaultStyle)
-  const activeToolMode = useStore(store, readActiveToolMode)
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
@@ -145,15 +133,9 @@ export function CanvasScene({
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
   const selectNodeFromCanvas = useStore(store, (state) => state.selectNodeFromCanvas)
   const selectEdgeFromCanvas = useStore(store, (state) => state.selectEdgeFromCanvas)
-  const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
-  const nudgeSelection = useStore(store, (state) => state.nudgeSelection)
-  const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
-  const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const createEdgeFromConnection = useStore(store, (state) => state.createEdgeFromConnection)
-  const editingState = useStore(store, (state) => state.editingState)
-  const canManipulateCanvas = canCanvasMutateSelection(editingState)
-  const isPanMode = activeToolMode === 'pan'
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const gestureScaleRef = useRef(1)
 
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
   const baseFlowNodes = useMemo(
@@ -199,14 +181,22 @@ export function CanvasScene({
       },
       async onResizeCommit(nodeId, geometry) {
         try {
-          await commitNodeResize(nodeId, geometry)
+          await dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-node-resize-commit',
+              nodeId,
+              geometry
+            },
+            preventDefault: false
+          })
         } finally {
           setResizeDrafts({})
           syncFlowNodesFromStore({})
         }
       }
     }),
-    [commitNodeResize, store]
+    [dispatchCanvasInputAsync, store]
   )
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
@@ -288,6 +278,73 @@ export function CanvasScene({
     return () => window.removeEventListener('resize', syncViewportSize)
   }, [setViewportSize])
 
+  useEffect(() => {
+    const element = viewportRef.current
+
+    if (!element) {
+      return
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.defaultPrevented) {
+        return
+      }
+
+      const input = readCanvasWheelInput(event)
+
+      if (!input) {
+        return
+      }
+
+      if (dispatchCanvasInput(input, { viewportBounds: element.getBoundingClientRect() }) && input.preventDefault) {
+        event.preventDefault()
+      }
+    }
+
+    const handleGestureStart = (event: Event) => {
+      const gestureEvent = event as GestureZoomDomEvent
+      gestureScaleRef.current = Number.isFinite(gestureEvent.scale) ? gestureEvent.scale : 1
+      gestureEvent.preventDefault()
+    }
+
+    const handleGestureChange = (event: Event) => {
+      const gestureEvent = event as GestureZoomDomEvent
+
+      if (gestureEvent.defaultPrevented) {
+        return
+      }
+
+      const input = readCanvasGestureInput({
+        event: gestureEvent,
+        previousScale: gestureScaleRef.current
+      })
+      gestureScaleRef.current = gestureEvent.scale
+
+      if (!input) {
+        return
+      }
+
+      if (dispatchCanvasInput(input, { viewportBounds: element.getBoundingClientRect() }) && input.preventDefault) {
+        gestureEvent.preventDefault()
+      }
+    }
+
+    const handleGestureEnd = () => {
+      gestureScaleRef.current = 1
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    element.addEventListener('gesturestart', handleGestureStart as EventListener, { passive: false })
+    element.addEventListener('gesturechange', handleGestureChange as EventListener, { passive: false })
+    element.addEventListener('gestureend', handleGestureEnd as EventListener)
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+      element.removeEventListener('gesturestart', handleGestureStart as EventListener)
+      element.removeEventListener('gesturechange', handleGestureChange as EventListener)
+      element.removeEventListener('gestureend', handleGestureEnd as EventListener)
+    }
+  }, [dispatchCanvasInput])
+
   return (
     <div
       className="h-full w-full"
@@ -296,18 +353,18 @@ export function CanvasScene({
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
         className={[
           'boardmark-flow',
-          isPanMode ? 'boardmark-flow--pan' : ''
+          pointerCapabilities.panOnDrag ? 'boardmark-flow--pan' : ''
         ].join(' ').trim()}
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        nodesDraggable={activeToolMode === 'select' && canManipulateCanvas}
-        nodesConnectable={activeToolMode === 'select' && canManipulateCanvas}
-        edgesReconnectable={activeToolMode === 'select' && canManipulateCanvas}
-        elementsSelectable={activeToolMode === 'select'}
-        panOnDrag={isPanMode}
-        selectionOnDrag={supportsMultiSelect && activeToolMode === 'select'}
+        nodesDraggable={pointerCapabilities.nodesDraggable}
+        nodesConnectable={pointerCapabilities.nodesConnectable}
+        edgesReconnectable={pointerCapabilities.edgesReconnectable}
+        elementsSelectable={pointerCapabilities.elementsSelectable}
+        panOnDrag={pointerCapabilities.panOnDrag}
+        selectionOnDrag={pointerCapabilities.selectionOnDrag}
         selectionMode={SelectionMode.Partial}
         panOnScroll={false}
         zoomOnScroll={false}
@@ -333,7 +390,7 @@ export function CanvasScene({
         }}
         multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
         onNodesChange={(changes) => {
-          const nextChanges = filterSelectionChanges(changes, activeToolMode === 'select')
+          const nextChanges = filterSelectionChanges(changes, pointerCapabilities.elementsSelectable)
 
           setFlowNodes((currentFlowNodes) => applyNodeChanges(nextChanges, currentFlowNodes))
           applyNodeChangesToStore({
@@ -346,7 +403,7 @@ export function CanvasScene({
         }}
         onEdgesChange={(changes) => {
           applyEdgeChangesToStore({
-            changes: filterSelectionChanges(changes, activeToolMode === 'select'),
+            changes: filterSelectionChanges(changes, pointerCapabilities.elementsSelectable),
             replaceSelection,
             selectedGroupIds,
             selectedNodeIds,
@@ -354,14 +411,14 @@ export function CanvasScene({
           })
         }}
         onNodeClick={(event, node) => {
-          if (activeToolMode !== 'select') {
+          if (!pointerCapabilities.elementsSelectable) {
             return
           }
 
           selectNodeFromCanvas(node.id, event.shiftKey)
         }}
         onEdgeClick={(event, edge) => {
-          if (activeToolMode !== 'select') {
+          if (!pointerCapabilities.elementsSelectable) {
             return
           }
 
@@ -369,20 +426,16 @@ export function CanvasScene({
         }}
         onNodeDragStop={(_event, node) => {
           void (async () => {
-            const state = store.getState()
-            const action = readDragCommitAction({
-              draggedNodeId: node.id,
-              draggedPosition: node.position,
-              nodes: state.nodes,
-              unlockedSelectionNodeIds: readUnlockedNodeSelection(state)
-            })
-
             try {
-              if (action.kind === 'selection-nudge') {
-                await nudgeSelection(action.dx, action.dy)
-              } else if (action.kind === 'single-move') {
-                await commitNodeMove(action.nodeId, action.x, action.y)
-              }
+              await dispatchCanvasInputAsync({
+                allowEditableTarget: true,
+                intent: {
+                  kind: 'pointer-node-move-commit',
+                  nodeId: node.id,
+                  position: node.position
+                },
+                preventDefault: false
+              })
             } finally {
               syncFlowNodesFromStore({})
             }
@@ -420,7 +473,16 @@ export function CanvasScene({
             return
           }
 
-          void reconnectEdge(oldEdge.id, connection.source, connection.target)
+          void dispatchCanvasInputAsync({
+            allowEditableTarget: true,
+            intent: {
+              kind: 'pointer-edge-reconnect-commit',
+              edgeId: oldEdge.id,
+              from: connection.source,
+              to: connection.target
+            },
+            preventDefault: false
+          })
         }}
       >
         <CanvasFlowViewportSync
@@ -453,7 +515,11 @@ function CanvasNoteNode({
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const hostAnchorRef = useRef<HTMLDivElement | null>(null)
-  const editingState = useStore(store, (state) => state.editingState)
+  const activeSession = useStore(store, (state) => readActiveNodeEditingSession(state.editingState, id))
+  const blocksEditingInteractions = useStore(
+    store,
+    (state) => readNodeEditingInteractionBlock(state.editingState, id)
+  )
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
@@ -461,15 +527,14 @@ function CanvasNoteNode({
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
-  const isEditing = isEditingNodeBody(editingState, id)
-  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
+  const isEditing = activeSession !== null
 
   return (
     <div
       className="h-full w-full max-w-none"
       ref={hostAnchorRef}
       onDoubleClick={() => {
-        if (!data.locked) {
+        if (!data.locked && !blocksEditingInteractions) {
           startObjectEditing(id)
         }
       }}
@@ -505,7 +570,7 @@ function CanvasNoteNode({
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={!isEditing && !data.locked}
+        isConnectable={!blocksEditingInteractions && !data.locked}
         className="boardmark-flow__handle"
       />
       <StickyNoteCard
@@ -544,7 +609,7 @@ function CanvasNoteNode({
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={!isEditing && !data.locked}
+        isConnectable={!blocksEditingInteractions && !data.locked}
         className="boardmark-flow__handle"
       />
     </div>
@@ -560,7 +625,11 @@ function CanvasComponentNode({
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const hostAnchorRef = useRef<HTMLDivElement | null>(null)
-  const editingState = useStore(store, (state) => state.editingState)
+  const activeSession = useStore(store, (state) => readActiveNodeEditingSession(state.editingState, id))
+  const blocksEditingInteractions = useStore(
+    store,
+    (state) => readNodeEditingInteractionBlock(state.editingState, id)
+  )
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
@@ -568,8 +637,7 @@ function CanvasComponentNode({
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isImageNode = data.component === 'image'
-  const isEditing = !isImageNode && isEditingNodeBody(editingState, id)
-  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
+  const isEditing = !isImageNode && activeSession !== null
 
   const Renderer = readBuiltInRenderer(data.component)
 
@@ -578,7 +646,7 @@ function CanvasComponentNode({
       className="max-w-none"
       ref={hostAnchorRef}
       onDoubleClick={() => {
-        if (!isImageNode && !data.locked) {
+        if (!isImageNode && !data.locked && !blocksEditingInteractions) {
           startObjectEditing(id)
         }
       }}
@@ -614,7 +682,7 @@ function CanvasComponentNode({
       <Handle
         type="target"
         position={Position.Left}
-        isConnectable={!isEditing && !data.locked}
+        isConnectable={!blocksEditingInteractions && !data.locked}
         className="boardmark-flow__handle"
       />
       {isEditing ? (
@@ -662,7 +730,7 @@ function CanvasComponentNode({
       <Handle
         type="source"
         position={Position.Right}
-        isConnectable={!isEditing && !data.locked}
+        isConnectable={!blocksEditingInteractions && !data.locked}
         className="boardmark-flow__handle"
       />
     </div>
@@ -686,7 +754,11 @@ export function CanvasMarkdownEdge({
   const sourceNode = useInternalNode<Node<CanvasFlowNodeData>>(source)
   const targetNode = useInternalNode<Node<CanvasFlowNodeData>>(target)
   const edgeData = (data ?? {}) as CanvasFlowEdgeData
-  const editingState = useStore(store, (state) => state.editingState)
+  const activeSession = useStore(store, (state) => readActiveEdgeEditingSession(state.editingState, id))
+  const blocksEditingInteractions = useStore(
+    store,
+    (state) => readEdgeEditingInteractionBlock(state.editingState, id)
+  )
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
@@ -694,8 +766,6 @@ export function CanvasMarkdownEdge({
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
-  const isEditing = isEditingEdgeLabel(editingState, id)
-  const activeSession = isEditing && editingState.status === 'active' ? editingState : null
   const edgeAnchorPath = readEdgeAnchorPath({
     fallback: {
       sourcePosition,
@@ -732,7 +802,7 @@ export function CanvasMarkdownEdge({
           <div
             className="rounded-2xl bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_90%,transparent)] px-4 py-2 text-sm text-[var(--color-on-surface)] shadow-[0_16px_32px_rgba(43,52,55,0.08)]"
             onDoubleClick={() => {
-              if (!edgeData.locked) {
+              if (!edgeData.locked && !blocksEditingInteractions) {
                 startEdgeEditing(id)
               }
             }}

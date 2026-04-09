@@ -807,7 +807,7 @@ main thread
     expect(nudgeSpy).toHaveBeenNthCalledWith(2, 10, 0)
   })
 
-  it('does not intercept undo shortcuts while inline editing is active', async () => {
+  it('does not intercept undo and object shortcuts while inline editing is active, but still allows zoom', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: createRepository(),
@@ -853,7 +853,7 @@ main thread
     expect(nudgeSpy).not.toHaveBeenCalled()
     expect(pasteSpy).not.toHaveBeenCalled()
     expect(pasteInPlaceSpy).not.toHaveBeenCalled()
-    expect(store.getState().viewport.zoom).toBe(0.92)
+    expect(store.getState().viewport.zoom).toBe(1.02)
   })
 })
 

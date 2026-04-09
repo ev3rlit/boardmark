@@ -3,6 +3,15 @@ export type KeyEventLike = Pick<
   'altKey' | 'code' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey'
 >
 
+export type WheelZoomEventLike = Pick<
+  WheelEvent,
+  'altKey' | 'ctrlKey' | 'deltaY' | 'metaKey'
+>
+
+export type GestureZoomEventLike = {
+  scale: number
+}
+
 export function matchesDeleteSelectionKey(event: KeyEventLike) {
   return event.key === 'Delete' || event.key === 'Backspace'
 }
@@ -73,6 +82,35 @@ export function matchesZoomInKey(event: KeyEventLike) {
 
 export function matchesZoomOutKey(event: KeyEventLike) {
   return matchesModShortcut(event) && event.key === '-'
+}
+
+export function readZoomDirectionFromWheelEvent(event: WheelZoomEventLike): 'in' | 'out' | null {
+  if (!event.ctrlKey || event.altKey || event.metaKey || event.deltaY === 0) {
+    return null
+  }
+
+  return event.deltaY < 0 ? 'in' : 'out'
+}
+
+export function readZoomDirectionFromGestureEvent(input: {
+  current: GestureZoomEventLike
+  previousScale: number
+}): 'in' | 'out' | null {
+  if (!Number.isFinite(input.current.scale) || input.current.scale <= 0) {
+    return null
+  }
+
+  const scaleDelta = input.current.scale / input.previousScale
+
+  if (scaleDelta >= 1.04) {
+    return 'in'
+  }
+
+  if (scaleDelta <= 0.96) {
+    return 'out'
+  }
+
+  return null
 }
 
 function matchesModChord(event: KeyEventLike, key: string) {

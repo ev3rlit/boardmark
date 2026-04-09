@@ -61,7 +61,9 @@ export function createWysiwygMarkdownBridge(
   return {
     extensions,
     fromMarkdown(markdown) {
-      return manager.parse(normalizeDirectiveEndingBoundaries(markdown))
+      return normalizeSoftLineBreaksInContent(
+        manager.parse(normalizeDirectiveEndingBoundaries(markdown))
+      )
     },
     toMarkdown(content) {
       return normalizeDirectiveEndingBoundaries(manager.serialize(content))
@@ -122,11 +124,12 @@ export function createWysiwygExtensions(
 }
 
 export function createTransientWysiwygEditor(markdown: string) {
+  const bridge = createWysiwygMarkdownBridge()
+
   return new Editor({
     element: document.createElement('div'),
-    extensions: createWysiwygExtensions(),
-    content: normalizeDirectiveEndingBoundaries(markdown),
-    contentType: 'markdown'
+    extensions: bridge.extensions,
+    content: bridge.fromMarkdown(markdown)
   })
 }
 
@@ -161,6 +164,74 @@ function normalizeDirectiveEndingBoundaries(markdown: string) {
 
 function isWrappedDirectiveEndingLine(line: string) {
   return /^[ \t]*(?:(?:>\s*)|(?:(?:[-+*]|\d+[.)])\s+))+:::\s*$/.test(line)
+}
+
+function normalizeSoftLineBreaksInContent(content: JSONContent): JSONContent {
+  return {
+    ...content,
+    content: normalizeSoftLineBreaksInNodes(content.content)
+  }
+}
+
+function normalizeSoftLineBreaksInNodes(
+  nodes: JSONContent[] | undefined
+): JSONContent[] | undefined {
+  if (!nodes) {
+    return nodes
+  }
+
+  const normalizedNodes: JSONContent[] = []
+
+  for (const node of nodes) {
+    const expandedNode = expandSoftLineBreaksInNode(node)
+
+    if (Array.isArray(expandedNode)) {
+      normalizedNodes.push(...expandedNode)
+      continue
+    }
+
+    normalizedNodes.push(expandedNode)
+  }
+
+  return normalizedNodes
+}
+
+function expandSoftLineBreaksInNode(node: JSONContent): JSONContent | JSONContent[] {
+  if (node.type === 'text' && typeof node.text === 'string' && node.text.includes('\n')) {
+    return splitTextNodeOnSoftLineBreaks(node)
+  }
+
+  if (!node.content) {
+    return node
+  }
+
+  return {
+    ...node,
+    content: normalizeSoftLineBreaksInNodes(node.content)
+  }
+}
+
+function splitTextNodeOnSoftLineBreaks(node: JSONContent): JSONContent[] {
+  const text = typeof node.text === 'string' ? node.text : ''
+  const segments = text.split('\n')
+  const normalizedNodes: JSONContent[] = []
+
+  segments.forEach((segment, index) => {
+    if (segment.length > 0) {
+      normalizedNodes.push({
+        ...node,
+        text: segment
+      })
+    }
+
+    if (index < segments.length - 1) {
+      normalizedNodes.push({
+        type: 'hardBreak'
+      })
+    }
+  })
+
+  return normalizedNodes
 }
 
 const WysiwygCodeBlock = Node.create({

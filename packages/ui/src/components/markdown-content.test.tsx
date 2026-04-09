@@ -137,6 +137,18 @@ describe('MarkdownContent', () => {
     expect(container.querySelector('[data-footnotes]')).not.toBeNull()
   })
 
+  it('renders a single newline inside a paragraph as a visible line break', () => {
+    const { container } = render(
+      <MarkdownContent content={'첫 줄\n둘째 줄'} />
+    )
+
+    const paragraph = container.querySelector('p')
+
+    expect(paragraph).not.toBeNull()
+    expect(paragraph?.querySelector('br')).not.toBeNull()
+    expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
+  })
+
   it('renders mermaid fenced blocks through the diagram component and preserves other code blocks', async () => {
     const { container } = render(
       <MarkdownContent

@@ -152,6 +152,34 @@ describe('BodyEditorHost', () => {
     expect(onWheel).not.toHaveBeenCalled()
   })
 
+  it('lets zoom-qualified wheel events escape the editor host', async () => {
+    const onWheel = vi.fn()
+
+    render(
+      <div onWheel={onWheel}>
+        <BodyEditorHost
+          ariaLabel="Edit welcome"
+          editable
+          onBlockModeChange={() => undefined}
+          onCancel={() => undefined}
+          onCommit={async () => undefined}
+          onInteractionChange={() => undefined}
+          onMarkdownChange={() => undefined}
+          session={ACTIVE_WYSIWYG_SESSION}
+          toolbarAnchorRef={createDefaultAnchorRef()}
+        />
+      </div>
+    )
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+    fireEvent.wheel(editor, {
+      ctrlKey: true,
+      deltaY: -120
+    })
+
+    expect(onWheel).toHaveBeenCalledTimes(1)
+  })
+
   it('flips the toolbar below the object when there is not enough room above', async () => {
     const anchorRef = createAnchorRef({
       bottom: 60,

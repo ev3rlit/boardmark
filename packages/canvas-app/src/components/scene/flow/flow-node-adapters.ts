@@ -5,7 +5,7 @@ import {
   type CanvasFlowEdgeData,
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
-import type { CanvasEdge, CanvasNode } from '@boardmark/canvas-domain'
+import type { CanvasEdge, CanvasNode, CanvasObjectStyle } from '@boardmark/canvas-domain'
 import type { CanvasStoreState } from '@canvas-app/store/canvas-store'
 
 export type CanvasNodeGeometryDraft = {
@@ -69,9 +69,11 @@ export function mergeFlowNodes(
     }
 
     const preserveMeasuredSize = hasSameFlowNodeGeometry(nextFlowNode, currentFlowNode)
+    const data = mergeFlowNodeData(nextFlowNode.data, currentFlowNode.data)
 
     return {
       ...nextFlowNode,
+      data,
       dragging: currentFlowNode.dragging,
       height: preserveMeasuredSize ? currentFlowNode.height : nextFlowNode.height,
       measured: currentFlowNode.measured,
@@ -128,4 +130,79 @@ function hasSameFlowNodeGeometry(
     left.style?.width === right.style?.width &&
     left.style?.height === right.style?.height
   )
+}
+
+function mergeFlowNodeData(
+  nextData: CanvasFlowNodeData,
+  currentData: CanvasFlowNodeData
+) {
+  if (hasSameFlowNodeBusinessData(nextData, currentData)) {
+    return currentData
+  }
+
+  if (hasSameCanvasObjectStyle(nextData.style, currentData.style)) {
+    return {
+      ...nextData,
+      style: currentData.style
+    }
+  }
+
+  return nextData
+}
+
+function hasSameFlowNodeBusinessData(
+  left: CanvasFlowNodeData,
+  right: CanvasFlowNodeData
+) {
+  return (
+    left.body === right.body &&
+    left.src === right.src &&
+    left.alt === right.alt &&
+    left.title === right.title &&
+    left.locked === right.locked &&
+    left.lockAspectRatio === right.lockAspectRatio &&
+    left.resolvedThemeRef === right.resolvedThemeRef &&
+    left.height === right.height &&
+    left.width === right.width &&
+    left.imageResolver === right.imageResolver &&
+    hasSameCanvasObjectStyle(left.style, right.style)
+  )
+}
+
+function hasSameCanvasObjectStyle(
+  left: CanvasObjectStyle | undefined,
+  right: CanvasObjectStyle | undefined
+) {
+  if (left === right) {
+    return true
+  }
+
+  if (!left || !right) {
+    return false
+  }
+
+  return left.themeRef === right.themeRef &&
+    hasSameStyleOverrides(left.overrides, right.overrides)
+}
+
+function hasSameStyleOverrides(
+  left: Record<string, string> | undefined,
+  right: Record<string, string> | undefined
+) {
+  if (left === right) {
+    return true
+  }
+
+  if (!left || !right) {
+    return false
+  }
+
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false
+  }
+
+  return leftKeys.every((key) => left[key] === right[key])
 }

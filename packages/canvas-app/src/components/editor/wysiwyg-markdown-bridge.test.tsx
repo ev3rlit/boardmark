@@ -101,6 +101,9 @@ const LIST_CODE_BLOCK_MARKDOWN = `before list
 after list
 `
 
+const SOFT_LINE_BREAK_MARKDOWN = `first line
+second line`
+
 describe('WysiwygMarkdownBridge', () => {
   it('round-trips the supported baseline subset and custom blocks', () => {
     const bridge = createWysiwygMarkdownBridge()
@@ -117,6 +120,29 @@ describe('WysiwygMarkdownBridge', () => {
     expect(bridge.roundTrip('- item\n- :::')).toBe('- item\n\n:::')
     expect(bridge.roundTrip('> quote\n:::')).toBe('> quote\n\n:::')
     expect(bridge.roundTrip('> quote\n> :::')).toBe('> quote\n\n:::')
+  })
+
+  it('upgrades legacy soft line breaks into visible hard breaks', () => {
+    const editor = createTransientWysiwygEditor(SOFT_LINE_BREAK_MARKDOWN)
+
+    try {
+      expect(editor.getJSON()).toEqual({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'first line' },
+              { type: 'hardBreak' },
+              { type: 'text', text: 'second line' }
+            ]
+          }
+        ]
+      })
+      expect(editor.getMarkdown()).toBe('first line  \nsecond line')
+    } finally {
+      editor.destroy()
+    }
   })
 
   it('supports table commands through the production bridge editor', () => {
@@ -548,6 +574,14 @@ describe('WysiwygMarkdownBridge', () => {
     })
 
     expect(screen.getByRole('textbox', { name: 'Code block markdown' })).toBe(codeMarkdown)
+  })
+
+  it('renders legacy soft line breaks as visible breaks in the production surface', async () => {
+    const { container } = render(<SurfaceHarness markdown={SOFT_LINE_BREAK_MARKDOWN} />)
+
+    await waitFor(() => {
+      expect(container.querySelector('.canvas-wysiwyg-surface__content br')).not.toBeNull()
+    })
   })
 })
 

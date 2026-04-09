@@ -1,5 +1,6 @@
 import type {
   CanvasEditingBlockMode,
+  CanvasEditingSessionState,
   CanvasEditingState,
   CanvasEditingTarget
 } from '@canvas-app/store/canvas-store-types'
@@ -43,6 +44,42 @@ export function isEditingEdgeLabel(editingState: CanvasEditingState, edgeId: str
   return editingState.status === 'active' &&
     editingState.target.kind === 'edge-label' &&
     editingState.target.edgeId === edgeId
+}
+
+export function readActiveNodeEditingSession(
+  editingState: CanvasEditingState,
+  nodeId: string
+): CanvasEditingSessionState | null {
+  if (editingState.status !== 'active' || !isEditingNodeBody(editingState, nodeId)) {
+    return null
+  }
+
+  return editingState
+}
+
+export function readActiveEdgeEditingSession(
+  editingState: CanvasEditingState,
+  edgeId: string
+): CanvasEditingSessionState | null {
+  if (editingState.status !== 'active' || !isEditingEdgeLabel(editingState, edgeId)) {
+    return null
+  }
+
+  return editingState
+}
+
+export function readNodeEditingInteractionBlock(
+  editingState: CanvasEditingState,
+  nodeId: string
+) {
+  return readActiveNodeEditingSession(editingState, nodeId) !== null
+}
+
+export function readEdgeEditingInteractionBlock(
+  editingState: CanvasEditingState,
+  edgeId: string
+) {
+  return readActiveEdgeEditingSession(editingState, edgeId) !== null
 }
 
 export function isEditingBlockMode(

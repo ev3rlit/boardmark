@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } f
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import type { BuiltInImageResolution, BuiltInImageResolver } from '@boardmark/canvas-domain'
 import {
@@ -81,7 +82,7 @@ export function MarkdownContent({
     <div className={className}>
       <ReactMarkdown
         components={markdownComponents}
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
       >
         {content}
       </ReactMarkdown>

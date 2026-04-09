@@ -9,7 +9,7 @@ import {
   canExecuteCanvasObjectCommand
 } from '@canvas-app/app/commands/canvas-object-commands'
 import { createCanvasAppCommandContext, createCanvasObjectCommandContext } from '@canvas-app/app/context/canvas-command-context'
-import { useCanvasKeyboardShortcuts } from '@canvas-app/app/hooks/use-canvas-keyboard-shortcuts'
+import { useCanvasInputListeners } from '@canvas-app/app/hooks/use-canvas-input-listeners'
 import { useCanvasPaste } from '@canvas-app/app/hooks/use-canvas-paste'
 import {
   useObjectContextMenu
@@ -30,6 +30,7 @@ import {
   isEdgeLocked,
   isNodeLocked
 } from '@canvas-app/store/canvas-object-selection'
+import { readActiveToolMode } from '@canvas-app/store/canvas-store'
 import { CanvasScene } from '@canvas-app/components/scene/canvas-scene'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
 import { HistoryControls } from '@canvas-app/components/controls/history-controls'
@@ -68,6 +69,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const setDropError = useStore(store, (state) => state.setDropError)
   const setPanShortcutActive = useStore(store, (state) => state.setPanShortcutActive)
   const setViewport = useStore(store, (state) => state.setViewport)
+  const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
+  const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
   const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
   const redo = useStore(store, (state) => state.redo)
   const copySelection = useStore(store, (state) => state.copySelection)
@@ -81,6 +84,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const setSelectionLocked = useStore(store, (state) => state.setSelectionLocked)
   const ungroupSelection = useStore(store, (state) => state.ungroupSelection)
   const nudgeSelection = useStore(store, (state) => state.nudgeSelection)
+  const reconnectEdge = useStore(store, (state) => state.reconnectEdge)
   const undo = useStore(store, (state) => state.undo)
   const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
@@ -93,6 +97,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const clipboardState = useStore(store, (state) => state.clipboardState)
   const groupSelectionState = useStore(store, (state) => state.groupSelectionState)
   const nodes = useStore(store, (state) => state.nodes)
+  const panShortcutActive = useStore(store, (state) => state.panShortcutActive)
+  const toolMode = useStore(store, (state) => state.toolMode)
   const viewport = useStore(store, (state) => state.viewport)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
@@ -202,9 +208,20 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     return () => globalThis.document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
-  useCanvasKeyboardShortcuts({
+  const {
+    dispatchCanvasInput,
+    dispatchCanvasInputAsync,
+    pointerCapabilities
+  } = useCanvasInputListeners({
     appCommandContext,
-    objectCommandContext
+    commitNodeMove,
+    commitNodeResize,
+    nudgeSelection,
+    objectCommandContext,
+    panShortcutActive,
+    reconnectEdge,
+    supportsMultiSelect: capabilities.supportsMultiSelect,
+    toolMode
   })
 
   useCanvasPaste({
@@ -317,6 +334,8 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
       >
         <input {...getInputProps()} />
         <CanvasScene
+          dispatchCanvasInput={dispatchCanvasInput}
+          dispatchCanvasInputAsync={dispatchCanvasInputAsync}
           onObjectContextMenu={(input) => setObjectContextMenu({
             kind: 'selection',
             ...input
@@ -325,6 +344,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
             kind: 'canvas',
             ...input
           })}
+          pointerCapabilities={pointerCapabilities}
           store={store}
           supportsMultiSelect={capabilities.supportsMultiSelect}
         />
