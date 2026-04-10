@@ -21,16 +21,15 @@ viewport:
 :::
 
 ::: note { id: basics, at: { x: 25, y: -486, w: 430, h: 350 } }
-
 ## 기본 블록
 
 ### 제목
 
-일반 문단에 **굵게**, _기울임_, `인라인 코드`를 섞을 수 있습니다.
+일반 문단에 **굵게**, *기울임*, `인라인 코드`를 섞을 수 있습니다.
 
 > 인용문은 별도 블록으로 렌더되고, 노트 안에서도 읽기 흐름을 분리합니다.
 
----
+
 
 마지막 줄은 thematic break 아래에 이어지는 일반 문단입니다.
 :::
@@ -56,21 +55,17 @@ viewport:
 :::
 
 ::: note { id: inline, at: { x: 1199, y: -500, w: 430, h: 330 } }
-
 ## 인라인 문법과 링크
 
-- 자동 링크: https://boardmark.dev
+- 자동 링크: [https://boardmark.dev](https://boardmark.dev)
 - 일반 링크: [Boardmark 문서](https://github.com/)
-- 참조 링크: [마크다운 가이드][guide]
+- 참조 링크: [마크다운 가이드](https://www.markdownguide.org/basic-syntax/)
 - 이스케이프: `\*literal asterisk\*`
 - 줄바꿈 테스트  
-  같은 문단 안의 hard break
-
-[guide]: https://www.markdownguide.org/basic-syntax/
-
+같은 문단 안의 hard break
 :::
 
-::: note { id: lists, at: { x: -8, y: 93, w: 420, h: 350 } }
+::: note { id: lists, at: { x: -8, y: 93, w: 420, h: 441 } }
 
 ## 목록
 
@@ -88,7 +83,6 @@ viewport:
 :::
 
 ::: note { id: code, at: { x: 571, y: 96, w: 432, h: 702 } }
-
 ## 코드 블록
 
 ```ts
@@ -99,6 +93,9 @@ const syntaxSupport: Record<SupportLevel, string[]> = {
   gfm: ["table", "task-list", "footnote"],
 };
 ```
+
+
+
 
 ```json
 {
