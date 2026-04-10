@@ -106,6 +106,7 @@ export function applyFlowNodeGeometryDrafts(
       },
       data: {
         ...flowNode.data,
+        autoHeight: false,
         width: draft.width,
         height: draft.height
       },
@@ -162,6 +163,7 @@ function hasSameFlowNodeBusinessData(
     left.locked === right.locked &&
     left.lockAspectRatio === right.lockAspectRatio &&
     left.resolvedThemeRef === right.resolvedThemeRef &&
+    left.autoHeight === right.autoHeight &&
     left.height === right.height &&
     left.width === right.width &&
     left.imageResolver === right.imageResolver &&

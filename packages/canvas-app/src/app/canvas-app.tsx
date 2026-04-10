@@ -71,6 +71,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const clearSelection = useStore(store, (state) => state.clearSelection)
   const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
+  const resetNodeHeight = useStore(store, (state) => state.resetNodeHeight)
   const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
   const redo = useStore(store, (state) => state.redo)
   const copySelection = useStore(store, (state) => state.copySelection)
@@ -346,6 +347,12 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const canUnlockSelection = canExecuteCanvasObjectCommand('unlock-selection', objectCommandContext)
   const lockSelectionLabel = canUnlockSelection ? 'Unlock selection' : 'Lock selection'
   const canToggleSelectionLock = canUnlockSelection || canLockSelection
+  const canResetNodeHeight =
+    canCanvasMutateSelection(editingState) &&
+    selectedNodeIds.length === 1 &&
+    selectedEdgeIds.length === 0 &&
+    selectedNode !== undefined &&
+    !isNodeLocked({ groups, nodes }, selectedNode.id)
 
   return (
     <ReactFlowProvider>
@@ -547,6 +554,11 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                 onUngroup={() => {
                   setObjectContextMenu(null)
                   void ungroupSelection()
+                }}
+                canResetHeight={canResetNodeHeight}
+                onResetHeight={() => {
+                  setObjectContextMenu(null)
+                  if (selectedNodeIds[0]) void resetNodeHeight(selectedNodeIds[0])
                 }}
                 selectionLabel={selectionLabel}
                 x={alignedObjectContextMenu.x}

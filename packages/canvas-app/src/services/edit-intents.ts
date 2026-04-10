@@ -72,6 +72,7 @@ export type CanvasDocumentEditIntent =
   | { kind: 'replace-edge-body'; edgeId: string; markdown: string }
   | { kind: 'create-edge'; from: string; to: string; markdown: string }
   | { kind: 'delete-edge'; edgeId: string }
+  | { kind: 'reset-node-height'; nodeId: string }
 
 export type CanvasDocumentEditError = {
   kind:
@@ -123,6 +124,8 @@ export function readCanvasDocumentEditLabel(intent: CanvasDocumentEditIntent) {
       return 'Reconnect edge'
     case 'create-edge':
       return 'Create edge'
+    case 'reset-node-height':
+      return 'Reset node height'
     default:
       return 'Edit canvas'
   }

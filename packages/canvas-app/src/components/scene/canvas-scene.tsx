@@ -35,6 +35,7 @@ import {
 } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
+import { SelectionToolbar } from '@canvas-app/components/scene/selection-toolbar'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
 import {
   applyFlowNodeGeometryDrafts,
@@ -722,7 +723,7 @@ function CanvasNoteNode({
 
   return (
     <div
-      className="h-full w-full max-w-none"
+      className={data.autoHeight ? 'w-full max-w-none' : 'h-full w-full max-w-none'}
       ref={hostAnchorRef}
       onDoubleClick={() => {
         if (!data.locked && !blocksEditingInteractions) {
@@ -730,6 +731,14 @@ function CanvasNoteNode({
         }
       }}
     >
+      <SelectionToolbar
+        nodeId={id}
+        selected={selected ?? false}
+        isEditing={isEditing}
+        locked={data.locked ?? false}
+        autoHeight={data.autoHeight ?? false}
+        store={store}
+      />
       <NodeResizer
         isVisible={selected && !isEditing && !data.locked}
         minWidth={160}
@@ -765,7 +774,9 @@ function CanvasNoteNode({
         className="boardmark-flow__handle"
       />
       <StickyNoteCard
-        className="flex h-full w-full min-h-0 flex-col overflow-hidden"
+        className={data.autoHeight
+          ? 'flex w-full flex-col'
+          : 'flex h-full w-full min-h-0 flex-col overflow-hidden'}
         color="default"
         selected={selected}
       >
@@ -784,7 +795,7 @@ function CanvasNoteNode({
           />
         ) : (
           <div
-            className="min-h-0 flex-1 overflow-auto nowheel"
+            className={data.autoHeight ? 'nowheel' : 'min-h-0 flex-1 overflow-auto nowheel'}
             onWheelCapture={(event) => {
               if (shouldKeepCanvasWheelEventLocal(event.nativeEvent)) {
                 event.stopPropagation()
@@ -844,6 +855,14 @@ function CanvasComponentNode({
         }
       }}
     >
+      <SelectionToolbar
+        nodeId={id}
+        selected={selected ?? false}
+        isEditing={isEditing}
+        locked={data.locked ?? false}
+        autoHeight={data.autoHeight ?? false}
+        store={store}
+      />
       <NodeResizer
         isVisible={selected && !isEditing && !data.locked}
         minWidth={isImageNode ? 96 : 120}

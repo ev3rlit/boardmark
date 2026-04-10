@@ -254,6 +254,7 @@ export type CanvasStoreState = {
     width: number
     height: number
   }) => Promise<void>
+  resetNodeHeight: (nodeId: string) => Promise<void>
   reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
   createEdgeFromConnection: (from: string, to: string) => Promise<void>
   createNoteAtViewport: () => Promise<void>

@@ -118,12 +118,21 @@ const compileUpdateEdgeEndpoints: IntentCompiler<'update-edge-endpoints'> = (con
   })))
 }
 
+const compileResetNodeHeight: IntentCompiler<'reset-node-height'> = (context, intent) => {
+  return compileSingleEditTransaction(intent, patchNodeMetadata(context, intent.nodeId, (metadata) => {
+    const atRecord = readMetadataRecord(metadata.at) as Record<string, unknown>
+    const { h: _h, ...atWithoutH } = atRecord
+    return { ...metadata, at: atWithoutH }
+  }))
+}
+
 export const objectIntentCompilers = {
   'move-node': compileMoveNode,
   'move-nodes': compileMoveNodes,
   'replace-edge-body': compileReplaceEdgeBody,
   'replace-image-source': compileReplaceImageSource,
   'replace-object-body': compileReplaceObjectBody,
+  'reset-node-height': compileResetNodeHeight,
   'resize-node': compileResizeNode,
   'update-edge-endpoints': compileUpdateEdgeEndpoints,
   'update-image-metadata': compileUpdateImageMetadata
@@ -134,6 +143,7 @@ export const objectIntentCompilers = {
     | 'replace-edge-body'
     | 'replace-image-source'
     | 'replace-object-body'
+    | 'reset-node-height'
     | 'resize-node'
     | 'update-edge-endpoints'
     | 'update-image-metadata'

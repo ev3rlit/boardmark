@@ -6,6 +6,7 @@ import {
   Group,
   Layers,
   Lock,
+  Maximize2,
   Palette,
   Pencil,
   Trash2,
@@ -56,6 +57,8 @@ type ObjectContextMenuProps = {
   onSendToBack: () => void
   onSelectAll: () => void
   onUngroup: () => void
+  canResetHeight?: boolean
+  onResetHeight?: () => void
 }
 
 export function ObjectContextMenu({
@@ -79,6 +82,8 @@ export function ObjectContextMenu({
   canUngroup,
   imageActions,
   lockLabel,
+  canResetHeight,
+  onResetHeight,
   onBringForward,
   onBringToFront,
   onCopy,
@@ -151,6 +156,14 @@ export function ObjectContextMenu({
           label={`Delete ${selectionLabel}`}
           onClick={onDelete}
         />
+        {onResetHeight ? (
+          <ContextMenuItem
+            disabled={!canResetHeight}
+            icon={Maximize2}
+            label="Auto height"
+            onClick={onResetHeight}
+          />
+        ) : null}
       </div>
 
       <div className="viewer-context-menu-section">

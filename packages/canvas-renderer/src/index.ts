@@ -27,6 +27,7 @@ export type CanvasFlowNodeData = {
   height?: number
   width?: number
   imageResolver?: BuiltInImageResolver
+  autoHeight?: boolean
 }
 
 export type CanvasFlowEdgeData = {
@@ -45,7 +46,11 @@ export function toFlowNode(
 ): Node<CanvasFlowNodeData> {
   const contract = readBuiltInContract(node.component)
   const width = node.at.w ?? contract?.defaultSize.width ?? DEFAULT_NOTE_WIDTH
-  const height = node.at.h ?? contract?.defaultSize.height ?? DEFAULT_NOTE_HEIGHT
+  const hasExplicitHeight = node.at.h !== undefined
+  const isNote = node.component === 'note'
+  const autoHeight = !hasExplicitHeight && isNote
+  const fallbackHeight = contract?.defaultSize.height ?? DEFAULT_NOTE_HEIGHT
+  const height = hasExplicitHeight ? node.at.h! : fallbackHeight
 
   return {
     id: node.id,
@@ -66,19 +71,20 @@ export function toFlowNode(
       lockAspectRatio: node.lockAspectRatio,
       style: node.style,
       resolvedThemeRef: node.style?.themeRef ?? options?.defaultStyle,
-      height,
+      autoHeight,
+      height: autoHeight ? undefined : height,
       width,
       imageResolver: options?.imageResolver
     },
     draggable: node.locked ? false : undefined,
     width,
-    height,
+    height: autoHeight ? undefined : height,
     initialWidth: width,
-    initialHeight: height,
+    initialHeight: autoHeight ? undefined : height,
     zIndex: node.z,
     style: {
       width,
-      height
+      height: autoHeight ? undefined : height
     }
   }
 }

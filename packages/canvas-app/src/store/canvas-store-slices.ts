@@ -480,6 +480,7 @@ export function createCanvasCommandSlice(
   | 'commitNodeMoves'
   | 'previewNodeResize'
   | 'commitNodeResize'
+  | 'resetNodeHeight'
   | 'reconnectEdge'
   | 'createEdgeFromConnection'
   | 'createNoteAtViewport'
@@ -1012,6 +1013,20 @@ export function createCanvasCommandSlice(
           width: nextGeometry.width,
           height: nextGeometry.height
         },
+        set
+      })
+    },
+
+    async resetNodeHeight(nodeId) {
+      if (isNodeLocked(get(), nodeId)) return
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: { kind: 'reset-node-height', nodeId },
         set
       })
     },
