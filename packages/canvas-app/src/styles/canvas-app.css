@@ -271,6 +271,13 @@ button {
     background-color 140ms ease;
 }
 
+/* Invisible hit area expansion — keeps visual shape, improves grab zone */
+.boardmark-flow__resize-handle::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
 .boardmark-flow__resize-handle:hover {
   transform: scale(1.06);
   background: color-mix(in oklab, var(--color-surface-lowest) 96%, white);
@@ -286,6 +293,13 @@ button {
 .boardmark-flow__resize-line {
   border-color: color-mix(in oklab, var(--color-primary) 24%, transparent);
   border-width: 2px;
+}
+
+/* Wider invisible hit area on resize lines */
+.boardmark-flow__resize-line::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
 }
 
 .markdown-content {
