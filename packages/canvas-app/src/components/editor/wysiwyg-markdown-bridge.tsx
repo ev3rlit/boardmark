@@ -2,6 +2,8 @@ import { Editor, Node, mergeAttributes, type AnyExtension, type JSONContent } fr
 import Code from '@tiptap/extension-code'
 import Link from '@tiptap/extension-link'
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
+import TaskItem from '@tiptap/extension-task-item'
+import TaskList from '@tiptap/extension-task-list'
 import { Markdown, MarkdownManager } from '@tiptap/markdown'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
@@ -118,6 +120,10 @@ export function createWysiwygExtensions(
     TableRow,
     TableHeader,
     TableCell,
+    TaskList,
+    TaskItem.configure({
+      nested: false
+    }),
     WysiwygCodeBlock.configure({
       callbacks: specialBlockCallbacks
     }),
