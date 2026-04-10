@@ -77,6 +77,29 @@ describe('browser document bridge', () => {
     expect(saveHandle.writeMock).toHaveBeenCalledTimes(2)
   })
 
+  it('uses untitled.md as the default save target name for new drafts', async () => {
+    window.showSaveFilePicker = vi.fn(async () => createFileHandle('saved.md', ''))
+
+    const bridge = createBrowserDocumentBridge({
+      readFileText: async () => uploadedSource
+    })
+
+    const result = await bridge.picker.pickSaveLocator()
+
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestedName: 'untitled.md'
+      })
+    )
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        kind: 'file',
+        path: 'browser-file-0/saved.md'
+      }
+    })
+  })
+
   it('overwrites an existing file handle without opening a new picker', async () => {
     const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
     window.showOpenFilePicker = vi.fn(async () => [openHandle])

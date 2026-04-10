@@ -16,7 +16,7 @@ import {
   type CanvasDocumentSourceInput
 } from '../../../../packages/canvas-repository/src/index'
 
-const DEFAULT_FILE_NAME = 'untitled.canvas.md'
+const DEFAULT_FILE_NAME = 'untitled.md'
 
 const documentRepository = createCanvasMarkdownDocumentRepository({
   readFile(path) {
@@ -333,7 +333,7 @@ function chooseOpenLocator(
 }
 
 function ensureCanvasExtension(path: string): string {
-  return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.canvas.md`
+  return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.md`
 }
 
 function ensureImageExtension(path: string, mimeType: 'image/jpeg' | 'image/png') {

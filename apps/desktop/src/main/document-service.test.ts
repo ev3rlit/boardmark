@@ -20,9 +20,33 @@ vi.mock('electron', () => ({
 
 import { createDocumentService } from './document-service'
 
-describe('document-service image export', () => {
+describe('document-service', () => {
   beforeEach(() => {
     showSaveDialogMock.mockReset()
+  })
+
+  it('uses untitled.md as the default save name for new documents', async () => {
+    const service = createDocumentService()
+
+    showSaveDialogMock.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/untitled'
+    })
+
+    const result = await service.pickSaveLocator({} as never)
+
+    expect(showSaveDialogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: 'untitled.md'
+      })
+    )
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        kind: 'file',
+        path: '/tmp/untitled.md'
+      }
+    })
   })
 
   it('saves exported PNG bytes through the desktop save dialog', async () => {

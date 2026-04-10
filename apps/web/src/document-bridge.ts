@@ -626,8 +626,8 @@ export function createBrowserDocumentBridge(
 
       async pickSaveLocator(defaultName) {
         const result = await persistence.saveDocumentAs({
-          defaultName: defaultName ?? 'untitled.canvas.md',
-          locator: createMemoryLocator(defaultName ?? 'untitled.canvas.md', openSequence),
+          defaultName: defaultName ?? 'untitled.md',
+          locator: createMemoryLocator(defaultName ?? 'untitled.md', openSequence),
           source: ''
         })
 
