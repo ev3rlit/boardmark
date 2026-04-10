@@ -384,6 +384,10 @@ button {
   color: var(--color-on-surface-variant);
 }
 
+.markdown-content :where(blockquote) :where(p:last-child, ul:last-child, ol:last-child, pre:last-child) {
+  margin-bottom: 0;
+}
+
 .markdown-content :where(hr) {
   border: 0;
   height: 1px;
@@ -1166,6 +1170,10 @@ button {
 }
 
 .canvas-wysiwyg-surface__content > :last-child {
+  margin-bottom: 0;
+}
+
+.canvas-wysiwyg-surface__content :where(p:last-child) {
   margin-bottom: 0;
 }
 
