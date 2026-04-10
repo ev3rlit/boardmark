@@ -44,6 +44,79 @@ const WysiwygInlineCode = Code.extend({
   priority: 90,
   excludes: ''
 })
+const WysiwygHardBreak = Node.create({
+  name: 'hardBreak',
+  markdownTokenName: 'br',
+  inline: true,
+  group: 'inline',
+  selectable: false,
+  linebreakReplacement: true,
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+      keepMarks: true
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'br' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['br', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)]
+  },
+  renderText() {
+    return '\n'
+  },
+  renderMarkdown() {
+    return '\n'
+  },
+  parseMarkdown() {
+    return {
+      type: 'hardBreak'
+    }
+  },
+  addCommands() {
+    return {
+      setHardBreak:
+        () =>
+        ({ commands, chain, editor, state }) => {
+          return commands.first([
+            () => commands.exitCode(),
+            () =>
+              commands.command(() => {
+                const { selection, storedMarks } = state
+
+                if (selection.$from.parent.type.spec.isolating) {
+                  return false
+                }
+
+                const marks = storedMarks || (selection.$to.parentOffset && selection.$from.marks())
+
+                return chain()
+                  .insertContent({ type: this.name })
+                  .command(({ dispatch, tr }) => {
+                    if (dispatch && marks && this.options.keepMarks) {
+                      const filteredMarks = marks.filter((mark) =>
+                        editor.extensionManager.splittableMarks.includes(mark.type.name)
+                      )
+
+                      tr.ensureMarks(filteredMarks)
+                    }
+
+                    return true
+                  })
+                  .run()
+              })
+          ])
+        }
+    }
+  },
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Enter': () => this.editor.commands.setHardBreak(),
+      'Shift-Enter': () => this.editor.commands.setHardBreak()
+    }
+  }
+})
 
 type WysiwygMarkdownBridgeCallbacks = {
   onExitToHost?: () => void
@@ -112,11 +185,13 @@ export function createWysiwygExtensions(
     StarterKit.configure({
       code: false,
       codeBlock: false,
+      hardBreak: false,
       horizontalRule: false,
       link: false,
       strike: false
     }),
     WysiwygInlineCode,
+    WysiwygHardBreak,
     Link.configure({
       autolink: false,
       enableClickSelection: true,

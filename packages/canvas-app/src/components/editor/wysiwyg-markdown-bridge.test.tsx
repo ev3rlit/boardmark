@@ -149,7 +149,7 @@ describe('WysiwygMarkdownBridge', () => {
           }
         ]
       })
-      expect(editor.getMarkdown()).toBe('first line  \nsecond line')
+      expect(editor.getMarkdown()).toBe('first line\nsecond line')
     } finally {
       editor.destroy()
     }
