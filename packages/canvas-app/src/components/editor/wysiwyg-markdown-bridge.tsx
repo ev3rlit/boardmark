@@ -120,9 +120,12 @@ export function createWysiwygExtensions(
     TableRow,
     TableHeader,
     TableCell,
-    TaskList,
+    TaskList.configure({
+      HTMLAttributes: { 'data-type': 'taskList' }
+    }),
     TaskItem.configure({
-      nested: false
+      nested: false,
+      HTMLAttributes: { 'data-type': 'taskItem' }
     }),
     WysiwygCodeBlock.configure({
       callbacks: specialBlockCallbacks
