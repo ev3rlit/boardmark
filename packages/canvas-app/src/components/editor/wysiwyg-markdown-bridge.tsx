@@ -20,7 +20,10 @@ import {
 import { CodeBlockNodeView } from '@canvas-app/components/editor/views/code-block-node-view'
 import { HtmlFallbackBlockView } from '@canvas-app/components/editor/views/html-fallback-block-view'
 import { SpecialFencedBlockView } from '@canvas-app/components/editor/views/special-fenced-block-view'
-import { readOpeningCodeFenceLanguage } from '@canvas-app/markdown/fenced-block-guards'
+import {
+  readFenceToken,
+  readOpeningCodeFenceLanguage
+} from '@canvas-app/markdown/fenced-block-guards'
 
 type MarkdownCodeToken = {
   type: 'code'
@@ -68,8 +71,14 @@ export function createWysiwygMarkdownBridge(
   return {
     extensions,
     fromMarkdown(markdown) {
+      const normalizedMarkdown = normalizeDirectiveEndingBoundaries(markdown)
+      const preparedMarkdown = preserveExtraBlankLinesForWysiwyg(normalizedMarkdown)
+
       return normalizeSoftLineBreaksInContent(
-        manager.parse(normalizeDirectiveEndingBoundaries(markdown))
+        normalizeBlankPlaceholderParagraphsInContent(
+          manager.parse(preparedMarkdown.markdown),
+          preparedMarkdown.placeholder
+        )
       )
     },
     toMarkdown(content) {
@@ -186,6 +195,127 @@ function normalizeDirectiveEndingBoundaries(markdown: string) {
 
 function isWrappedDirectiveEndingLine(line: string) {
   return /^[ \t]*(?:(?:>\s*)|(?:(?:[-+*]|\d+[.)])\s+))+:::\s*$/.test(line)
+}
+
+function preserveExtraBlankLinesForWysiwyg(markdown: string): {
+  markdown: string
+  placeholder: string | null
+} {
+  const lines = markdown.split('\n')
+  const placeholder = createBlankParagraphPlaceholder(markdown)
+  const output: string[] = []
+  let blankLineCount = 0
+  let fenceMarker: '```' | '~~~' | null = null
+  let insertedPlaceholder = false
+
+  const flushBlankLines = (nextLineHasContent: boolean) => {
+    if (blankLineCount === 0) {
+      return
+    }
+
+    if (fenceMarker !== null || output.length === 0 || !nextLineHasContent) {
+      for (let index = 0; index < blankLineCount; index += 1) {
+        output.push('')
+      }
+      blankLineCount = 0
+      return
+    }
+
+    output.push('')
+
+    const extraParagraphCount = Math.ceil((blankLineCount - 1) / 2)
+
+    for (let index = 0; index < extraParagraphCount; index += 1) {
+      output.push(placeholder)
+      output.push('')
+      insertedPlaceholder = true
+    }
+
+    blankLineCount = 0
+  }
+
+  for (const line of lines) {
+    const fenceToken = readFenceToken(line)
+
+    if (fenceToken !== null) {
+      flushBlankLines(true)
+      fenceMarker = fenceMarker === fenceToken ? null : fenceToken
+      output.push(line)
+      continue
+    }
+
+    if (line.trim().length === 0) {
+      blankLineCount += 1
+      continue
+    }
+
+    flushBlankLines(true)
+    output.push(line)
+  }
+
+  flushBlankLines(false)
+
+  return {
+    markdown: output.join('\n'),
+    placeholder: insertedPlaceholder ? placeholder : null
+  }
+}
+
+function createBlankParagraphPlaceholder(markdown: string) {
+  const basePlaceholder = 'BOARDMARKEMPTYPARAGRAPHTOKEN'
+  let placeholder = basePlaceholder
+  let suffix = 1
+
+  while (markdown.includes(placeholder)) {
+    placeholder = `${basePlaceholder}_${suffix}`
+    suffix += 1
+  }
+
+  return placeholder
+}
+
+function normalizeBlankPlaceholderParagraphsInContent(
+  content: JSONContent,
+  placeholder: string | null
+): JSONContent {
+  if (placeholder === null) {
+    return content
+  }
+
+  return normalizeBlankPlaceholderParagraphInNode(content, placeholder)
+}
+
+function normalizeBlankPlaceholderParagraphInNode(
+  node: JSONContent,
+  placeholder: string
+): JSONContent {
+  if (isBlankPlaceholderParagraph(node, placeholder)) {
+    return {
+      ...node,
+      content: undefined
+    }
+  }
+
+  if (!node.content) {
+    return node
+  }
+
+  return {
+    ...node,
+    content: node.content.map((child) =>
+      normalizeBlankPlaceholderParagraphInNode(child, placeholder)
+    )
+  }
+}
+
+function isBlankPlaceholderParagraph(node: JSONContent, placeholder: string) {
+  if (node.type !== 'paragraph' || node.content?.length !== 1) {
+    return false
+  }
+
+  const [child] = node.content
+
+  return child?.type === 'text' && child.text === placeholder && !child.marks?.length
 }
 
 function normalizeSoftLineBreaksInContent(content: JSONContent): JSONContent {

@@ -103,6 +103,10 @@ after list
 
 const SOFT_LINE_BREAK_MARKDOWN = `first line
 second line`
+const EXTRA_BLANK_LINE_MARKDOWN = `A
+
+
+B`
 
 describe('WysiwygMarkdownBridge', () => {
   it('round-trips bold inline code without collapsing the code mark into literal asterisks', () => {
@@ -146,6 +150,31 @@ describe('WysiwygMarkdownBridge', () => {
         ]
       })
       expect(editor.getMarkdown()).toBe('first line  \nsecond line')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('preserves extra blank lines as empty paragraphs in the WYSIWYG document', () => {
+    const editor = createTransientWysiwygEditor(EXTRA_BLANK_LINE_MARKDOWN)
+
+    try {
+      expect(editor.getJSON()).toEqual({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'A' }]
+          },
+          {
+            type: 'paragraph'
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'B' }]
+          }
+        ]
+      })
     } finally {
       editor.destroy()
     }
@@ -615,6 +644,19 @@ describe('WysiwygMarkdownBridge', () => {
 
     await waitFor(() => {
       expect(container.querySelector('.canvas-wysiwyg-surface__content br')).not.toBeNull()
+    })
+  })
+
+  it('renders extra blank lines as visible empty paragraphs in the production surface', async () => {
+    const { container } = render(<SurfaceHarness markdown={EXTRA_BLANK_LINE_MARKDOWN} />)
+
+    await waitFor(() => {
+      const paragraphs = container.querySelectorAll('.canvas-wysiwyg-surface__content p')
+
+      expect(paragraphs).toHaveLength(3)
+      expect(paragraphs[0]?.textContent).toBe('A')
+      expect(paragraphs[1]?.textContent).toBe('')
+      expect(paragraphs[2]?.textContent).toBe('B')
     })
   })
 })
