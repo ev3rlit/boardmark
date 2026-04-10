@@ -716,29 +716,51 @@ button {
   background: color-mix(in oklab, var(--color-surface-lowest) 92%, transparent);
 }
 
-.markdown-content :where(.contains-task-list, [data-type='taskList']) {
+.markdown-content :where(.contains-task-list) {
   padding-left: 0;
   list-style: none;
 }
 
-.markdown-content :where(.task-list-item, [data-type='taskItem']) {
+.markdown-content [data-type='taskList'] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.markdown-content :where(.task-list-item) {
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
 }
 
-.markdown-content :where(.task-list-item, [data-type='taskItem'])::marker {
+.markdown-content :where(.task-list-item)::marker {
   content: none;
 }
 
-/* TipTap taskItem: checkbox is wrapped in <label>, content in <div> */
-.markdown-content :where([data-type='taskItem']) > label {
+/* TipTap taskItem: <li data-type="taskItem"> → <label><input><span></label><div>content</div> */
+.markdown-content [data-type='taskItem'] {
   display: flex;
-  flex-shrink: 0;
-  margin-top: 0.3rem;
+  align-items: flex-start;
+  gap: 0.55rem;
+  list-style: none;
 }
 
-.markdown-content :where([data-type='taskItem']) > div {
+.markdown-content [data-type='taskItem']::marker {
+  content: none;
+}
+
+.markdown-content [data-type='taskItem'] > label {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 0.2rem;
+  cursor: pointer;
+}
+
+.markdown-content [data-type='taskItem'] > label > span {
+  display: none;
+}
+
+.markdown-content [data-type='taskItem'] > div {
   flex: 1;
   min-width: 0;
 }
@@ -748,9 +770,9 @@ button {
   accent-color: var(--color-primary);
 }
 
-/* TipTap checkbox inside <label> does not need extra margin-top */
-.markdown-content :where([data-type='taskItem']) > label > input[type='checkbox'] {
+.markdown-content [data-type='taskItem'] > label > input[type='checkbox'] {
   margin: 0;
+  accent-color: var(--color-primary);
 }
 
 .markdown-content :where(sup) {
