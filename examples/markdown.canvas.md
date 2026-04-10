@@ -21,15 +21,14 @@ viewport:
 :::
 
 ::: note { id: basics, at: { x: 25, y: -486, w: 430, h: 350 } }
+
 ## 기본 블록
 
 ### 제목
 
-일반 문단에 **굵게**, *기울임*, `인라인 코드`를 섞을 수 있습니다.
+일반 문단에 **굵게**, _기울임_, `인라인 코드`를 섞을 수 있습니다.
 
 > 인용문은 별도 블록으로 렌더되고, 노트 안에서도 읽기 흐름을 분리합니다.
-
-
 
 마지막 줄은 thematic break 아래에 이어지는 일반 문단입니다.
 :::
@@ -52,17 +51,22 @@ viewport:
 
 같은 노트 안에서 h1부터 h6까지 모두 렌더되는지 확인하는 영역입니다.
 
+&nbsp;
 :::
 
-::: note { id: inline, at: { x: 1199, y: -500, w: 430, h: 330 } }
+::: note { id: inline, at: { x: 1192, y: -565, w: 430, h: 389 } }
+
 ## 인라인 문법과 링크
 
 - 자동 링크: [https://boardmark.dev](https://boardmark.dev)
 - 일반 링크: [Boardmark 문서](https://github.com/)
 - 참조 링크: [마크다운 가이드](https://www.markdownguide.org/basic-syntax/)
 - 이스케이프: `\*literal asterisk\*`
-- 줄바꿈 테스트  
-같은 문단 안의 hard break
+- 줄바꿈 테스트
+- 같은 문단 안의 hard break
+-
+
+&nbsp;
 :::
 
 ::: note { id: lists, at: { x: -8, y: 93, w: 420, h: 441 } }
@@ -83,6 +87,7 @@ viewport:
 :::
 
 ::: note { id: code, at: { x: 571, y: 96, w: 432, h: 702 } }
+
 ## 코드 블록
 
 ```ts
@@ -94,15 +99,13 @@ const syntaxSupport: Record<SupportLevel, string[]> = {
 };
 ```
 
-
-
-
 ```json
 {
   "renderer": "react-markdown",
   "highlight": "rehype-highlight"
 }
 ```
+
 :::
 
 ::: note { id: gfm, at: { x: 1183, y: -107, w: 604, h: 718 } }
@@ -111,7 +114,7 @@ const syntaxSupport: Record<SupportLevel, string[]> = {
 
 | 문법       | 예시            | 상태           |
 | ---------- | --------------- | -------------- |
-| 취소선     | `~~done~~`      | ~~done~~       |
+| 취소선     | `~~done~~`      | done           |
 | 체크리스트 | `- [x] shipped` | 아래 목록 참고 |
 | 각주       | `문장[^1]`      | 아래 각주 참고 |
 
@@ -124,11 +127,11 @@ const syntaxSupport: Record<SupportLevel, string[]> = {
 
 raw HTML은 현재 의도적으로 켜지지 않았습니다. `rehype-raw`가 없어서 HTML 태그를 신뢰 실행하지 않습니다.
 
-[^support]: 이번 변경으로 `remark-gfm`을 연결해 GFM 계열 확장을 명시적으로 지원합니다.
+[^support]:
+    이번 변경으로 `remark-gfm`을 연결해 GFM 계열 확장을 명시적으로 지원합니다.  
+    :::
 
-:::
-
-::: edge { id: intro-basics, from: intro, to: basics }
+::: edge { id: intro-basics, from: intro, to: basics }  
 기본 문법
 :::
 
