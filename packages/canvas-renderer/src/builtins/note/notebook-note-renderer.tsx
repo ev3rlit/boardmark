@@ -1,5 +1,5 @@
 import type { BuiltInRendererProps } from '@boardmark/canvas-domain'
-import { MarkdownContent } from '@boardmark/ui'
+import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { rendererFrameStyle } from '../shared'
 
 export function NotebookNoteRenderer(
@@ -9,26 +9,19 @@ export function NotebookNoteRenderer(
   const tone = 'soft'
 
   return (
-    <div
-      className="relative overflow-hidden px-5 py-4 shadow-[0_24px_60px_rgba(43,52,55,0.08)]"
-      style={rendererFrameStyle(props, palette, tone, '#fffaf2', '1.2rem')}
+    <StickyNoteCard
+      className="flex h-full w-full flex-col"
+      color="neutral"
+      selected={props.selected}
+      style={rendererFrameStyle(props, palette, tone, '#fffaf2', '0px')}
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 opacity-55"
-        style={{
-          backgroundImage:
-            'linear-gradient(to bottom, transparent 0, transparent 31px, rgba(96, 66, 214, 0.08) 31px, rgba(96, 66, 214, 0.08) 32px)',
-          backgroundSize: '100% 32px'
-        }}
-      />
-      <div className="relative">
+      <div className="min-h-0 flex-1">
         <MarkdownContent
           className="markdown-content note-markdown"
           content={props.body ?? ''}
           imageResolver={props.imageResolver}
         />
       </div>
-    </div>
+    </StickyNoteCard>
   )
 }
