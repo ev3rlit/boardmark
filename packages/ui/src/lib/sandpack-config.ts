@@ -19,3 +19,29 @@ export type SandpackSupportedTemplate = (typeof SANDPACK_SUPPORTED_TEMPLATES)[nu
 export function isSupportedTemplate(value: unknown): value is SandpackSupportedTemplate {
   return SANDPACK_SUPPORTED_TEMPLATES.includes(value as SandpackSupportedTemplate)
 }
+
+// 컨텐츠 높이를 부모에게 전달하는 index.js — blockId로 스코프를 분리한다.
+export function generateResizeIndex(blockId: string): string {
+  return [
+    'import React, { StrictMode } from "react";',
+    'import { createRoot } from "react-dom/client";',
+    'import App from "./App";',
+    '',
+    `const BLOCK_ID = "${blockId}";`,
+    'function reportHeight() {',
+    '  const root = document.getElementById("root");',
+    '  const height = root ? root.getBoundingClientRect().height : document.documentElement.scrollHeight;',
+    '  window.parent.postMessage(',
+    '    { type: "boardmark:resize", id: BLOCK_ID, height },',
+    '    "*"',
+    '  );',
+    '}',
+    'const observer = new ResizeObserver(reportHeight);',
+    'observer.observe(document.getElementById("root") ?? document.documentElement);',
+    'window.addEventListener("load", reportHeight);',
+    '',
+    'const rootElement = document.getElementById("root");',
+    'const root = createRoot(rootElement);',
+    'root.render(<StrictMode><App /></StrictMode>);',
+  ].join('\n')
+}
