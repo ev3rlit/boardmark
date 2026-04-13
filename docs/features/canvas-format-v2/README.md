@@ -101,7 +101,7 @@ node-level `renderer` 필드는 제거한다.
 메타데이터는 오브젝트 헤더 안의 헤더 메타데이터 한 줄 표현을 기본으로 한다.
 
 ```md
-::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { themeRef: boardmark.editorial.soft, overrides: { fill: "#123321" } } }
+::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { bg: { color: "#123321" }, stroke: { color: "#6042D6" } } }
 ```
 
 이 헤더 메타데이터는 YAML flow mapping과 같은 타입 규칙을 따른다.
@@ -270,7 +270,7 @@ viewport: { x: -180, y: -120, zoom: 0.92 }
 오브젝트 헤더의 메타데이터는 하나의 헤더 메타데이터 object로 해석한다.
 
 ```md
-{ id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { themeRef: boardmark.editorial.soft } }
+{ id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { bg: { color: "#FFF5BF" } } }
 ```
 
 규칙:
@@ -286,7 +286,7 @@ viewport: { x: -180, y: -120, zoom: 0.92 }
 #### built-in note
 
 ```md
-::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { themeRef: boardmark.editorial.soft, overrides: { fill: "#123321" } } }
+::: note { id: welcome, at: { x: 80, y: 72, w: 340, h: 220 }, style: { bg: { color: "#123321" }, stroke: { color: "#6042D6" } } }
 
 # Boardmark Viewer
 
@@ -298,7 +298,7 @@ Open a `.canvas.md` file or start from this bundled example board.
 #### custom component: `boardmark.calender`
 
 ~~~md
-::: boardmark.calender { id: calendar-q2, at: { x: 480, y: 72, w: 520, h: 360 }, style: { themeRef: boardmark.editorial.soft } }
+::: boardmark.calender { id: calendar-q2, at: { x: 480, y: 72, w: 520, h: 360 }, style: { bg: { color: "#FFFFFF" }, stroke: { color: "#6042D6" } } }
 
 ```yaml props
 range: "2026-Q2"
@@ -311,7 +311,7 @@ density: compact
 #### custom component: `d3.bar`
 
 ~~~md
-::: d3.bar { id: sales, at: { x: 80, y: 72, w: 520, h: 320 }, style: { overrides: { fill: "#f4f0ff", stroke: "#6042d6" } } }
+::: d3.bar { id: sales, at: { x: 80, y: 72, w: 520, h: 320 }, style: { bg: { color: "#F4F0FF" }, stroke: { color: "#6042D6" } } }
 
 ```yaml props
 xField: month
@@ -342,7 +342,7 @@ Mar,143
 `edge`는 관계를 표현하는 예약 오브젝트다.
 
 ~~~md
-::: edge { id: welcome-flow, from: welcome, to: calendar-q2, style: { themeRef: boardmark.editorial.soft } }
+::: edge { id: welcome-flow, from: welcome, to: calendar-q2, style: { stroke: { color: "#6042D6" } } }
 
 ```yaml props
 line: curve
@@ -384,28 +384,26 @@ at: { x: 24, y: 16, anchor: hero }
 
 ### 3.8 `style` 필드
 
-`style`은 스타일 팩 선택과 literal override를 담당한다.
+`style`은 오브젝트 배경색과 outline 색을 명시적으로 표현한다.
 
 ```md
-style: { themeRef: boardmark.editorial.soft }
-style: { overrides: { fill: "#123321" } }
-style: { themeRef: boardmark.editorial.soft, overrides: { fill: "#123321", text: "#1f2937" } }
+style: { bg: { color: "#FFF5BF" } }
+style: { stroke: { color: "#6042D6" } }
+style: { bg: { color: "#123321" }, stroke: { color: "#6042D6CC" } }
 ```
 
 규칙:
 
-- `style.themeRef`는 style pack foundation selector다.
-- `style.overrides`는 literal style slot override다.
-- `themeRef`와 `overrides`는 둘 중 하나만 써도 되고 함께 써도 된다.
-- direct color는 항상 문자열로 쓴다. 예: `"#123321"`
-- `style.color`처럼 의미가 모호한 단일 키는 사용하지 않는다.
-- override key는 `fill`, `text`, `stroke`처럼 역할이 드러나는 slot 이름을 사용한다.
+- canonical key는 `style.bg.color`, `style.stroke.color`만 사용한다.
+- direct color는 항상 hex 문자열로 쓴다. 예: `"#123321"`, `"#6042D6CC"`
+- 지원 형식은 `#RRGGBB`, `#RRGGBBAA`다.
+- `style.bg`, `style.stroke`는 object 형태를 유지한다.
+- `style.themeRef`, `style.overrides`, `style.fill`, `style.background`는 더 이상 canonical 포맷이 아니다.
 
 적용 우선순위:
 
-1. `object.style.themeRef`
-2. `frontmatter.defaultStyle`
-3. built-in default foundation
+1. `object.style.bg.color`, `object.style.stroke.color`
+2. 오브젝트 타입별 기본 배경색/outline 색
 
 ### 3.9 body payload 규칙
 
@@ -459,6 +457,14 @@ v2의 핵심은 코어 포맷을 작게 유지하는 것이다.
 ### 4.1 공통 타입
 
 ```ts
+type CanvasObjectBgStyle = {
+  color?: string
+}
+
+type CanvasObjectStrokeStyle = {
+  color?: string
+}
+
 type CanvasObjectAt = {
   x: number
   y: number
@@ -467,8 +473,8 @@ type CanvasObjectAt = {
 }
 
 type CanvasObjectStyle = {
-  themeRef?: string
-  overrides?: Record<string, string>
+  bg?: CanvasObjectBgStyle
+  stroke?: CanvasObjectStrokeStyle
 }
 ```
 
@@ -774,7 +780,7 @@ body 규칙:
 - `::: boardmark.calender { ... }`가 namespaced component key로 보존된다.
 - `::: d3.bar { ... }`가 namespaced component key로 보존된다.
 - `at: { x: 80, y: 72, w: 340, h: 220 }`가 숫자 타입으로 파싱된다.
-- `style.themeRef`와 `style.overrides`가 올바르게 파싱된다.
+- `style.bg.color`와 `style.stroke.color`가 올바르게 파싱된다.
 - 헤더 메타데이터가 없는 `::: note`도 구문 에러 없이 처리된다.
 - body가 fenced block을 포함해도 raw text로 보존된다.
 - 코드 펜스 내부의 `:::`는 무시된다.
@@ -815,7 +821,7 @@ body 규칙:
 - 메타데이터 기본 작성 방식이 오브젝트 헤더의 한 줄 헤더 메타데이터로 정리된다.
 - node-level `renderer` 필드가 제거된다.
 - directive 이름이 node component key로 정확히 보존된다.
-- `style.themeRef`와 `style.overrides`가 함께 동작할 수 있다.
+- `style.bg.color`, `style.stroke.color`가 canonical 스타일 포맷으로 동작한다.
 - `at` 필드가 위치와 크기의 공통 계약으로 사용된다.
 - body가 component-defined payload로 raw text 보존된다.
 - 데이터성 body는 fenced block 기반 표현을 사용할 수 있다.

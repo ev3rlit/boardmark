@@ -5,15 +5,13 @@ import { rendererFrameStyle } from '../shared'
 export function RectShapeRenderer(
   props: BuiltInRendererProps
 ) {
-  const shapeProps = readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
-  const palette = shapeProps.palette ?? 'neutral'
-  const tone = shapeProps.tone ?? 'default'
+  readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
   const label = readBuiltInBodyLabel(props.body) ?? 'Rectangle'
 
   return (
     <div
       className="flex items-center justify-center px-4 py-3 text-sm font-semibold shadow-[0_20px_40px_rgba(43,52,55,0.08)]"
-      style={rendererFrameStyle(props, palette, tone, '#ffffff', '0.75rem')}
+      style={rendererFrameStyle(props, '0.75rem', '0 20px 40px rgba(43, 52, 55, 0.08)')}
     >
       {label}
     </div>

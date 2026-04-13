@@ -159,6 +159,32 @@ describe('canvas document edit service compiler', () => {
     expect(result.value.edits[1]?.replacement).toContain('x: 390')
   })
 
+  it('compiles multi-node color edits into canonical style header patches', () => {
+    const record = readRecord(source, 'color.canvas.md')
+    const editService = createCanvasDocumentEditService()
+    const result = editService.compileTransaction(source, record, {
+      kind: 'set-node-style-color',
+      nodeIds: ['welcome', 'overview'],
+      target: 'bg',
+      color: '#D7E8FF'
+    })
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.intentKind).toBe('set-node-style-color')
+    expect(result.value.edits).toHaveLength(2)
+    expect(result.value.edits[0]?.replacement).toContain(
+      'style: { bg: { color: "#D7E8FF" } }'
+    )
+    expect(result.value.edits[1]?.replacement).toContain(
+      'style: { bg: { color: "#D7E8FF" } }'
+    )
+  })
+
   it('compiles arrange-objects into z-only header edits', () => {
     const record = readRecord(source, 'arrange.canvas.md')
     const editService = createCanvasDocumentEditService()

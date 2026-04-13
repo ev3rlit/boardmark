@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { CANVAS_NO_FILL_COLOR } from '@boardmark/canvas-domain'
 import type {
   CanvasDocumentPicker,
   CanvasDocumentRepositoryGateway
@@ -613,6 +614,62 @@ Shape body
       '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
     )
     expect(store.getState().isDirty).toBe(true)
+  })
+
+  it('applies object colors to the supported selection in one transaction', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource: `---
+type: canvas
+version: 2
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::
+
+::: boardmark.shape.rect { id: shape-1, at: { x: 420, y: 72, w: 180, h: 120 } }
+Rectangle
+:::
+
+::: image { id: image-1, src: /hero.png, alt: Hero, lockAspectRatio: true, at: { x: 720, y: 72, w: 280, h: 180 } }
+:::`
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'shape-1', 'image-1'])
+    await store.getState().setSelectedObjectColor('bg', '#D7E8FF')
+
+    expect(store.getState().draftSource).toContain(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, style: { bg: { color: "#D7E8FF" } } }'
+    )
+    expect(store.getState().draftSource).toContain(
+      '::: boardmark.shape.rect { id: shape-1, at: { x: 420, y: 72, w: 180, h: 120 }, style: { bg: { color: "#D7E8FF" } } }'
+    )
+    expect(store.getState().nodes.find((node) => node.id === 'welcome')?.style?.bg?.color).toBe('#D7E8FF')
+    expect(store.getState().nodes.find((node) => node.id === 'shape-1')?.style?.bg?.color).toBe('#D7E8FF')
+    expect(store.getState().nodes.find((node) => node.id === 'image-1')?.style).toBeUndefined()
+    expect(store.getState().history.past).toHaveLength(1)
+  })
+
+  it('stores no-fill backgrounds as the canonical transparent hex value', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome'])
+    await store.getState().setSelectedObjectColor('bg', CANVAS_NO_FILL_COLOR)
+
+    expect(store.getState().draftSource).toContain(
+      `style: { bg: { color: "${CANVAS_NO_FILL_COLOR}" } }`
+    )
+    expect(store.getState().nodes.find((node) => node.id === 'welcome')?.style?.bg?.color).toBe(
+      CANVAS_NO_FILL_COLOR
+    )
   })
 
   it('commits batch node moves through one transaction and one history entry', async () => {

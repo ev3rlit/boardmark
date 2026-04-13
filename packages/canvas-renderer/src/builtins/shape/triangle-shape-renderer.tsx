@@ -1,19 +1,18 @@
 import type { CSSProperties } from 'react'
 import type { BuiltInRendererProps, BuiltInShapeRendererProps } from '@boardmark/canvas-domain'
 import { readBuiltInBodyLabel, readBuiltInBodyProps } from '../body'
-import { readObjectBackground, readTextColor } from '../shared'
+import { readObjectBackground, readStrokeColor, readTextColor } from '../shared'
 
 export function TriangleShapeRenderer(
   props: BuiltInRendererProps
 ) {
   const width = props.width ?? 160
   const height = props.height ?? 136
-  const shapeProps = readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
-  const palette = shapeProps.palette ?? 'rose'
-  const tone = shapeProps.tone ?? 'default'
+  readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
   const label = readBuiltInBodyLabel(props.body) ?? 'Triangle'
+  const stroke = readStrokeColor(props.component, props.style)
   const style = {
-    '--boardmark-triangle-fill': readObjectBackground(palette, tone, '#ffffff', props.style)
+    '--boardmark-triangle-fill': readObjectBackground(props.component, '#ffffff', props.style)
   } as CSSProperties
 
   return (
@@ -33,12 +32,15 @@ export function TriangleShapeRenderer(
         <polygon
           fill="var(--boardmark-triangle-fill)"
           points={`${width / 2},0 0,${height} ${width},${height}`}
+          stroke={stroke}
+          strokeLinejoin="round"
+          strokeWidth={stroke ? 1.5 : undefined}
         />
       </svg>
       <span
         className="relative px-6 text-center text-sm font-semibold"
         style={{
-          color: readTextColor(props.style)
+          color: readTextColor()
         }}
       >
         {label}

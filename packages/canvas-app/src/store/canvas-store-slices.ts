@@ -6,6 +6,8 @@ import {
   type CanvasEdge,
   MAX_CANVAS_ZOOM,
   MIN_CANVAS_ZOOM,
+  isCanvasNodeColorableComponent,
+  normalizeCanvasColorHex,
   type CanvasNode,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
@@ -444,6 +446,11 @@ export function createCanvasUiSlice() {
     dropState: { status: 'idle' } as const,
     editingState: { status: 'idle' } as const,
     clipboardState: { status: 'empty' } as const,
+    selectionToolbarState: {
+      nodeId: null,
+      target: null,
+      customPickerOpen: false
+    } as const,
     operationError: null as string | null
   }
 }
@@ -481,6 +488,8 @@ export function createCanvasCommandSlice(
   | 'previewNodeResize'
   | 'commitNodeResize'
   | 'resetNodeHeight'
+  | 'setSelectedObjectColor'
+  | 'setSelectionToolbarState'
   | 'reconnectEdge'
   | 'createEdgeFromConnection'
   | 'createNoteAtViewport'
@@ -1028,6 +1037,45 @@ export function createCanvasCommandSlice(
         historyService: services.historyService,
         intent: { kind: 'reset-node-height', nodeId },
         set
+      })
+    },
+
+    async setSelectedObjectColor(target, color) {
+      const normalizedColor = normalizeCanvasColorHex(color)
+
+      if (!normalizedColor) {
+        return
+      }
+
+      const state = get()
+      const nodeIds = readUnlockedNodeSelection(state).filter((nodeId) => {
+        const node = state.nodes.find((entry) => entry.id === nodeId)
+        return node ? isCanvasNodeColorableComponent(node.component) : false
+      })
+
+      if (nodeIds.length === 0) {
+        return
+      }
+
+      await commitCanvasIntent({
+        controls,
+        documentService: services.documentService,
+        editingService: services.editingService,
+        get,
+        historyService: services.historyService,
+        intent: {
+          kind: 'set-node-style-color',
+          nodeIds,
+          target,
+          color: normalizedColor
+        },
+        set
+      })
+    },
+
+    setSelectionToolbarState(selectionToolbarState) {
+      set({
+        selectionToolbarState
       })
     },
 

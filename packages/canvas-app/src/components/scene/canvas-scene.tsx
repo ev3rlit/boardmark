@@ -29,6 +29,8 @@ import {
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
 import {
+  resolveCanvasObjectBackgroundColor,
+  resolveCanvasObjectStrokeColor,
   type BuiltInComponentKey,
   type CanvasGroup,
   type CanvasNode
@@ -720,6 +722,7 @@ function CanvasNoteNode({
   const commitInlineEditing = useStore(store, (state) => state.commitInlineEditing)
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = activeSession !== null
+  const noteStroke = resolveCanvasObjectStrokeColor('note', data.style)
 
   return (
     <div
@@ -779,6 +782,12 @@ function CanvasNoteNode({
           : 'flex h-full w-full min-h-0 flex-col overflow-hidden'}
         color="default"
         selected={selected}
+        style={{
+          background: resolveCanvasObjectBackgroundColor('note', data.style),
+          boxShadow: noteStroke
+            ? `0 18px 40px rgba(43, 52, 55, 0.09), inset 0 0 0 1.5px ${noteStroke}`
+            : '0 18px 40px rgba(43, 52, 55, 0.09)'
+        }}
       >
         {activeSession ? (
           <BodyEditorHost
@@ -1105,15 +1114,16 @@ function FallbackComponentNode({
   body?: string
   style?: CanvasFlowNodeData['style']
 }) {
+  const stroke = resolveCanvasObjectStrokeColor(component, style)
+
   return (
     <div
       className="flex min-h-full min-w-full flex-col justify-between rounded-[1.2rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_96%,white)] px-4 py-3 shadow-[0_20px_40px_rgba(43,52,55,0.08)]"
       style={{
-        background: style?.overrides?.fill,
-        boxShadow: style?.overrides?.stroke
-          ? `inset 0 0 0 1.5px ${style.overrides.stroke}`
-          : undefined,
-        color: style?.overrides?.text
+        background: resolveCanvasObjectBackgroundColor(component, style),
+        boxShadow: stroke
+          ? `0 20px 40px rgba(43, 52, 55, 0.08), inset 0 0 0 1.5px ${stroke}`
+          : '0 20px 40px rgba(43, 52, 55, 0.08)',
       }}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">

@@ -183,13 +183,13 @@ function hasSameCanvasObjectStyle(
     return false
   }
 
-  return left.themeRef === right.themeRef &&
-    hasSameStyleOverrides(left.overrides, right.overrides)
+  return hasSameStyleColorSlot(left.bg, right.bg) &&
+    hasSameStyleColorSlot(left.stroke, right.stroke)
 }
 
-function hasSameStyleOverrides(
-  left: Record<string, string> | undefined,
-  right: Record<string, string> | undefined
+function hasSameStyleColorSlot(
+  left: CanvasObjectStyle['bg'] | CanvasObjectStyle['stroke'],
+  right: CanvasObjectStyle['bg'] | CanvasObjectStyle['stroke']
 ) {
   if (left === right) {
     return true
@@ -199,12 +199,5 @@ function hasSameStyleOverrides(
     return false
   }
 
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-
-  if (leftKeys.length !== rightKeys.length) {
-    return false
-  }
-
-  return leftKeys.every((key) => left[key] === right[key])
+  return left.color === right.color
 }

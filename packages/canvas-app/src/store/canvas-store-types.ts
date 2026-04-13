@@ -166,6 +166,12 @@ export type CanvasGroupSelectionState =
   | { status: 'group-selected'; groupId: string }
   | { status: 'drilldown'; groupId: string; nodeId: string }
 
+export type CanvasSelectionToolbarState = {
+  nodeId: string | null
+  target: 'bg' | 'stroke' | null
+  customPickerOpen: boolean
+}
+
 export type CanvasHistoryEntry = {
   label: string
   source: string
@@ -218,6 +224,7 @@ export type CanvasStoreState = {
   history: CanvasHistoryState
   clipboardState: CanvasClipboardState
   groupSelectionState: CanvasGroupSelectionState
+  selectionToolbarState: CanvasSelectionToolbarState
   operationError: string | null
   hydrateTemplate: () => Promise<void>
   resetToTemplate: () => Promise<void>
@@ -255,6 +262,8 @@ export type CanvasStoreState = {
     height: number
   }) => Promise<void>
   resetNodeHeight: (nodeId: string) => Promise<void>
+  setSelectedObjectColor: (target: 'bg' | 'stroke', color: string) => Promise<void>
+  setSelectionToolbarState: (state: CanvasSelectionToolbarState) => void
   reconnectEdge: (edgeId: string, from: string, to: string) => Promise<void>
   createEdgeFromConnection: (from: string, to: string) => Promise<void>
   createNoteAtViewport: () => Promise<void>

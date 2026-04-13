@@ -1,4 +1,5 @@
 import { err, ok, type Result } from 'neverthrow'
+import { normalizeCanvasColorHex } from '@boardmark/canvas-domain'
 import type {
   CanvasDocumentEditError,
   CanvasDocumentEditIntent
@@ -44,6 +45,47 @@ const compileMoveNodes: IntentCompiler<'move-nodes'> = (context, intent) => {
         y: roundGeometry(move.y)
       }
     }))
+
+    if (edit.isErr()) {
+      return err(edit.error)
+    }
+
+    edits.push(edit.value)
+  }
+
+  return ok(createTransaction(intent, edits))
+}
+
+const compileSetNodeStyleColor: IntentCompiler<'set-node-style-color'> = (context, intent) => {
+  const requestedNodeIds = [...new Set(intent.nodeIds)]
+  const color = normalizeCanvasColorHex(intent.color)
+
+  if (!color) {
+    return err({
+      kind: 'invalid-intent',
+      message: `Color "${intent.color}" must use "#RRGGBB" or "#RRGGBBAA" format.`
+    })
+  }
+
+  if (requestedNodeIds.length === 0) {
+    return ok(createTransaction(intent, []))
+  }
+
+  const edits: CanvasEditUnit[] = []
+
+  for (const nodeId of requestedNodeIds) {
+    const edit = patchNodeMetadata(context, nodeId, (metadata) => {
+      const nextMetadata = {
+        ...metadata,
+        style: patchStyleColorMetadata(metadata.style, intent.target, color)
+      }
+
+      if (nextMetadata.style === undefined) {
+        delete nextMetadata.style
+      }
+
+      return nextMetadata
+    })
 
     if (edit.isErr()) {
       return err(edit.error)
@@ -129,6 +171,7 @@ const compileResetNodeHeight: IntentCompiler<'reset-node-height'> = (context, in
 export const objectIntentCompilers = {
   'move-node': compileMoveNode,
   'move-nodes': compileMoveNodes,
+  'set-node-style-color': compileSetNodeStyleColor,
   'replace-edge-body': compileReplaceEdgeBody,
   'replace-image-source': compileReplaceImageSource,
   'replace-object-body': compileReplaceObjectBody,
@@ -140,6 +183,7 @@ export const objectIntentCompilers = {
   [K in
     | 'move-node'
     | 'move-nodes'
+    | 'set-node-style-color'
     | 'replace-edge-body'
     | 'replace-image-source'
     | 'replace-object-body'
@@ -148,4 +192,45 @@ export const objectIntentCompilers = {
     | 'update-edge-endpoints'
     | 'update-image-metadata'
   ]: IntentCompiler<K>
+}
+
+function patchStyleColorMetadata(
+  value: unknown,
+  target: 'bg' | 'stroke',
+  color: string
+) {
+  const styleRecord = readMetadataRecord(value)
+  const currentBg = readStyleColorMetadata(styleRecord.bg)
+  const currentStroke = readStyleColorMetadata(styleRecord.stroke)
+  const nextStyle: Record<string, unknown> = {}
+
+  const nextBg = target === 'bg' ? { color } : currentBg
+  const nextStroke = target === 'stroke' ? { color } : currentStroke
+
+  if (nextBg.color !== undefined) {
+    nextStyle.bg = {
+      color: nextBg.color
+    }
+  }
+
+  if (nextStroke.color !== undefined) {
+    nextStyle.stroke = {
+      color: nextStroke.color
+    }
+  }
+
+  return Object.keys(nextStyle).length > 0 ? nextStyle : undefined
+}
+
+function readStyleColorMetadata(value: unknown) {
+  const record = readMetadataRecord(value)
+  const color = typeof record.color === 'string'
+    ? normalizeCanvasColorHex(record.color)
+    : null
+
+  return color
+    ? {
+        color
+      }
+    : {}
 }

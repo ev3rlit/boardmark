@@ -1,6 +1,10 @@
+import { createElement } from 'react'
+import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
   BUILT_IN_RENDERER_CONTRACTS,
+  NotebookNoteRenderer,
+  RectShapeRenderer,
   toFlowEdge,
   toFlowNode,
   toFlowViewport
@@ -42,9 +46,11 @@ describe('canvas renderer helpers', () => {
         component: 'note',
         at: { x: 100, y: 80, w: 360, h: 220 },
         style: {
-          themeRef: 'boardmark.editorial.soft',
-          overrides: {
-            fill: '#fff9db'
+          bg: {
+            color: '#FFF9DB'
+          },
+          stroke: {
+            color: '#6042D6CC'
           }
         },
         body: '# A\n',
@@ -65,8 +71,9 @@ describe('canvas renderer helpers', () => {
     expect(node.height).toBe(220)
     expect(node.data.component).toBe('note')
     expect(node.data.body).toBe('# A\n')
-    expect(node.data.resolvedThemeRef).toBe('boardmark.editorial.soft')
-    expect(node.data.style?.overrides?.fill).toBe('#fff9db')
+    expect(node.data.resolvedThemeRef).toBe('boardmark.editorial.default')
+    expect(node.data.style?.bg?.color).toBe('#FFF9DB')
+    expect(node.data.style?.stroke?.color).toBe('#6042D6CC')
     expect(node.draggable).toBeUndefined()
     expect(node.selectable).toBeUndefined()
     expect(node.connectable).toBeUndefined()
@@ -190,5 +197,29 @@ tone: soft
     expect(BUILT_IN_RENDERER_CONTRACTS['boardmark.shape.circle']?.category).toBe('shape')
     expect(BUILT_IN_RENDERER_CONTRACTS.note.tokenUsage).toContain('shadow.note')
     expect(Object.keys(BUILT_IN_RENDERER_CONTRACTS)).toHaveLength(7)
+  })
+
+  it('renders note and shape defaults from the canonical color contract', () => {
+    const noteView = render(createElement(NotebookNoteRenderer, {
+      component: 'note',
+      nodeId: 'note-1',
+      selected: false
+    }))
+    const noteSurface = noteView.container.querySelector('[data-note-surface="sticky"]') as HTMLDivElement | null
+
+    expect(noteSurface).not.toBeNull()
+    expect(noteSurface?.style.background).toContain('255, 245, 191')
+    expect(noteSurface?.style.boxShadow).not.toContain('inset')
+
+    const shapeView = render(createElement(RectShapeRenderer, {
+      component: 'boardmark.shape.rect',
+      nodeId: 'shape-1',
+      selected: false
+    }))
+    const rectSurface = shapeView.container.firstElementChild as HTMLDivElement | null
+
+    expect(rectSurface).not.toBeNull()
+    expect(rectSurface?.style.background).toContain('255, 255, 255')
+    expect(rectSurface?.style.boxShadow).toContain('#6042D6')
   })
 })

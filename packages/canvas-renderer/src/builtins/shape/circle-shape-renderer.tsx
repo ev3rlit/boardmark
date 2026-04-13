@@ -1,15 +1,17 @@
 import type { BuiltInRendererProps, BuiltInShapeRendererProps } from '@boardmark/canvas-domain'
 import { readBuiltInBodyLabel, readBuiltInBodyProps } from '../body'
-import { readObjectBackground, readTextColor } from '../shared'
+import { readObjectBackground, readStrokeColor, readTextColor } from '../shared'
 
 export function CircleShapeRenderer(
   props: BuiltInRendererProps
 ) {
   const size = Math.max(props.width ?? 132, props.height ?? 132)
-  const shapeProps = readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
-  const palette = shapeProps.palette ?? 'violet'
-  const tone = shapeProps.tone ?? 'default'
+  readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
   const label = readBuiltInBodyLabel(props.body) ?? 'Circle'
+  const stroke = readStrokeColor(props.component, props.style)
+  const boxShadow = stroke
+    ? `0 20px 40px rgba(43, 52, 55, 0.08), inset 0 0 0 1.5px ${stroke}`
+    : '0 20px 40px rgba(43, 52, 55, 0.08)'
 
   return (
     <div
@@ -18,8 +20,9 @@ export function CircleShapeRenderer(
         width: size,
         height: size,
         borderRadius: '999px',
-        background: readObjectBackground(palette, tone, '#ffffff', props.style),
-        color: readTextColor(props.style)
+        background: readObjectBackground(props.component, '#ffffff', props.style),
+        color: readTextColor(),
+        boxShadow
       }}
     >
       {label}

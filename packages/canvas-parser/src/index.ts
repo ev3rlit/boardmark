@@ -2,6 +2,7 @@ import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
 import {
   DEFAULT_CANVAS_VIEWPORT,
+  normalizeCanvasColorHex,
   type CanvasAssetPolicy,
   type CanvasAST,
   type CanvasDirectiveSourceMap,
@@ -767,28 +768,71 @@ function parseOptionalObjectStyle(
     return err(`Object "${id}" has an invalid "style" object.`)
   }
 
-  const themeRef = value.themeRef
-  const overrides = value.overrides
+  const extraKeys = Object.keys(value).filter((key) => !['bg', 'stroke'].includes(key))
 
-  if (themeRef !== undefined && typeof themeRef !== 'string') {
-    return err(`Object "${id}" must define "style.themeRef" as a string.`)
+  if (extraKeys.length > 0) {
+    return err(`Object "${id}" contains unsupported style keys: ${extraKeys.join(', ')}.`)
   }
 
-  if (overrides !== undefined) {
-    if (!isRecord(overrides)) {
-      return err(`Object "${id}" must define "style.overrides" as an object.`)
-    }
+  const bgResult = parseOptionalStyleColorSlot(id, 'bg', value.bg)
 
-    for (const [key, entry] of Object.entries(overrides)) {
-      if (typeof entry !== 'string') {
-        return err(`Object "${id}" must define "style.overrides.${key}" as a string.`)
-      }
-    }
+  if (bgResult.isErr()) {
+    return err(bgResult.error)
+  }
+
+  const strokeResult = parseOptionalStyleColorSlot(id, 'stroke', value.stroke)
+
+  if (strokeResult.isErr()) {
+    return err(strokeResult.error)
+  }
+
+  if (!bgResult.value && !strokeResult.value) {
+    return ok(undefined)
   }
 
   return ok({
-    themeRef,
-    overrides: overrides as Record<string, string> | undefined
+    bg: bgResult.value,
+    stroke: strokeResult.value
+  })
+}
+
+function parseOptionalStyleColorSlot(
+  id: string,
+  key: 'bg' | 'stroke',
+  value: unknown
+): Result<{ color?: string } | undefined, string> {
+  if (value === undefined) {
+    return ok(undefined)
+  }
+
+  if (!isRecord(value)) {
+    return err(`Object "${id}" must define "style.${key}" as an object.`)
+  }
+
+  const extraKeys = Object.keys(value).filter((entry) => entry !== 'color')
+
+  if (extraKeys.length > 0) {
+    return err(`Object "${id}" contains unsupported "style.${key}" keys: ${extraKeys.join(', ')}.`)
+  }
+
+  if (value.color === undefined) {
+    return ok(undefined)
+  }
+
+  if (typeof value.color !== 'string') {
+    return err(`Object "${id}" must define "style.${key}.color" as a string.`)
+  }
+
+  const color = normalizeCanvasColorHex(value.color)
+
+  if (!color) {
+    return err(
+      `Object "${id}" must define "style.${key}.color" as "#RRGGBB" or "#RRGGBBAA".`
+    )
+  }
+
+  return ok({
+    color
   })
 }
 

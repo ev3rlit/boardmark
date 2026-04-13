@@ -36,9 +36,22 @@ export type CanvasObjectAt = {
   h?: number
 }
 
+export type CanvasObjectBgStyle = {
+  color?: string
+}
+
+export type CanvasObjectStrokeStyle = {
+  color?: string
+}
+
 export type CanvasObjectStyle = {
-  themeRef?: string
-  overrides?: Record<string, string>
+  bg?: CanvasObjectBgStyle
+  stroke?: CanvasObjectStrokeStyle
+}
+
+export type CanvasObjectColorDefaults = {
+  bg: string
+  stroke?: string
 }
 
 export type CanvasDirectiveSourceMap = {
@@ -144,3 +157,57 @@ export const DEFAULT_NOTE_HEIGHT = 220
 export const MIN_CANVAS_ZOOM = 0.5
 export const MAX_CANVAS_ZOOM = 1.8
 export const ZOOM_STEP = 0.1
+
+export const CANVAS_NO_FILL_COLOR = '#00000000'
+export const DEFAULT_NOTE_BG_COLOR = '#FFF5BF'
+export const DEFAULT_OBJECT_BG_COLOR = '#FFFFFF'
+export const DEFAULT_OBJECT_STROKE_COLOR = '#6042D6'
+
+export function normalizeCanvasColorHex(value: string) {
+  const normalized = value.trim().toUpperCase()
+
+  if (!/^#(?:[0-9A-F]{6}|[0-9A-F]{8})$/.test(normalized)) {
+    return null
+  }
+
+  return normalized
+}
+
+export function isCanvasNodeColorableComponent(component: string) {
+  return component !== 'image'
+}
+
+export function readCanvasObjectColorDefaults(component: string): CanvasObjectColorDefaults | null {
+  if (!isCanvasNodeColorableComponent(component)) {
+    return null
+  }
+
+  if (component === 'note') {
+    return {
+      bg: DEFAULT_NOTE_BG_COLOR
+    }
+  }
+
+  return {
+    bg: DEFAULT_OBJECT_BG_COLOR,
+    stroke: DEFAULT_OBJECT_STROKE_COLOR
+  }
+}
+
+export function resolveCanvasObjectBackgroundColor(
+  component: string,
+  style: CanvasObjectStyle | undefined
+) {
+  return style?.bg?.color ?? readCanvasObjectColorDefaults(component)?.bg
+}
+
+export function resolveCanvasObjectStrokeColor(
+  component: string,
+  style: CanvasObjectStyle | undefined
+) {
+  if (style?.stroke?.color) {
+    return style.stroke.color
+  }
+
+  return readCanvasObjectColorDefaults(component)?.stroke
+}

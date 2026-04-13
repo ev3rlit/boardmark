@@ -5,15 +5,12 @@ import { rendererFrameStyle } from '../shared'
 export function NotebookNoteRenderer(
   props: BuiltInRendererProps
 ) {
-  const palette = 'neutral'
-  const tone = 'soft'
-
   return (
     <StickyNoteCard
       className="flex h-full w-full flex-col"
       color="neutral"
       selected={props.selected}
-      style={rendererFrameStyle(props, palette, tone, '#fffaf2', '0px')}
+      style={rendererFrameStyle(props, '0px', '0 18px 40px rgba(43, 52, 55, 0.09)')}
     >
       <div className="min-h-0 flex-1">
         <MarkdownContent

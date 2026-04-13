@@ -70,7 +70,7 @@ export function toFlowNode(
       locked: node.locked,
       lockAspectRatio: node.lockAspectRatio,
       style: node.style,
-      resolvedThemeRef: node.style?.themeRef ?? options?.defaultStyle,
+      resolvedThemeRef: options?.defaultStyle,
       autoHeight,
       height: autoHeight ? undefined : height,
       width,

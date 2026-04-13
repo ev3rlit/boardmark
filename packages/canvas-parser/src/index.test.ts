@@ -14,7 +14,7 @@ components:
 defaultStyle: boardmark.editorial.soft
 ---
 
-::: note { id: idea-a, at: { x: 100, y: 120, w: 320, h: 220 }, style: { themeRef: boardmark.editorial.soft, overrides: { fill: "#fff9db", text: "#1f2937" } } }
+::: note { id: idea-a, at: { x: 100, y: 120, w: 320, h: 220 }, style: { bg: { color: "#FFF9DB" }, stroke: { color: "#6042D6CC" } } }
 # Idea A
 
 \`\`\`md
@@ -29,7 +29,7 @@ density: compact
 \`\`\`
 :::
 
-::: edge { id: flow, from: idea-a, to: calendar-q2, style: { themeRef: boardmark.editorial.soft } }
+::: edge { id: flow, from: idea-a, to: calendar-q2, style: { stroke: { color: "#6042D6" } } }
 \`\`\`yaml props
 line: curve
 \`\`\`
@@ -58,10 +58,11 @@ Connects **two** ideas.
     expect(firstNode?.component).toBe('note')
     expect(firstNode?.at).toEqual({ x: 100, y: 120, w: 320, h: 220 })
     expect(firstNode?.style).toEqual({
-      themeRef: 'boardmark.editorial.soft',
-      overrides: {
-        fill: '#fff9db',
-        text: '#1f2937'
+      bg: {
+        color: '#FFF9DB'
+      },
+      stroke: {
+        color: '#6042D6CC'
       }
     })
     expect(firstNode?.body).toContain('```md')
@@ -81,13 +82,45 @@ Connects **two** ideas.
         id: 'flow',
         from: 'idea-a',
         to: 'calendar-q2',
+        style: {
+          stroke: {
+            color: '#6042D6'
+          }
+        },
         body: expect.stringContaining('Connects **two** ideas.')
       })
     ])
     expect(readRangeText(source, result.value.ast.edges[0]?.sourceMap.metadataRange)).toBe(
-      '{ id: flow, from: idea-a, to: calendar-q2, style: { themeRef: boardmark.editorial.soft } }'
+      '{ id: flow, from: idea-a, to: calendar-q2, style: { stroke: { color: "#6042D6" } } }'
     )
     expect(result.value.issues).toEqual([])
+  })
+
+  it('rejects unsupported style keys instead of silently accepting them', () => {
+    const source = `---
+type: canvas
+version: 2
+---
+
+::: note { id: legacy, at: { x: 10, y: 20, w: 320, h: 220 }, style: { palette: { color: "#fff9db" } } }
+Legacy
+:::`
+
+    const result = parseCanvasDocument(source)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.ast.nodes).toEqual([])
+    expect(result.value.issues).toEqual([
+      expect.objectContaining({
+        kind: 'invalid-node',
+        message: expect.stringContaining('unsupported style keys')
+      })
+    ])
   })
 
   it('fails fatally when frontmatter is invalid', () => {

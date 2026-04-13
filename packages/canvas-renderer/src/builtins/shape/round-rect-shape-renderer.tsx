@@ -5,15 +5,13 @@ import { rendererFrameStyle } from '../shared'
 export function RoundRectShapeRenderer(
   props: BuiltInRendererProps
 ) {
-  const shapeProps = readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
-  const palette = shapeProps.palette ?? 'blue'
-  const tone = shapeProps.tone ?? 'soft'
+  readBuiltInBodyProps<BuiltInShapeRendererProps>(props.body)
   const label = readBuiltInBodyLabel(props.body) ?? 'Rounded Rectangle'
 
   return (
     <div
       className="flex items-center justify-center px-4 py-3 text-sm font-semibold shadow-[0_20px_40px_rgba(43,52,55,0.08)]"
-      style={rendererFrameStyle(props, palette, tone, '#ffffff', '1.6rem')}
+      style={rendererFrameStyle(props, '1.6rem', '0 20px 40px rgba(43, 52, 55, 0.08)')}
     >
       {label}
     </div>

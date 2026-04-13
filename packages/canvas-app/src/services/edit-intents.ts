@@ -7,6 +7,12 @@ export type CanvasDocumentEditIntent =
   | { kind: 'replace-object-body'; objectId: string; markdown: string }
   | { kind: 'move-node'; nodeId: string; x: number; y: number }
   | { kind: 'move-nodes'; moves: Array<{ nodeId: string; x: number; y: number }> }
+  | {
+      kind: 'set-node-style-color'
+      nodeIds: string[]
+      target: 'bg' | 'stroke'
+      color: string
+    }
   | { kind: 'resize-node'; nodeId: string; x: number; y: number; width: number; height: number }
   | { kind: 'duplicate-objects'; nodeIds: string[]; edgeIds: string[]; offsetX: number; offsetY: number }
   | { kind: 'paste-objects'; payload: CanvasClipboardPayload; anchorX: number; anchorY: number; inPlace: boolean }
@@ -95,6 +101,8 @@ export function readCanvasDocumentEditLabel(intent: CanvasDocumentEditIntent) {
       return 'Resize node'
     case 'replace-object-body':
       return 'Edit object'
+    case 'set-node-style-color':
+      return 'Update object color'
     case 'replace-edge-body':
       return 'Edit connector'
     case 'create-note':

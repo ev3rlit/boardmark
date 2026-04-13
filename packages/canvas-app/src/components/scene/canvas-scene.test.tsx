@@ -44,6 +44,7 @@ import {
   readNodeEditingInteractionBlock
 } from '@canvas-app/store/canvas-editing-session'
 import { createCanvasStore, type CanvasStore } from '@canvas-app/store/canvas-store'
+import { createCanvasDocumentRecordPatch } from '@canvas-app/store/canvas-store-projection'
 import { useStore } from 'zustand'
 
 const sourceMap = {
@@ -224,10 +225,11 @@ describe('CanvasScene', () => {
         at: { x: 144, y: 168, w: 320, h: 220 },
         body: 'Boardmark Viewer\n',
         style: {
-          themeRef: 'boardmark.editorial.soft',
-          overrides: {
-            fill: '#fff9d8',
-            text: '#2b3437'
+          bg: {
+            color: '#FFF9D8'
+          },
+          stroke: {
+            color: '#6042D6CC'
           }
         },
         position: {
@@ -243,8 +245,8 @@ describe('CanvasScene', () => {
         ...node,
         style: node.style
           ? {
-              ...node.style,
-              overrides: node.style.overrides ? { ...node.style.overrides } : undefined
+              bg: node.style.bg ? { ...node.style.bg } : undefined,
+              stroke: node.style.stroke ? { ...node.style.stroke } : undefined
             }
           : undefined
       })),
@@ -725,6 +727,218 @@ Boardmark Viewer
     })
 
     expect(await screen.findByRole('textbox', { name: 'Edit welcome' })).toBeInTheDocument()
+  })
+
+  it('shows the color toolbar action for supported selections and applies swatch colors', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::`)
+
+    store.getState().replaceSelectedNodes(['welcome'])
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Background color' }))
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Background colors' })).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Background #D7E8FF' }))
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Background colors' })).toBeInTheDocument()
+    expect(store.getState().draftSource).toContain(
+      'style: { bg: { color: "#D7E8FF" } }'
+    )
+
+    const noteSurface = (await screen.findByText('Boardmark Viewer')).closest('[data-note-surface="sticky"]') as HTMLDivElement | null
+
+    expect(noteSurface).not.toBeNull()
+    expect(noteSurface?.style.background).toContain('215, 232, 255')
+  })
+
+  it('keeps the open color popover across source-driven document patches', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::`)
+
+    store.getState().replaceSelectedNodes(['welcome'])
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Background color' }))
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Background colors' })).toBeInTheDocument()
+
+    const source = store.getState().draftSource
+
+    if (!source) {
+      throw new Error('Expected hydrated canvas store to provide a draft source.')
+    }
+
+    const recordResult = createCanvasMarkdownDocumentRepository().readSource({
+      isTemplate: true,
+      locator: {
+        kind: 'memory',
+        key: 'selection-toolbar-reconcile',
+        name: 'selection-toolbar-reconcile.canvas.md'
+      },
+      source: source.replace('Boardmark Viewer', 'Boardmark Viewer updated')
+    })
+
+    if (recordResult.isErr()) {
+      throw new Error(recordResult.error.message)
+    }
+
+    await act(async () => {
+      const state = store.getState()
+
+      store.setState(createCanvasDocumentRecordPatch(recordResult.value, {
+        selectedGroupIds: state.selectedGroupIds,
+        selectedNodeIds: state.selectedNodeIds,
+        selectedEdgeIds: state.selectedEdgeIds,
+        viewport: state.viewport
+      }))
+    })
+
+    expect(await screen.findByRole('dialog', { name: 'Background colors' })).toBeInTheDocument()
+  })
+
+  it('shows the current non-preset color on the custom swatch and opens the custom picker', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, style: { bg: { color: "#123456" } } }
+Boardmark Viewer
+:::`)
+
+    store.getState().replaceSelectedNodes(['welcome'])
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Background color' }))
+    })
+
+    const customSwatch = await screen.findByRole('button', { name: 'Background custom color' })
+    const customChip = customSwatch.querySelector('.selection-color-swatch__chip') as HTMLSpanElement | null
+
+    expect(customChip).not.toBeNull()
+    expect(customChip?.style.background).toContain('18, 52, 86')
+
+    await act(async () => {
+      fireEvent.click(customSwatch)
+    })
+
+    expect(document.querySelector('.selection-color-custom-picker__area')).not.toBeNull()
+  })
+
+  it('disables the color action when the current selection is image-only', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: image { id: hero, src: "/hero.png", alt: Hero, lockAspectRatio: true, at: { x: 80, y: 72, w: 320, h: 220 } }
+:::`)
+
+    store.getState().replaceSelectedNodes(['hero'])
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    expect(await screen.findByRole('button', { name: 'Background color' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Outline color' })).toBeDisabled()
+  })
+
+  it('renders fallback custom nodes with the shared default background and stroke colors', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: boardmark.custom { id: custom-1, at: { x: 80, y: 72, w: 320, h: 220 } }
+Custom
+:::`)
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    const customLabel = await screen.findByText('boardmark.custom')
+    const fallbackSurface = customLabel.closest('div[style]') as HTMLDivElement | null
+
+    expect(fallbackSurface).not.toBeNull()
+    expect(fallbackSurface?.style.background).toContain('255, 255, 255')
+    expect(fallbackSurface?.style.boxShadow).toContain('#6042D6')
   })
 
   it('keeps visible line breaks after committing note edits back into preview rendering', async () => {
