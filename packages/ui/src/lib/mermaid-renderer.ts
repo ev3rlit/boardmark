@@ -39,10 +39,18 @@ export async function renderMermaidDiagram(
 
 async function loadMermaid() {
   if (!mermaidPromise) {
-    mermaidPromise = import('mermaid')
-      .then((module) => {
+    mermaidPromise = Promise.all([
+      import('mermaid'),
+      import('@iconify-json/logos'),
+      import('@iconify-json/mdi'),
+    ])
+      .then(([module, logos, mdi]) => {
         const mermaid = module.default
         mermaid.initialize(BOARDMARK_MERMAID_CONFIG)
+        mermaid.registerIconPacks([
+          { name: 'logos', icons: logos.icons },
+          { name: 'mdi', icons: mdi.icons },
+        ])
         return mermaid
       })
       .catch((error) => {
