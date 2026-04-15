@@ -973,7 +973,7 @@ Boardmark Viewer
     expect(await screen.findByRole('textbox', { name: 'Edit welcome' })).toBeInTheDocument()
 
     await act(async () => {
-      store.getState().updateEditingMarkdown('Line 1  \nLine 2')
+      store.getState().updateEditingMarkdown('Line 1<br>\nLine 2')
       await store.getState().commitInlineEditing()
     })
 

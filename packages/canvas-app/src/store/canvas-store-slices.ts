@@ -11,6 +11,7 @@ import {
   type CanvasNode,
   type CanvasViewport
 } from '@boardmark/canvas-domain'
+import type { JSONContent } from '@tiptap/core'
 import type { CanvasObjectArrangeMode } from '@canvas-app/canvas-object-types'
 import { logCanvasDiagnostic } from '@canvas-app/diagnostics/canvas-diagnostics'
 import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-asset-bridge'
@@ -37,6 +38,10 @@ import type {
   CanvasStoreSetState,
   CanvasStoreState
 } from '@canvas-app/store/canvas-store-types'
+import {
+  createWysiwygMarkdownBridge,
+  readWysiwygDocumentSnapshotKey
+} from '@canvas-app/components/editor/wysiwyg-markdown-bridge'
 import { hasUnclosedFencedBlock } from '@canvas-app/markdown/fenced-block-guards'
 import {
   readCanvasDocumentEditLabel,
@@ -80,6 +85,7 @@ const FRAME_PRESET = {
 }
 
 const INCOMPLETE_FENCED_BLOCK_MESSAGE = 'Complete the fenced code block before leaving the editor.'
+const editingMarkdownBridge = createWysiwygMarkdownBridge()
 
 function isSamePointerInteractionState(
   left: CanvasStoreState['pointerInteractionState'],
@@ -523,6 +529,7 @@ export function createCanvasCommandSlice(
   | 'ungroupSelection'
   | 'startObjectEditing'
   | 'startEdgeEditing'
+  | 'updateEditingDocument'
   | 'updateEditingMarkdown'
   | 'setEditingBlockMode'
   | 'setEditingInteraction'
@@ -552,13 +559,19 @@ export function createCanvasCommandSlice(
     surface: CanvasEditingSurface
     target: CanvasEditingTarget
   }) => {
+    const documentContent = input.surface === 'wysiwyg'
+      ? editingMarkdownBridge.fromMarkdown(input.markdown)
+      : null
+
     clearEditingFlushTimer()
     set({
       editingState: {
         status: 'active',
         target: input.target,
         surface: input.surface,
+        baselineDocument: documentContent,
         baselineMarkdown: input.markdown,
+        draftDocument: documentContent,
         draftMarkdown: input.markdown,
         dirty: false,
         flushStatus: { status: 'idle' },
@@ -1847,12 +1860,47 @@ export function createCanvasCommandSlice(
           return state
         }
 
+        if (state.editingState.surface === 'wysiwyg') {
+          const draftDocument = editingMarkdownBridge.fromMarkdown(markdown)
+
+          return {
+            ...state,
+            editingState: {
+              ...state.editingState,
+              draftDocument,
+              draftMarkdown: markdown,
+              dirty: hasWysiwygDocumentChanged(state.editingState.baselineDocument, draftDocument),
+              error: null
+            }
+          }
+        }
+
         return {
           ...state,
           editingState: {
             ...state.editingState,
             draftMarkdown: markdown,
             dirty: markdown !== state.editingState.baselineMarkdown,
+            error: null
+          }
+        }
+      })
+
+      scheduleEditingFlush()
+    },
+
+    updateEditingDocument(content) {
+      set((state) => {
+        if (state.editingState.status !== 'active' || state.editingState.surface !== 'wysiwyg') {
+          return state
+        }
+
+        return {
+          ...state,
+          editingState: {
+            ...state.editingState,
+            draftDocument: content,
+            dirty: hasWysiwygDocumentChanged(state.editingState.baselineDocument, content),
             error: null
           }
         }
@@ -1952,7 +2000,12 @@ export function createCanvasCommandSlice(
       }
 
       const session = state.editingState
-      const flushedMarkdown = session.draftMarkdown
+      const flushedDocument = session.surface === 'wysiwyg'
+        ? (session.draftDocument ?? session.baselineDocument ?? editingMarkdownBridge.fromMarkdown(session.draftMarkdown))
+        : null
+      const flushedMarkdown = session.surface === 'wysiwyg' && flushedDocument
+        ? editingMarkdownBridge.toMarkdown(flushedDocument)
+        : session.draftMarkdown
 
       set({
         editingState: {
@@ -1988,9 +2041,11 @@ export function createCanvasCommandSlice(
               return {
                 editingState: {
                   ...session,
+                  baselineDocument: flushedDocument,
                   baselineMarkdown: flushedMarkdown,
                   blockMode: { status: 'none' },
                   dirty: false,
+                  draftDocument: flushedDocument,
                   draftMarkdown: flushedMarkdown,
                   error: null,
                   flushStatus: { status: 'idle' }
@@ -1999,12 +2054,17 @@ export function createCanvasCommandSlice(
               }
             }
 
-            const hasUnflushedDraft = currentEditingState.draftMarkdown !== flushedMarkdown
+            const hasUnflushedDraft = currentEditingState.surface === 'wysiwyg'
+              ? hasWysiwygDocumentChanged(flushedDocument, currentEditingState.draftDocument)
+              : currentEditingState.draftMarkdown !== flushedMarkdown
 
             return {
               editingState: {
                 ...currentEditingState,
+                baselineDocument: flushedDocument,
                 baselineMarkdown: flushedMarkdown,
+                draftDocument: hasUnflushedDraft ? currentEditingState.draftDocument : flushedDocument,
+                draftMarkdown: hasUnflushedDraft ? currentEditingState.draftMarkdown : flushedMarkdown,
                 dirty: hasUnflushedDraft,
                 error: null,
                 flushStatus: hasUnflushedDraft ? { status: 'debouncing' } : { status: 'idle' }
@@ -3001,5 +3061,16 @@ function selectRecentlyInsertedObjects(
 function shouldBlockEditingFlush(
   editingState: Exclude<CanvasStoreState['editingState'], { status: 'idle' }>
 ) {
-  return editingState.surface === 'wysiwyg' && hasUnclosedFencedBlock(editingState.draftMarkdown)
+  return editingState.surface === 'textarea' && hasUnclosedFencedBlock(editingState.draftMarkdown)
+}
+
+function hasWysiwygDocumentChanged(
+  baselineDocument: JSONContent | null,
+  draftDocument: JSONContent | null
+) {
+  return readWysiwygDocumentSnapshotKeyOrNull(baselineDocument) !== readWysiwygDocumentSnapshotKeyOrNull(draftDocument)
+}
+
+function readWysiwygDocumentSnapshotKeyOrNull(content: JSONContent | null) {
+  return content ? readWysiwygDocumentSnapshotKey(content) : null
 }

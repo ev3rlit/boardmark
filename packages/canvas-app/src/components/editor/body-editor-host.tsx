@@ -7,6 +7,7 @@ import {
   type RefObject
 } from 'react'
 import { createPortal } from 'react-dom'
+import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { FloatingToolbar } from '@canvas-app/components/editor/floating-toolbar'
 import { WysiwygEditorSurface } from '@canvas-app/components/editor/wysiwyg-editor-surface'
@@ -27,6 +28,7 @@ type BodyEditorHostProps = {
   onBlockModeChange: (mode: CanvasEditingBlockMode) => void
   onCancel: () => void
   onCommit: () => Promise<unknown>
+  onDocumentChange: (content: JSONContent) => void
   onInteractionChange: (interaction: CanvasEditingInteractionState) => void
   onMarkdownChange: (markdown: string) => void
   session: CanvasEditingSessionState
@@ -40,6 +42,7 @@ export function BodyEditorHost({
   onBlockModeChange,
   onCancel,
   onCommit,
+  onDocumentChange,
   onInteractionChange,
   onMarkdownChange,
   session,
@@ -140,13 +143,14 @@ export function BodyEditorHost({
           <WysiwygEditorSurface
             ariaLabel={ariaLabel}
             autoFocus={autoFocus}
+            documentContent={session.draftDocument}
             editable={editable}
             markdown={session.draftMarkdown}
+            onDocumentChange={onDocumentChange}
             onBlockModeChange={onBlockModeChange}
             onCancel={onCancel}
             onEditorChange={setToolbarEditor}
             onInteractionChange={onInteractionChange}
-            onMarkdownChange={onMarkdownChange}
           />
         </>
       ) : (

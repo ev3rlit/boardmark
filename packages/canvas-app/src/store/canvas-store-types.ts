@@ -1,4 +1,5 @@
 import type { StoreApi } from 'zustand'
+import type { JSONContent } from '@tiptap/core'
 import type {
   BuiltInImageResolution,
   CanvasEdge,
@@ -53,8 +54,10 @@ export type CanvasEditingBlockMode =
 export type CanvasEditingInteractionState = 'active' | 'inactive'
 
 export type CanvasEditingSessionState = {
+  baselineDocument: JSONContent | null
   baselineMarkdown: string
   blockMode: CanvasEditingBlockMode
+  draftDocument: JSONContent | null
   dirty: boolean
   draftMarkdown: string
   error: string | null
@@ -312,6 +315,7 @@ export type CanvasStoreState = {
   ungroupSelection: () => Promise<void>
   startObjectEditing: (nodeId: string) => void
   startEdgeEditing: (edgeId: string) => void
+  updateEditingDocument: (content: JSONContent) => void
   updateEditingMarkdown: (markdown: string) => void
   setEditingBlockMode: (blockMode: CanvasEditingBlockMode) => void
   setEditingInteraction: (interaction: CanvasEditingInteractionState) => void

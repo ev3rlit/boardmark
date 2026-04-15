@@ -716,6 +716,7 @@ function CanvasNoteNode({
   )
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
+  const updateEditingDocument = useStore(store, (state) => state.updateEditingDocument)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
@@ -797,6 +798,7 @@ function CanvasNoteNode({
             onBlockModeChange={setEditingBlockMode}
             onCancel={cancelInlineEditing}
             onCommit={() => commitInlineEditing()}
+            onDocumentChange={updateEditingDocument}
             onInteractionChange={setEditingInteraction}
             onMarkdownChange={updateEditingMarkdown}
             session={activeSession}
@@ -844,6 +846,7 @@ function CanvasComponentNode({
     (state) => readNodeEditingInteractionBlock(state.editingState, id)
   )
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
+  const updateEditingDocument = useStore(store, (state) => state.updateEditingDocument)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
@@ -918,6 +921,7 @@ function CanvasComponentNode({
               onBlockModeChange={setEditingBlockMode}
               onCancel={cancelInlineEditing}
               onCommit={() => commitInlineEditing()}
+              onDocumentChange={updateEditingDocument}
               onInteractionChange={setEditingInteraction}
               onMarkdownChange={updateEditingMarkdown}
               session={activeSession}
@@ -982,6 +986,7 @@ export function CanvasMarkdownEdge({
   )
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
+  const updateEditingDocument = useStore(store, (state) => state.updateEditingDocument)
   const updateEditingMarkdown = useStore(store, (state) => state.updateEditingMarkdown)
   const setEditingBlockMode = useStore(store, (state) => state.setEditingBlockMode)
   const setEditingInteraction = useStore(store, (state) => state.setEditingInteraction)
@@ -1036,6 +1041,7 @@ export function CanvasMarkdownEdge({
                 onBlockModeChange={setEditingBlockMode}
                 onCancel={cancelInlineEditing}
                 onCommit={() => commitInlineEditing()}
+                onDocumentChange={updateEditingDocument}
                 onInteractionChange={setEditingInteraction}
                 onMarkdownChange={updateEditingMarkdown}
                 session={activeSession}

@@ -10,7 +10,8 @@
 
 - preview와 edit가 분리되지 않는 seamless editing surface
 - note / edge / 향후 body-bearing object가 재사용하는 공용 host contract
-- markdown source patch pipeline과 계속 호환되는 round-trip
+- block-first editor session과 markdown import/export 경계 분리
+- markdown source patch pipeline과 계속 호환되는 canonical export commit
 - canvas pan/drag보다 text editing을 우선하는 interaction boundary
 - code block, table, special fenced block, HTML block fallback까지 포함한 block-local editing
 
@@ -47,7 +48,8 @@
 
 - 현재 구조에는 preview와 source patch pipeline이 이미 있다.
 - 부족한 것은 그 중간의 **shared editing surface와 richer session state**다.
-- 첫 구현은 source-of-truth를 바꿀 필요 없이, `editingState + scene host + markdown bridge`를 새로 도입하는 방향이 가장 안전하다.
+- 장기 방향은 WYSIWYG 세션의 source of truth를 block document로 옮기고, commit 시점에만 markdown export를 수행하는 것이다.
+- 따라서 `editingState + scene host + markdown bridge`는 markdown live-sync가 아니라 block-first session 경계로 설계해야 한다.
 
 ---
 
@@ -60,17 +62,25 @@
 
 ### 3.2 Markdown Bridge를 명시적으로 둔다
 
-- editor 내부 문서 모델과 markdown source patch를 바로 섞지 않는다.
-- editor state ↔ markdown fragment 변환은 별도 bridge 책임으로 둔다.
+- editor 내부 문서 모델과 markdown source patch를 직접 결합하지 않는다.
+- bridge는 live editing 중 truth를 들고 있지 않고, import/export 경계만 담당한다.
+- editor state ↔ markdown fragment 변환은 commit과 hydration 시점의 명시적 단계로 둔다.
 - 실패는 bridge에서 조용히 삼키지 않고 명시적으로 surface 한다.
 
-### 3.3 Preview Primitive 재사용
+### 3.3 Block-First 의미 체계를 고정한다
+
+- 일반 문단에서 `Enter`는 새 block이다.
+- `Shift+Enter`와 필요한 modifier shortcut만 hard break다.
+- 연속 empty paragraph를 spacing 수단으로 보존하려 하지 않는다.
+- 빈 줄의 시각적 리듬은 markdown token이 아니라 block layout 규칙으로 다룬다.
+
+### 3.4 Preview Primitive 재사용
 
 - `MarkdownContent`가 가진 preview primitive를 버리지 않는다.
 - code block style, table wrapper, `mermaid`, `sandpack` preview는 가능한 한 재사용한다.
 - 목표는 preview와 완전히 다른 WYSIWYG skin이 아니라 visual parity다.
 
-### 3.4 Session State를 정규화한다
+### 3.5 Session State를 정규화한다
 
 - 현재 `editingState.status`만으로는 rich text / special block / fallback / debouncing을 표현할 수 없다.
 - store는 최소한 다음을 식별할 수 있어야 한다.
@@ -81,15 +91,16 @@
   - debounce flush 상태
   - pending error / fallback 대상
 
-### 3.5 Canvas 명령은 Editor-Aware여야 한다
+### 3.6 Canvas 명령은 Editor-Aware여야 한다
 
 - WYSIWYG 도입 후에도 `editingState.status !== 'idle'` 수준의 단순 gating으로는 부족하다.
 - undo/redo/delete/zoom/pan shortcut은 editor-local 우선순위와 host-level 우선순위를 구분해야 한다.
 
-### 3.6 Replace-Body Intent는 유지한다
+### 3.7 Replace-Body Intent는 유지한다
 
 - 최종 source commit 경로는 계속 `replace-object-body` / `replace-edge-body`로 유지하는 편이 단순하다.
 - WYSIWYG가 도입되어도 첫 단계에서는 body 전체 fragment patch를 유지하고, block-local patch 최적화는 후속 단계로 둔다.
+- 다만 patch 입력은 live markdown string이 아니라 block document의 canonical markdown export 결과여야 한다.
 
 ---
 
@@ -207,20 +218,22 @@ flowchart TD
   - table cell editing, row/column insert, alignment, header toggle
   - `mermaid` / `sandpack` special block preview ↔ source toggle
   - `HTML block` fallback
-- markdown serialize 결과가 현재 repository가 읽을 수 있는 fragment인지 확인한다.
+- markdown serialize 결과가 현재 repository가 읽을 수 있는 canonical fragment인지 확인한다.
+- repeated empty paragraph, single newline, hard break 표기법 차이를 어디서 canonicalize할지 확인한다.
 - selection / IME / clipboard 기본 동작을 수동 검증한다.
 
 완료 기준:
 
 - Tiptap으로 note body subset을 구현 가능한지 예/아니오 수준 결론이 나온다.
 - 막히는 항목이 있으면 Tiptap extension으로 해결 가능한지, ProseMirror fallback이 필요한지 문서화된다.
+- block-first 의미 체계와 markdown import/export 호환 한계가 문서화된다.
 
 ### Phase 1. Host Boundary와 Store Contract 도입
 
 목표:
 
 - 현재 `textarea` 편집 경로를 공용 body editor host 뒤로 숨긴다.
-- editor framework 도입 전에도 경계가 먼저 고정되게 한다.
+- editor framework 도입 전에도 block-first session 경계가 먼저 고정되게 한다.
 
 작업:
 
@@ -230,11 +243,14 @@ flowchart TD
 - 최소 상태 추가
   - host target
   - mode
-  - markdown snapshot
+  - baseline block document snapshot
+  - current block document snapshot
+  - last exported markdown snapshot
   - dirty
   - flush status
   - active block-local mode
 - `commitInlineEditing`, `cancelInlineEditing`를 host 중심 action으로 재정의
+- hydration과 commit 사이의 markdown export 타이밍을 분리
 
 완료 기준:
 

@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useMemo } from 'react'
+import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import {
   matchesEscapeKey,
@@ -14,35 +15,40 @@ import { createWysiwygMarkdownBridge } from '@canvas-app/components/editor/wysiw
 type WysiwygEditorSurfaceProps = {
   ariaLabel: string
   autoFocus?: boolean
+  documentContent?: JSONContent | null
   editable?: boolean
   markdown: string
+  onDocumentChange: (content: JSONContent) => void
   onEditorChange?: (editor: Editor | null) => void
   onBlockModeChange: (mode: CanvasEditingBlockMode) => void
   onCancel: () => void
   onInteractionChange: (interaction: CanvasEditingInteractionState) => void
-  onMarkdownChange: (markdown: string) => void
 }
 
 export function WysiwygEditorSurface({
   ariaLabel,
   autoFocus = false,
+  documentContent = null,
   editable = true,
   markdown,
+  onDocumentChange,
   onEditorChange,
   onBlockModeChange,
   onCancel,
-  onInteractionChange,
-  onMarkdownChange
+  onInteractionChange
 }: WysiwygEditorSurfaceProps) {
   const bridge = useMemo(() => createWysiwygMarkdownBridge({
     onExitToHost: onCancel
   }), [onCancel])
+  const initialContent = useMemo(() => {
+    return documentContent ?? bridge.fromMarkdown(markdown)
+  }, [bridge, documentContent, markdown])
 
   const editor = useEditor({
     immediatelyRender: false,
     editable,
     extensions: bridge.extensions,
-    content: bridge.fromMarkdown(markdown),
+    content: initialContent,
     editorProps: {
       attributes: {
         'aria-label': ariaLabel,
@@ -75,7 +81,7 @@ export function WysiwygEditorSurface({
     },
     onUpdate({ editor: nextEditor }) {
       startTransition(() => {
-        onMarkdownChange(bridge.toMarkdown(nextEditor.getJSON()))
+        onDocumentChange(nextEditor.getJSON())
       })
     }
   })
@@ -85,10 +91,14 @@ export function WysiwygEditorSurface({
       return
     }
 
-    if (editor.getMarkdown() !== markdown) {
-      editor.commands.setContent(bridge.fromMarkdown(markdown))
+    const nextContent = documentContent ?? bridge.fromMarkdown(markdown)
+
+    if (!bridge.isDocumentEqual(editor.getJSON(), nextContent)) {
+      editor.commands.setContent(nextContent, {
+        emitUpdate: false
+      })
     }
-  }, [bridge, editor, markdown])
+  }, [bridge, documentContent, editor, markdown])
 
   useEffect(() => {
     if (!editor || !autoFocus) {
