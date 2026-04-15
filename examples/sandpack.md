@@ -514,7 +514,7 @@ body {
 
 :::
 
-::: note {"id":"tetris-layout-demo","at":{"x":-760,"y":420,"w":960,"h":760}}
+::: note {"id":"tetris-layout-demo","at":{"x":-760,"y":420,"w":976,"h":921}}
 
 # Tetris-like Dashboard Layout
 
