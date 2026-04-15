@@ -156,6 +156,7 @@ export function App({ store = defaultCanvasStore }: AppProps) {
       <CanvasApp
         store={store}
         capabilities={desktopCapabilities}
+        imageExportBridge={fallbackBridge.imageExports}
       />
     </MarkdownContentImageActionsProvider>
   )

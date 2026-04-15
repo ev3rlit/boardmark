@@ -96,20 +96,33 @@ export function readLockSelectionTargetIds(state: CanvasSelectionSnapshot): Canv
 }
 
 export function readUnlockedDocumentSelection(state: CanvasSelectionSnapshot): CanvasDocumentSelection {
-  const groupIds = readSelectedGroups(state)
-    .filter((group) => !group.locked)
-    .map((group) => group.id)
-  const nodeIds = readUnlockedNodeSelection(state)
+  return readDocumentSelection(state, { includeLocked: false })
+}
+
+export function readDocumentSelection(
+  state: CanvasSelectionSnapshot,
+  options: {
+    includeLocked: boolean
+  }
+): CanvasDocumentSelection {
+  const selectedGroups = readSelectedGroups(state)
+    .filter((group) => options.includeLocked || !group.locked)
+  const nodeIds = readDocumentSelectionNodeIds(state, selectedGroups, options.includeLocked)
   const selectedNodeIds = new Set(nodeIds)
-  const explicitlySelectedEdgeIds = state.selectedEdgeIds.filter((edgeId) => !isEdgeLocked(state, edgeId))
+  const explicitSelectedEdgeIds = [...new Set(state.selectedEdgeIds)]
+    .filter((edgeId) => options.includeLocked || !isEdgeLocked(state, edgeId))
   const relatedEdgeIds = state.edges
-    .filter((edge) => selectedNodeIds.has(edge.from) && selectedNodeIds.has(edge.to) && !isEdgeLocked(state, edge.id))
+    .filter((edge) =>
+      selectedNodeIds.has(edge.from) &&
+      selectedNodeIds.has(edge.to) &&
+      (options.includeLocked || !isEdgeLocked(state, edge.id))
+    )
     .map((edge) => edge.id)
 
   return {
-    groupIds,
+    groupIds: selectedGroups.map((group) => group.id),
     nodeIds,
-    edgeIds: [...new Set([...explicitlySelectedEdgeIds, ...relatedEdgeIds])]
+    edgeIds: [...new Set([...explicitSelectedEdgeIds, ...relatedEdgeIds])]
   }
 }
 
@@ -232,6 +245,19 @@ function readClipboardSelection(state: CanvasSelectionSnapshot, includeLocked: b
     nodeIds: selectedNodes.map((node) => node.id),
     edgeIds: selectedEdges.map((edge) => edge.id)
   }
+}
+
+function readDocumentSelectionNodeIds(
+  state: CanvasSelectionSnapshot,
+  selectedGroups: CanvasGroup[],
+  includeLocked: boolean
+) {
+  const nodeIds = [
+    ...state.selectedNodeIds,
+    ...selectedGroups.flatMap((group) => group.members.nodeIds)
+  ]
+
+  return [...new Set(nodeIds)].filter((nodeId) => includeLocked || !isNodeLocked(state, nodeId))
 }
 
 function readLockSelectionTargets(state: CanvasSelectionSnapshot) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
@@ -28,9 +28,17 @@ import {
 import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
 import {
   isEdgeLocked,
-  isNodeLocked
+  isNodeLocked,
+  readDocumentSelection
 } from '@canvas-app/store/canvas-object-selection'
+import type { CanvasImageExportBridge } from '@canvas-app/document/canvas-image-export-bridge'
+import { CanvasExportDialog } from '@canvas-app/components/context-menu/canvas-export-dialog'
 import { CanvasScene } from '@canvas-app/components/scene/canvas-scene'
+import {
+  exportCanvasSceneImage,
+  type CanvasExportFormat,
+  type CanvasExportScope
+} from '@canvas-app/components/scene/canvas-scene-export'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
 import { HistoryControls } from '@canvas-app/components/controls/history-controls'
 import { ObjectContextMenu } from '@canvas-app/components/context-menu/object-context-menu'
@@ -52,9 +60,10 @@ export type CanvasAppCapabilities = {
 type CanvasAppProps = {
   store: CanvasStore
   capabilities: CanvasAppCapabilities
+  imageExportBridge?: CanvasImageExportBridge
 }
 
-export function CanvasApp({ store, capabilities }: CanvasAppProps) {
+export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppProps) {
   const currentDocument = useStore(store, selectCanvasDocument)
   const createMarkdownImageAsset = useStore(store, (state) => state.createMarkdownImageAsset)
   const deleteSelection = useStore(store, (state) => state.deleteSelection)
@@ -109,6 +118,12 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null)
+  const [exportFormat, setExportFormat] = useState<CanvasExportFormat>('png')
+  const [exportScope, setExportScope] = useState<CanvasExportScope>('document')
+  const [isExporting, setIsExporting] = useState(false)
+  const exportRootRef = useRef<HTMLDivElement | null>(null)
   const {
     alignedObjectContextMenu,
     objectContextMenu,
@@ -217,6 +232,30 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     globalThis.document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => globalThis.document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
+
+  const exportSelection = useMemo(
+    () =>
+      readDocumentSelection({
+        edges,
+        groupSelectionState,
+        groups,
+        nodes,
+        selectedEdgeIds,
+        selectedGroupIds,
+        selectedNodeIds
+      }, {
+        includeLocked: true
+      }),
+    [edges, groupSelectionState, groups, nodes, selectedEdgeIds, selectedGroupIds, selectedNodeIds]
+  )
+  const canExportDocument = nodes.length + edges.length > 0
+  const canExportSelection = exportSelection.nodeIds.length + exportSelection.edgeIds.length > 0
+
+  useEffect(() => {
+    if (exportDialogOpen && exportScope === 'selection' && !canExportSelection) {
+      setExportScope('document')
+    }
+  }, [canExportSelection, exportDialogOpen, exportScope])
 
   const {
     dispatchCanvasInput,
@@ -354,6 +393,63 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
     selectedNode !== undefined &&
     !isNodeLocked({ groups, nodes }, selectedNode.id)
 
+  const openExportDialog = (origin: 'canvas' | 'selection') => {
+    setObjectContextMenu(null)
+    setExportErrorMessage(null)
+    setExportFormat('png')
+    setExportScope(origin === 'selection' && canExportSelection ? 'selection' : 'document')
+    setExportDialogOpen(true)
+  }
+
+  const closeExportDialog = () => {
+    if (isExporting) {
+      return
+    }
+
+    setExportDialogOpen(false)
+    setExportErrorMessage(null)
+  }
+
+  const runCanvasExport = async () => {
+    if (!exportRootRef.current) {
+      setExportErrorMessage('Canvas export root is not available.')
+      return
+    }
+
+    setIsExporting(true)
+    setExportErrorMessage(null)
+
+    try {
+      const outcome = await exportCanvasSceneImage({
+        format: exportFormat,
+        imageExportBridge,
+        rootElement: exportRootRef.current,
+        scope: exportScope,
+        state: {
+          edges,
+          groupSelectionState,
+          groups,
+          nodes,
+          selectedEdgeIds,
+          selectedGroupIds,
+          selectedNodeIds,
+          viewport
+        }
+      })
+
+      if (outcome.status === 'saved') {
+        setExportDialogOpen(false)
+        setExportErrorMessage(null)
+      }
+    } catch (error) {
+      setExportErrorMessage(
+        error instanceof Error ? error.message : 'Canvas export failed.'
+      )
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <ReactFlowProvider>
       <main
@@ -366,6 +462,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
         <CanvasScene
           dispatchCanvasInput={dispatchCanvasInput}
           dispatchCanvasInputAsync={dispatchCanvasInputAsync}
+          exportRootRef={exportRootRef}
           onObjectContextMenu={(input) => setObjectContextMenu({
             kind: 'selection',
             ...input
@@ -428,6 +525,7 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
             <div className="pointer-events-auto absolute inset-0 z-30">
               <ObjectContextMenu
                 mode={alignedObjectContextMenu.kind}
+                canExport={alignedObjectContextMenu.kind === 'canvas' ? canExportDocument : canExportSelection}
                 canEdit={canEditSelection}
                 canCopy={canCopySelection}
                 canCut={canCutSelection}
@@ -499,6 +597,9 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
                   setObjectContextMenu(null)
                   void duplicateSelection()
                 }}
+                onExport={() => {
+                  openExportDialog(alignedObjectContextMenu.kind)
+                }}
                 onEdit={() => {
                   setObjectContextMenu(null)
 
@@ -566,6 +667,19 @@ export function CanvasApp({ store, capabilities }: CanvasAppProps) {
               />
             </div>
           ) : null}
+
+          <CanvasExportDialog
+            canExportSelection={canExportSelection}
+            errorMessage={exportErrorMessage}
+            format={exportFormat}
+            isOpen={exportDialogOpen}
+            isSubmitting={isExporting}
+            onCancel={closeExportDialog}
+            onConfirm={() => void runCanvasExport()}
+            onFormatChange={setExportFormat}
+            onScopeChange={setExportScope}
+            scope={exportScope}
+          />
         </div>
       </main>
     </ReactFlowProvider>

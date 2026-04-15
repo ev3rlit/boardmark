@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -91,6 +91,7 @@ type CanvasSceneProps = {
     y: number
   }) => void
   pointerCapabilities: CanvasPointerCapabilities
+  exportRootRef?: MutableRefObject<HTMLDivElement | null>
   store: CanvasStore
   supportsMultiSelect?: boolean
 }
@@ -119,6 +120,7 @@ export function CanvasScene({
   dispatchCanvasInput = () => false,
   dispatchCanvasInputAsync = async () => false,
   pointerCapabilities = DEFAULT_POINTER_CAPABILITIES,
+  exportRootRef,
   store,
   supportsMultiSelect = false
 }: CanvasSceneProps) {
@@ -356,7 +358,13 @@ export function CanvasScene({
   return (
     <div
       className="h-full w-full"
-      ref={viewportRef}
+      ref={(element) => {
+        viewportRef.current = element
+
+        if (exportRootRef) {
+          exportRootRef.current = element
+        }
+      }}
     >
       <ReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>
         className={[

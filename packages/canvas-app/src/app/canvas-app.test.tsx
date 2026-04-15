@@ -381,6 +381,7 @@ describe('CanvasApp', () => {
     })
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export…' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeEnabled()
@@ -432,10 +433,87 @@ describe('CanvasApp', () => {
     })
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Export…' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Paste in place' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Select all' })).toBeEnabled()
     expect(screen.queryByRole('menuitem', { name: /Edit / })).not.toBeInTheDocument()
+  })
+
+  it('opens the export dialog from the selection context menu with selection scope preselected', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(noteText)
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Export…' }))
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Export Canvas' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^PNG/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Selection only/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Whole board/ })).not.toBeChecked()
+  })
+
+  it('allows switching export format and scope from the dialog', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(noteText)
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Export…' }))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByText('JPG'))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByText('Whole board'))
+    })
+
+    expect(screen.getByRole('radio', { name: /^JPG/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Whole board/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Selection only/ })).not.toBeChecked()
+  })
+
+  it('opens the export dialog from the canvas context menu with whole board preselected', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const { container } = await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(readFlowPane(container))
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Export…' }))
+    })
+
+    expect(screen.getByRole('dialog', { name: 'Export Canvas' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^Whole board/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Selection only/ })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /^JPG/ })).not.toBeChecked()
   })
 
   it('preserves multi-selection when opening the context menu from a selected object', async () => {

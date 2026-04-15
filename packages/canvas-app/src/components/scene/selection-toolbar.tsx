@@ -193,6 +193,7 @@ export function SelectionToolbar({
     >
       <div
         className="relative nodrag nopan"
+        data-boardmark-export-ignore="true"
         ref={popoverRef}
       >
         <div

@@ -53,7 +53,7 @@ export type DocumentService = {
     input: {
       bytes: Uint8Array
       fileName: string
-      mimeType: 'image/png'
+      mimeType: 'image/jpeg' | 'image/png'
     }
   ) => Promise<AsyncResult<void, { code: string; message: string }>>
   importImageAsset: (input: {

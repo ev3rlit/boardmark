@@ -3,6 +3,7 @@ import {
   BetweenHorizontalStart,
   CheckCheck,
   Copy,
+  Download,
   Group,
   Layers,
   Lock,
@@ -32,6 +33,7 @@ type ObjectContextMenuProps = {
   canSendToBack: boolean
   canSelectAll: boolean
   canUngroup: boolean
+  canExport: boolean
   imageActions?: {
     canReveal: boolean
     lockAspectRatioLabel: string
@@ -57,6 +59,7 @@ type ObjectContextMenuProps = {
   onSendToBack: () => void
   onSelectAll: () => void
   onUngroup: () => void
+  onExport: () => void
   canResetHeight?: boolean
   onResetHeight?: () => void
 }
@@ -80,6 +83,7 @@ export function ObjectContextMenu({
   canSendToBack,
   canSelectAll,
   canUngroup,
+  canExport,
   imageActions,
   lockLabel,
   canResetHeight,
@@ -98,12 +102,14 @@ export function ObjectContextMenu({
   onSendBackward,
   onSendToBack,
   onSelectAll,
-  onUngroup
+  onUngroup,
+  onExport
 }: ObjectContextMenuProps) {
   if (mode === 'canvas') {
     return (
       <div
         className="viewer-context-menu"
+        data-boardmark-export-ignore="true"
         role="menu"
         style={{
           left: x,
@@ -111,6 +117,12 @@ export function ObjectContextMenu({
         }}
       >
         <div className="viewer-context-menu-section">
+          <ContextMenuItem
+            disabled={!canExport}
+            icon={Download}
+            label="Export…"
+            onClick={onExport}
+          />
           <ContextMenuItem
             disabled={!canPaste}
             icon={BetweenHorizontalStart}
@@ -137,6 +149,7 @@ export function ObjectContextMenu({
   return (
     <div
       className="viewer-context-menu"
+      data-boardmark-export-ignore="true"
       role="menu"
       style={{
         left: x,
@@ -144,6 +157,12 @@ export function ObjectContextMenu({
       }}
     >
       <div className="viewer-context-menu-section">
+        <ContextMenuItem
+          disabled={!canExport}
+          icon={Download}
+          label="Export…"
+          onClick={onExport}
+        />
         <ContextMenuItem
           disabled={!canEdit}
           icon={Pencil}

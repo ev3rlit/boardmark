@@ -74,4 +74,30 @@ describe('document-service', () => {
     })
     expect(await readFile(targetPath)).toEqual(Buffer.from([137, 80, 78, 71]))
   })
+
+  it('saves exported JPG bytes through the desktop save dialog', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'boardmark-image-export-'))
+    const targetPath = join(directory, 'diagram.jpg')
+    const service = createDocumentService()
+
+    showSaveDialogMock.mockResolvedValue({
+      canceled: false,
+      filePath: targetPath.replace(/\.jpg$/, '')
+    })
+
+    const result = await service.saveExportedImage(
+      {} as never,
+      {
+        bytes: new Uint8Array([255, 216, 255, 224]),
+        fileName: 'diagram.jpg',
+        mimeType: 'image/jpeg'
+      }
+    )
+
+    expect(result).toEqual({
+      ok: true,
+      value: undefined
+    })
+    expect(await readFile(targetPath)).toEqual(Buffer.from([255, 216, 255, 224]))
+  })
 })
