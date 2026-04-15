@@ -2,12 +2,16 @@ import { useRef } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { NodeSelection } from '@tiptap/pm/state'
-import { MarkdownContent } from '@boardmark/ui'
+import {
+  composeSandpackSourceInput,
+  parseSandpackSource,
+  serializeSandpackSourceBody,
+  MarkdownContent
+} from '@boardmark/ui'
 import {
   requestPendingSourceEntry
 } from '@canvas-app/components/editor/caret-navigation/editor-navigation-plugin'
 import {
-  buildFencedMarkdown,
   buildRawFencedMarkdown,
   parseRawFencedMarkdown
 } from '@canvas-app/components/editor/wysiwyg-block-helpers'
@@ -30,17 +34,19 @@ export function SpecialFencedBlockView(
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const kind = String(props.node.attrs.kind ?? 'mermaid') as 'mermaid' | 'sandpack'
+  const openingFence = String(props.node.attrs.openingFence ?? `\`\`\`${kind}`)
   const source = String(props.node.attrs.source ?? '')
+  const closingFence = String(props.node.attrs.closingFence ?? '```')
   const rawMarkdown = buildRawFencedMarkdown({
-    openingFence: `\`\`\`${kind}`,
+    openingFence,
     source,
-    closingFence: '```'
+    closingFence
   })
 
   useAutoSizeTextarea(textareaRef, rawMarkdown)
   const { isEditing, setIsEditing } = useRawBlockEditingState({
     readCaretPosition({ caretPlacement }) {
-      return caretPlacement === 'end' ? rawMarkdown.length : `\`\`\`${kind}`.length
+      return caretPlacement === 'end' ? rawMarkdown.length : openingFence.length
     },
     props,
     textareaRef
@@ -98,7 +104,7 @@ export function SpecialFencedBlockView(
             requestRawBlockSourceEntry(props)
           }}
         >
-          <MarkdownContent content={buildFencedMarkdown(kind, source)} />
+          <MarkdownContent content={ensurePreviewMarkdown(rawMarkdown)} />
         </div>
       )}
     </NodeViewWrapper>
@@ -113,9 +119,15 @@ function updateSpecialBlockMarkdown(
   const language = readOpeningCodeFenceLanguage(parsedMarkdown.openingFence)
 
   if (language === 'mermaid' || language === 'sandpack') {
+    const normalizedSandpack = language === 'sandpack'
+      ? normalizeSandpackBlock(parsedMarkdown)
+      : parsedMarkdown
+
     props.updateAttributes({
+      closingFence: normalizedSandpack.closingFence,
       kind: language,
-      source: parsedMarkdown.source
+      openingFence: normalizedSandpack.openingFence,
+      source: normalizedSandpack.source
     })
     return
   }
@@ -128,9 +140,9 @@ function updateSpecialBlockMarkdown(
 
   props.editor.commands.command(({ tr }) => {
     tr.replaceRangeWith(
-      position,
-      position + props.node.nodeSize,
-      props.editor.schema.nodes.wysiwygCodeBlock.create({
+        position,
+        position + props.node.nodeSize,
+        props.editor.schema.nodes.wysiwygCodeBlock.create({
         openingFence: parsedMarkdown.openingFence,
         source: parsedMarkdown.source,
         closingFence: parsedMarkdown.closingFence
@@ -140,4 +152,51 @@ function updateSpecialBlockMarkdown(
     requestPendingSourceEntry(tr, position)
     return true
   })
+}
+
+function ensurePreviewMarkdown(markdown: string) {
+  return markdown.endsWith('\n') ? markdown : `${markdown}\n`
+}
+
+function normalizeSandpackBlock(parsedMarkdown: {
+  closingFence: string
+  openingFence: string
+  source: string
+}) {
+  const meta = readSandpackFenceMeta(parsedMarkdown.openingFence)
+
+  try {
+    const parsed = parseSandpackSource(
+      composeSandpackSourceInput({
+        source: parsedMarkdown.source,
+        meta
+      })
+    )
+
+    return {
+      closingFence: '````',
+      openingFence: '````sandpack',
+      source: serializeSandpackSourceBody(parsed.document)
+    }
+  } catch {
+    return parsedMarkdown
+  }
+}
+
+function readSandpackFenceMeta(openingFence: string) {
+  const trimmedFence = openingFence.trim()
+  const language = readOpeningCodeFenceLanguage(trimmedFence)
+
+  if (language !== 'sandpack') {
+    return undefined
+  }
+
+  const languageIndex = trimmedFence.indexOf(language)
+
+  if (languageIndex < 0) {
+    return undefined
+  }
+
+  const meta = trimmedFence.slice(languageIndex + language.length).trim()
+  return meta.length > 0 ? meta : undefined
 }

@@ -1,7 +1,7 @@
 import { lazy } from 'react'
 import type { ComponentType } from 'react'
 
-export type FencedBlockRenderer = ComponentType<{ source: string }>
+export type FencedBlockRenderer = ComponentType<{ meta?: string; source: string }>
 export type FencedBlockImageExportKind = 'mermaid'
 export type FencedBlockDescriptor = {
   imageExportKind?: FencedBlockImageExportKind

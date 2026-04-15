@@ -1,4 +1,4 @@
-const OPENING_CODE_BLOCK_PATTERN = /^```([A-Za-z0-9_-]+)?$/
+const OPENING_CODE_BLOCK_PATTERN = /^`{3,}([^\s`]+)?(?:\s+.*)?$/
 
 export function readFenceToken(line: string): '```' | '~~~' | null {
   if (line.startsWith('```')) {

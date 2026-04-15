@@ -9,8 +9,13 @@ import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import {
-  buildFencedMarkdown,
+  composeSandpackSourceInput,
+  parseSandpackSource,
+  serializeSandpackSourceBody
+} from '@boardmark/ui'
+import {
   buildRawFencedMarkdown,
+  parseRawFencedMarkdown,
   ensureTrailingNewline
 } from '@canvas-app/components/editor/wysiwyg-block-helpers'
 import {
@@ -28,6 +33,7 @@ import {
 type MarkdownCodeToken = {
   type: 'code'
   lang?: string
+  raw?: string
   text?: string
 } & Record<string, unknown>
 
@@ -676,7 +682,9 @@ const WysiwygCodeBlock = Node.create({
           const replacementNode = language === 'mermaid' || language === 'sandpack'
             ? specialNodeType?.create({
                 kind: language,
-                source: ''
+                ...(language === 'sandpack'
+                  ? createCanonicalSandpackBlockAttributes('')
+                  : createSpecialBlockAttributes(language, ''))
               })
             : this.type.create({
                 openingFence: `\`\`\`${language}`,
@@ -727,8 +735,14 @@ const WysiwygSpecialFencedBlock = Node.create({
       kind: {
         default: 'mermaid'
       },
+      openingFence: {
+        default: '```mermaid'
+      },
       source: {
         default: ''
+      },
+      closingFence: {
+        default: '```'
       }
     }
   },
@@ -746,13 +760,28 @@ const WysiwygSpecialFencedBlock = Node.create({
       return []
     }
 
+    const rawMarkdown = typeof codeToken.raw === 'string'
+      ? codeToken.raw
+      : buildRawFencedMarkdown({
+          openingFence: `\`\`\`${codeToken.lang}`,
+          source: codeToken.text ?? '',
+          closingFence: '```'
+        })
+    const parsedMarkdown = parseRawFencedMarkdown(rawMarkdown)
+
     return helpers.createNode('wysiwygSpecialFencedBlock', {
       kind: codeToken.lang,
-      source: codeToken.text ?? ''
+      ...(codeToken.lang === 'sandpack'
+        ? normalizeSandpackSpecialBlockAttributes(parsedMarkdown)
+        : createSpecialBlockAttributes(codeToken.lang, parsedMarkdown.source, parsedMarkdown.openingFence, parsedMarkdown.closingFence))
     })
   },
   renderMarkdown(node) {
-    return buildFencedMarkdown(node.attrs?.kind ?? 'mermaid', node.attrs?.source ?? '')
+    return buildRawFencedMarkdown({
+      openingFence: String(node.attrs?.openingFence ?? `\`\`\`${node.attrs?.kind ?? 'mermaid'}`),
+      source: String(node.attrs?.source ?? ''),
+      closingFence: String(node.attrs?.closingFence ?? '```')
+    })
   },
   addKeyboardShortcuts() {
     return {
@@ -778,7 +807,9 @@ const WysiwygSpecialFencedBlock = Node.create({
             $from.after(),
             this.type.create({
               kind,
-              source: ''
+              ...(kind === 'sandpack'
+                ? createCanonicalSandpackBlockAttributes('')
+                : createSpecialBlockAttributes(kind, ''))
             })
           )
           tr.setSelection(NodeSelection.create(tr.doc, insertPosition))
@@ -797,6 +828,73 @@ const WysiwygSpecialFencedBlock = Node.create({
     ))
   }
 })
+
+function createCanonicalSandpackBlockAttributes(source: string) {
+  return {
+    closingFence: '````',
+    openingFence: '````sandpack',
+    source
+  }
+}
+
+function createSpecialBlockAttributes(
+  kind: 'mermaid' | 'sandpack',
+  source: string,
+  openingFence = `\`\`\`${kind}`,
+  closingFence = '```'
+) {
+  return {
+    closingFence,
+    openingFence,
+    source
+  }
+}
+
+function normalizeSandpackSpecialBlockAttributes(parsedMarkdown: {
+  closingFence: string
+  openingFence: string
+  source: string
+}) {
+  const meta = readSandpackFenceMeta(parsedMarkdown.openingFence)
+
+  try {
+    const parsed = parseSandpackSource(
+      composeSandpackSourceInput({
+        source: parsedMarkdown.source,
+        meta
+      })
+    )
+
+    return createCanonicalSandpackBlockAttributes(
+      serializeSandpackSourceBody(parsed.document)
+    )
+  } catch {
+    return createSpecialBlockAttributes(
+      'sandpack',
+      parsedMarkdown.source,
+      parsedMarkdown.openingFence,
+      parsedMarkdown.closingFence
+    )
+  }
+}
+
+function readSandpackFenceMeta(openingFence: string) {
+  const trimmedFence = openingFence.trim()
+  const language = readOpeningCodeFenceLanguage(trimmedFence)
+
+  if (language !== 'sandpack') {
+    return undefined
+  }
+
+  const languageIndex = trimmedFence.indexOf(language)
+
+  if (languageIndex < 0) {
+    return undefined
+  }
+
+  const meta = trimmedFence.slice(languageIndex + language.length).trim()
+  return meta.length > 0 ? meta : undefined
+}
 
 const WysiwygHtmlFallbackBlock = Node.create({
   name: 'wysiwygHtmlFallbackBlock',

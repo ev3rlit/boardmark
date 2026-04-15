@@ -42,7 +42,10 @@ const defaultMarkdownComponents: Components = {
       if (Renderer) {
         return (
           <Suspense fallback={null}>
-            <Renderer source={block.source} />
+            <Renderer
+              meta={block.meta}
+              source={block.source}
+            />
           </Suspense>
         )
       }

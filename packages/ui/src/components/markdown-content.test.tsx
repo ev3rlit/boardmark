@@ -25,8 +25,13 @@ vi.mock('./mermaid-diagram', () => ({
 }))
 
 vi.mock('./sandpack-block', () => ({
-  SandpackBlock: ({ source }: { source: string }) => (
-    <div data-testid="sandpack-block">{source}</div>
+  SandpackBlock: ({ meta, source }: { meta?: string; source: string }) => (
+    <div
+      data-meta={meta}
+      data-testid="sandpack-block"
+    >
+      {source}
+    </div>
   )
 }))
 
@@ -529,6 +534,25 @@ console.log('preview')
 
     expect(await screen.findByTestId('sandpack-block')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
+  })
+
+  it('passes the outer sandpack info meta through to the sandpack renderer', async () => {
+    render(
+      <MarkdownContent
+        content={`\`\`\`\`sandpack {"template":"react","layout":"code"}
+\`\`\`App.js
+export default function App() {
+  return <button>Hello</button>
+}
+\`\`\`
+\`\`\`\``}
+      />
+    )
+
+    const sandpackBlock = await screen.findByTestId('sandpack-block')
+
+    expect(sandpackBlock).toHaveAttribute('data-meta', '{"template":"react","layout":"code"}')
+    expect(sandpackBlock.textContent).toContain('```App.js')
   })
 })
 

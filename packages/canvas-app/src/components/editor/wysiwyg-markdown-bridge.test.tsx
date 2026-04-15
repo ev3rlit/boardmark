@@ -110,6 +110,14 @@ const EXTRA_BLANK_LINE_MARKDOWN = `A
 
 
 B`
+const LEGACY_SANDPACK_MARKDOWN = `\`\`\`sandpack
+${JSON.stringify({
+  template: 'react',
+  files: {
+    'App.js': 'export default function App() {\n  return <button>Hello</button>\n}'
+  }
+}, null, 2)}
+\`\`\``
 const CODE_BLOCK_NBSP_MARKDOWN = `\`\`\`bash
 # cmd
 \`\`\`
@@ -146,6 +154,16 @@ describe('WysiwygMarkdownBridge', () => {
     expect(bridge.roundTrip(TABLE_AND_BLOCKS_MARKDOWN)).toContain('```mermaid')
     expect(bridge.roundTrip(TABLE_AND_BLOCKS_MARKDOWN)).toContain('<div class="boardmark-html-fallback">raw</div>')
     expect(bridge.roundTrip(TABLE_AND_BLOCKS_MARKDOWN)).toMatch(/\|\s*Capability\s*\|\s*Status\s*\|\s*Notes\s*\|/)
+  })
+
+  it('canonicalizes legacy JSON sandpack blocks into the nested fenced write format', () => {
+    const bridge = createWysiwygMarkdownBridge()
+    const roundTripped = bridge.roundTrip(LEGACY_SANDPACK_MARKDOWN)
+
+    expect(roundTripped).toContain('````sandpack')
+    expect(roundTripped).toContain('"template": "react"')
+    expect(roundTripped).toContain('```App.js')
+    expect(roundTripped).not.toContain('template: react')
   })
 
   it('normalizes trailing ::: out of list and blockquote children', () => {

@@ -14,6 +14,21 @@ export {
   type FencedBlockImageExportRequest,
   type FencedBlockImageExportResult
 } from './components/fenced-block/image-export'
+export {
+  composeSandpackSourceInput,
+  parseSandpackSource
+} from './components/fenced-block/sandpack-source-parser-registry'
+export {
+  serializeSandpackSource,
+  serializeSandpackSourceBody
+} from './components/fenced-block/sandpack-source-serializer-registry'
+export type {
+  SandpackDocument,
+  SandpackFile,
+  SandpackLayoutMode,
+  SandpackParseResult,
+  SandpackSourceFormat
+} from './components/fenced-block/sandpack-source-types'
 export type { CodeLanguageId, CodeThemeId } from './code-highlight'
 export {
   highlightCodeBlock,

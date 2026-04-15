@@ -304,6 +304,34 @@ assetPolicy: document-adjacent
     )
   })
 
+  it('parses directive headers when metadata uses JSON-string keys', () => {
+    const source = `---
+type: canvas
+version: 2
+---
+
+::: note {"id":"json-note","at":{"x":24,"y":32,"w":320,"h":220},"z":3}
+JSON header
+:::`
+
+    const result = parseCanvasDocument(source)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.ast.nodes[0]).toEqual(
+      expect.objectContaining({
+        id: 'json-note',
+        at: { x: 24, y: 32, w: 320, h: 220 },
+        z: 3
+      })
+    )
+    expect(result.value.issues).toEqual([])
+  })
+
   it('rejects image nodes with body content', () => {
     const source = `---
 type: canvas

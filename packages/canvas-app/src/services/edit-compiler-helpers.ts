@@ -1,5 +1,8 @@
-import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
+import {
+  parseObjectHeader,
+  stringifyObjectHeader
+} from '@boardmark/canvas-parser'
 import type { CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import type {
   CanvasDirectiveSourceMap,
@@ -183,18 +186,18 @@ export function parseDirectiveHeader(openingLine: string): Result<ParsedDirectiv
   }
 
   try {
-    const metadata = load(match[3])
+    const parseResult = parseObjectHeader(match[3])
 
-    if (!isRecord(metadata)) {
+    if (parseResult.isErr()) {
       return err({
         kind: 'invalid-patch',
-        message: `Directive opening line must contain a metadata object: "${openingLine}".`
+        message: parseResult.error
       })
     }
 
     return ok({
       name: match[2],
-      metadata
+      metadata: parseResult.value.value
     })
   } catch (error) {
     return err({
@@ -212,7 +215,7 @@ export function stringifyDirectiveHeader(name: string, metadata: Record<string, 
     return `::: ${name}`
   }
 
-  return `::: ${name} ${serializeInlineObject(orderedMetadata)}`
+  return `::: ${name} ${stringifyObjectHeader(orderedMetadata)}`
 }
 
 export function buildPatchedDirectiveHeaderLine(
@@ -683,40 +686,6 @@ function orderMetadata(name: string, metadata: Record<string, unknown>) {
   }
 
   return ordered
-}
-
-function serializeInlineObject(value: Record<string, unknown>): string {
-  return `{ ${Object.entries(value)
-    .map(([key, entry]) => `${key}: ${serializeInlineValue(entry)}`)
-    .join(', ')} }`
-}
-
-function serializeInlineValue(value: unknown): string {
-  if (typeof value === 'string') {
-    return isBareString(value) ? value : JSON.stringify(value)
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  if (value === null) {
-    return 'null'
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => serializeInlineValue(entry)).join(', ')}]`
-  }
-
-  if (isRecord(value)) {
-    return serializeInlineObject(value)
-  }
-
-  return JSON.stringify(value)
-}
-
-function isBareString(value: string) {
-  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value)
 }
 
 function countLineBreaks(value: string) {

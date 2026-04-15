@@ -49,7 +49,7 @@ describe('canvas edit compiler helpers', () => {
       return
     }
 
-    expect(result.value).toBe('::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 8 }')
+    expect(result.value).toBe('::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220},"z":8}')
   })
 
   it('creates body replacement edits with body anchors', () => {

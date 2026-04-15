@@ -71,7 +71,7 @@ describe('canvas editing service', () => {
     })
     expect(outcome.status).toBe('updated')
     context = updateContext(context, outcome)
-    expect(context.draftSource).toContain('::: note { id: welcome, at: { x: 90, y: 72, w: 320, h: 220 }, z: 2 }')
+    expect(context.draftSource).toContain('::: note {"id":"welcome","at":{"x":90,"y":72,"w":320,"h":220},"z":2}')
 
     outcome = await editingService.applyIntent(context, {
       kind: 'arrange-objects',
@@ -82,8 +82,8 @@ describe('canvas editing service', () => {
     })
     expect(outcome.status).toBe('updated')
     context = updateContext(context, outcome)
-    expect(context.draftSource).toContain('::: group { id: ideation-group, z: 104 }')
-    expect(context.draftSource).toContain('::: edge { id: welcome-overview, from: welcome, to: overview, z: 204 }')
+    expect(context.draftSource).toContain('::: group {"id":"ideation-group","z":104}')
+    expect(context.draftSource).toContain('::: edge {"id":"welcome-overview","from":"welcome","to":"overview","z":204}')
 
     outcome = await editingService.applyIntent(context, {
       kind: 'set-objects-locked',
@@ -94,7 +94,7 @@ describe('canvas editing service', () => {
     })
     expect(outcome.status).toBe('updated')
     context = updateContext(context, outcome)
-    expect(context.draftSource).toContain('locked: true')
+    expect(context.draftSource).toContain('"locked":true')
 
     outcome = await editingService.applyIntent(context, {
       kind: 'delete-objects',
@@ -150,7 +150,7 @@ describe('canvas editing service', () => {
             ),
             lineDeltaBehavior: 'preserve',
             range: welcome.sourceMap.headerLineRange,
-            replacement: '::: note { id: welcome, at: { x: 160, y: 72, w: 320, h: 220 }, z: 2 }',
+            replacement: '::: note {"id":"welcome","at":{"x":160,"y":72,"w":320,"h":220},"z":2}',
             structuralImpact: 'none'
           }
         ],
@@ -173,7 +173,7 @@ describe('canvas editing service', () => {
     }
 
     expect(outcome.record.source).toContain('Alpha\nBeta\nGamma\n:::')
-    expect(outcome.record.source).toContain('x: 160')
+    expect(outcome.record.source).toContain('"x":160')
   })
 
   it('blocks stale-anchor transactions before partial source is committed', async () => {
@@ -198,7 +198,7 @@ describe('canvas editing service', () => {
             expectedSource: 'not-the-current-header',
             lineDeltaBehavior: 'preserve',
             range: welcome.sourceMap.headerLineRange,
-            replacement: '::: note { id: welcome, at: { x: 100, y: 72, w: 320, h: 220 }, z: 2 }',
+            replacement: '::: note {"id":"welcome","at":{"x":100,"y":72,"w":320,"h":220},"z":2}',
             structuralImpact: 'none'
           }
         ],

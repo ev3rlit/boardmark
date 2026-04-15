@@ -1,5 +1,6 @@
 import { load } from 'js-yaml'
 import { err, ok, type Result } from 'neverthrow'
+import { parseObjectHeader } from './object-header'
 import {
   DEFAULT_CANVAS_VIEWPORT,
   normalizeCanvasColorHex,
@@ -141,6 +142,8 @@ export function parseCanvasDocument(
     issues
   })
 }
+
+export { parseJsonObjectHeader, parseObjectHeader, stringifyObjectHeader } from './object-header'
 
 function parseFrontmatter(
   source: string
@@ -625,16 +628,13 @@ function parseInlineMetadata(
     return ok({})
   }
 
-  const parsedResult = parseYamlMapping(
-    source,
-    'Directive metadata must be a single inline object.'
-  )
+  const parsedResult = parseObjectHeader(source)
 
   if (parsedResult.isErr()) {
-    return err(parsedResult.error.message)
+    return err(parsedResult.error)
   }
 
-  return ok(parsedResult.value)
+  return ok(parsedResult.value.value)
 }
 
 function parseYamlMapping(
