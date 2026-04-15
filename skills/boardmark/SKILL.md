@@ -41,7 +41,7 @@ viewport:
   zoom: 1
 ---
 
-::: note { id: intro, at: { x: 0, y: 0, w: 420, h: 280 } }
+::: note {"id":"intro","at":{"x":0,"y":0,"w":420,"h":280}}
 
 Hello Boardmark
 
@@ -53,8 +53,12 @@ Hello Boardmark
 Boardmark objects start with a header line like this:
 
 ```md
-::: object-type { key: value, key2: value2 }
+::: object-type {"key":"value","key2":"value2"}
 ```
+
+Canonical write format uses JSON object syntax in the header.
+
+Legacy unquoted-key headers may still parse, but when authoring new content prefer JSON keys and JSON string values.
 
 Common object types:
 - `note`
@@ -71,7 +75,7 @@ Common header fields:
 Put normal markdown inside a `note` block.
 
 ````md
-::: note { id: idea, at: { x: 120, y: 80, w: 520, h: 320 } }
+::: note {"id":"idea","at":{"x":120,"y":80,"w":520,"h":320}}
 
 ## Idea
 
@@ -86,7 +90,7 @@ Put normal markdown inside a `note` block.
 Use `edge` blocks to connect notes.
 
 ````md
-::: edge { id: a-b, from: note-a, to: note-b }
+::: edge {"id":"a-b","from":"note-a","to":"note-b"}
 Review flow
 :::
 ````
@@ -96,7 +100,7 @@ Review flow
 Mermaid is written inside a note body as a fenced block with language `mermaid`.
 
 ````md
-::: note { id: flow, at: { x: -300, y: -120, w: 520, h: 360 } }
+::: note {"id":"flow","at":{"x":-300,"y":-120,"w":520,"h":360}}
 
 # Flow
 
@@ -123,35 +127,62 @@ Supported Mermaid families to mention when useful:
 
 Sandpack is written inside a note body as a fenced block with language `sandpack`.
 
-The block body must be JSON.
+Canonical sandpack syntax uses:
+- an outer `sandpack` fenced block with 4 backticks
+- an optional JSON options object
+- one or more inner file fenced blocks with 3 backticks
+
+Prefer this format for new content.
 
 ````md
-::: note { id: react-demo, at: { x: -120, y: 80, w: 700, h: 500 } }
+::: note {"id":"react-demo","at":{"x":-120,"y":80,"w":700,"h":500}}
 
 # Live Demo
 
-```sandpack
+````sandpack
 {
   "template": "react",
-  "files": {
-    "App.js": "export default function App() { return <button>Hello</button>; }"
+  "dependencies": {
+    "lucide-react": "^0.511.0"
   }
 }
+
+```App.js
+import { Sparkles } from "lucide-react";
+
+export default function App() {
+  return (
+    <button style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+      <Sparkles size={16} />
+      Hello
+    </button>
+  );
+}
 ```
+````
 
 :::
 ````
 
 Useful Sandpack fields:
 - `template`
-- `files`
 - `dependencies`
-- `options`
+- `layout`
+- `readOnly`
+
+If `layout` is omitted, preview is the default.
+
+When authoring UI demos in sandpack:
+- there is usually no need to set a minimum height
+- let the content determine its own height unless a full-viewport interaction is truly required
+- note height already constrains the visible preview area, so extra forced minimum height is usually unnecessary
 
 ## Guidance
 
 When helping:
 - prefer complete `note` blocks over isolated inner snippets
 - keep Mermaid and Sandpack blocks inside note bodies
+- prefer JSON object headers for `note`, `edge`, and other object blocks
+- prefer nested fenced sandpack syntax over legacy JSON-body sandpack blocks
 - preserve plain markdown as the source of truth
 - keep explanations short unless the user asks for more
