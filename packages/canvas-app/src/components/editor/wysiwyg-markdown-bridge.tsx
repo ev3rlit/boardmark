@@ -40,9 +40,72 @@ type MarkdownHtmlToken = {
 const CODE_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-code-block'
 const SPECIAL_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-special-block'
 const HTML_BLOCK_DATA_ATTRIBUTE = 'data-canvas-wysiwyg-html-block'
+const HTML_BREAK_SENTINEL = 'BOARDMARKHTMLBREAKTOKEN'
+const EMPTY_PARAGRAPH_MARKDOWN = '&nbsp;'
+const NBSP_CHAR = '\u00A0'
 const WysiwygInlineCode = Code.extend({
   priority: 90,
   excludes: ''
+})
+const WysiwygParagraph = Node.create({
+  name: 'paragraph',
+  priority: 1000,
+  group: 'block',
+  content: 'inline*',
+  addOptions() {
+    return {
+      HTMLAttributes: {}
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'p' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['p', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+  },
+  parseMarkdown(token, helpers) {
+    const paragraphToken = token as { tokens?: Array<Record<string, unknown>> }
+    const tokens = paragraphToken.tokens ?? []
+
+    if (tokens.length === 1 && tokens[0]?.type === 'image') {
+      return helpers.parseChildren([tokens[0]])
+    }
+
+    const content = helpers.parseInline(tokens)
+    const hasExplicitEmptyParagraphMarker =
+      tokens.length === 1
+      && tokens[0]?.type === 'text'
+      && (
+        tokens[0]?.raw === EMPTY_PARAGRAPH_MARKDOWN
+        || tokens[0]?.text === EMPTY_PARAGRAPH_MARKDOWN
+        || tokens[0]?.raw === NBSP_CHAR
+        || tokens[0]?.text === NBSP_CHAR
+      )
+
+    if (
+      hasExplicitEmptyParagraphMarker
+      && content.length === 1
+      && content[0]?.type === 'text'
+      && (content[0]?.text === EMPTY_PARAGRAPH_MARKDOWN || content[0]?.text === NBSP_CHAR)
+    ) {
+      return helpers.createNode('paragraph', undefined, [])
+    }
+
+    return helpers.createNode('paragraph', undefined, content)
+  },
+  renderMarkdown(node, helpers) {
+    if (!node) {
+      return ''
+    }
+
+    const content = Array.isArray(node.content) ? node.content : []
+
+    if (content.length === 0) {
+      return ''
+    }
+
+    return helpers.renderChildren(content)
+  }
 })
 const WysiwygHardBreak = Node.create({
   name: 'hardBreak',
@@ -67,7 +130,7 @@ const WysiwygHardBreak = Node.create({
     return '\n'
   },
   renderMarkdown() {
-    return '\n'
+    return '<br>'
   },
   parseMarkdown() {
     return {
@@ -125,6 +188,8 @@ type WysiwygMarkdownBridgeCallbacks = {
 export type WysiwygMarkdownBridge = {
   extensions: AnyExtension[]
   fromMarkdown: (markdown: string) => JSONContent
+  isDocumentEqual: (left: JSONContent, right: JSONContent) => boolean
+  readDocumentSnapshotKey: (content: JSONContent) => string
   roundTrip: (markdown: string) => string
   toMarkdown: (content: JSONContent) => string
 }
@@ -144,26 +209,25 @@ export function createWysiwygMarkdownBridge(
   return {
     extensions,
     fromMarkdown(markdown) {
-      const normalizedMarkdown = normalizeDirectiveEndingBoundaries(markdown)
-      const preparedMarkdown = preserveExtraBlankLinesForWysiwyg(normalizedMarkdown)
-
-      return normalizeSoftLineBreaksInContent(
-        normalizeBlankPlaceholderParagraphsInContent(
-          manager.parse(preparedMarkdown.markdown),
-          preparedMarkdown.placeholder
-        )
-      )
+      return parseMarkdownForWysiwyg(manager, markdown)
+    },
+    isDocumentEqual(left, right) {
+      return readWysiwygDocumentSnapshotKey(left) === readWysiwygDocumentSnapshotKey(right)
+    },
+    readDocumentSnapshotKey(content) {
+      return readWysiwygDocumentSnapshotKey(content)
     },
     toMarkdown(content) {
-      return normalizeDirectiveEndingBoundaries(
-        manager.serialize(normalizeInlineMarkOrderInContent(content))
-      )
+      return serializeMarkdownForWysiwyg(manager, content)
     },
     roundTrip(markdown) {
-      return normalizeDirectiveEndingBoundaries(
-        manager.serialize(
-          normalizeInlineMarkOrderInContent(
-            manager.parse(normalizeDirectiveEndingBoundaries(markdown))
+      return serializeMarkdownForWysiwyg(
+        manager,
+        normalizeExplicitHardBreaksInContent(
+          manager.parse(
+            normalizeSoftHtmlBreaksForWysiwyg(
+              normalizeDirectiveEndingBoundaries(markdown)
+            )
           )
         )
       )
@@ -188,8 +252,10 @@ export function createWysiwygExtensions(
       hardBreak: false,
       horizontalRule: false,
       link: false,
+      paragraph: false,
       strike: false
     }),
+    WysiwygParagraph,
     WysiwygInlineCode,
     WysiwygHardBreak,
     Link.configure({
@@ -239,6 +305,10 @@ export function createTransientWysiwygEditor(markdown: string) {
   })
 }
 
+export function readWysiwygDocumentSnapshotKey(content: JSONContent) {
+  return JSON.stringify(content)
+}
+
 function normalizeDirectiveEndingBoundaries(markdown: string) {
   const normalized = markdown.replace(/\r\n/g, '\n')
   const lines = normalized.split('\n')
@@ -268,140 +338,88 @@ function normalizeDirectiveEndingBoundaries(markdown: string) {
   return lines.join('\n')
 }
 
-function isWrappedDirectiveEndingLine(line: string) {
-  return /^[ \t]*(?:(?:>\s*)|(?:(?:[-+*]|\d+[.)])\s+))+:::\s*$/.test(line)
-}
-
-function preserveExtraBlankLinesForWysiwyg(markdown: string): {
-  markdown: string
-  placeholder: string | null
-} {
-  const lines = markdown.split('\n')
-  const placeholder = createBlankParagraphPlaceholder(markdown)
+function normalizeSoftHtmlBreaksForWysiwyg(markdown: string) {
+  const normalized = markdown.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
   const output: string[] = []
-  let blankLineCount = 0
   let fenceMarker: '```' | '~~~' | null = null
-  let insertedPlaceholder = false
-
-  const flushBlankLines = (nextLineHasContent: boolean) => {
-    if (blankLineCount === 0) {
-      return
-    }
-
-    if (fenceMarker !== null || output.length === 0 || !nextLineHasContent) {
-      for (let index = 0; index < blankLineCount; index += 1) {
-        output.push('')
-      }
-      blankLineCount = 0
-      return
-    }
-
-    output.push('')
-
-    const extraParagraphCount = Math.ceil((blankLineCount - 1) / 2)
-
-    for (let index = 0; index < extraParagraphCount; index += 1) {
-      output.push(placeholder)
-      output.push('')
-      insertedPlaceholder = true
-    }
-
-    blankLineCount = 0
-  }
 
   for (const line of lines) {
     const fenceToken = readFenceToken(line)
 
     if (fenceToken !== null) {
-      flushBlankLines(true)
       fenceMarker = fenceMarker === fenceToken ? null : fenceToken
       output.push(line)
       continue
     }
 
-    if (line.trim().length === 0) {
-      blankLineCount += 1
+    if (fenceMarker !== null || !line.includes('<br')) {
+      output.push(line)
       continue
     }
 
-    flushBlankLines(true)
-    output.push(line)
-  }
+    const lineWithoutBreaks = line.replace(/<br\s*\/?>/gi, '')
 
-  flushBlankLines(false)
-
-  return {
-    markdown: output.join('\n'),
-    placeholder: insertedPlaceholder ? placeholder : null
-  }
-}
-
-function createBlankParagraphPlaceholder(markdown: string) {
-  const basePlaceholder = 'BOARDMARKEMPTYPARAGRAPHTOKEN'
-  let placeholder = basePlaceholder
-  let suffix = 1
-
-  while (markdown.includes(placeholder)) {
-    placeholder = `${basePlaceholder}_${suffix}`
-    suffix += 1
-  }
-
-  return placeholder
-}
-
-function normalizeBlankPlaceholderParagraphsInContent(
-  content: JSONContent,
-  placeholder: string | null
-): JSONContent {
-  if (placeholder === null) {
-    return content
-  }
-
-  return normalizeBlankPlaceholderParagraphInNode(content, placeholder)
-}
-
-function normalizeBlankPlaceholderParagraphInNode(
-  node: JSONContent,
-  placeholder: string
-): JSONContent {
-  if (isBlankPlaceholderParagraph(node, placeholder)) {
-    return {
-      ...node,
-      content: undefined
+    if (lineWithoutBreaks.includes('<') || lineWithoutBreaks.includes('>')) {
+      output.push(line)
+      continue
     }
+
+    output.push(line.replace(/<br\s*\/?>/gi, HTML_BREAK_SENTINEL))
   }
 
-  if (!node.content) {
-    return node
-  }
+  return output.join('\n')
+}
 
-  return {
-    ...node,
-    content: node.content.map((child) =>
-      normalizeBlankPlaceholderParagraphInNode(child, placeholder)
+function parseMarkdownForWysiwyg(manager: MarkdownManager, markdown: string) {
+  const normalizedMarkdown = normalizeSoftHtmlBreaksForWysiwyg(
+    normalizeDirectiveEndingBoundaries(markdown)
+  )
+
+  return normalizeLegacySoftLineBreaksInContent(
+    normalizeExplicitHardBreaksInContent(
+      manager.parse(normalizedMarkdown)
     )
-  }
+  )
 }
 
-function isBlankPlaceholderParagraph(node: JSONContent, placeholder: string) {
-  if (node.type !== 'paragraph' || node.content?.length !== 1) {
-    return false
-  }
-
-  const [child] = node.content
-
-  return child?.type === 'text' && child.text === placeholder && !child.marks?.length
+function serializeMarkdownForWysiwyg(manager: MarkdownManager, content: JSONContent) {
+  return normalizeDirectiveEndingBoundaries(
+    manager.serialize(
+      normalizeEmptyParagraphsInContent(
+        normalizeInlineMarkOrderInContent(content)
+      )
+    )
+  )
 }
 
-function normalizeSoftLineBreaksInContent(content: JSONContent): JSONContent {
+function isWrappedDirectiveEndingLine(line: string) {
+  return /^[ \t]*(?:(?:>\s*)|(?:(?:[-+*]|\d+[.)])\s+))+:::\s*$/.test(line)
+}
+
+function normalizeLegacySoftLineBreaksInContent(content: JSONContent): JSONContent {
   return {
     ...content,
-    content: normalizeSoftLineBreaksInNodes(content.content)
+    content: normalizeLegacySoftLineBreaksInNodes(content.content)
+  }
+}
+
+function normalizeExplicitHardBreaksInContent(content: JSONContent): JSONContent {
+  return {
+    ...content,
+    content: normalizeExplicitHardBreaksInNodes(content.content)
   }
 }
 
 function normalizeInlineMarkOrderInContent(content: JSONContent): JSONContent {
   return normalizeInlineMarkOrderInNode(content)
+}
+
+function normalizeEmptyParagraphsInContent(content: JSONContent): JSONContent {
+  return {
+    ...content,
+    content: normalizeTopLevelEmptyParagraphs(content.content)
+  }
 }
 
 function normalizeInlineMarkOrderInNode(node: JSONContent): JSONContent {
@@ -420,6 +438,34 @@ function normalizeInlineMarkOrderInNodes(
   }
 
   return nodes.map((node) => normalizeInlineMarkOrderInNode(node))
+}
+
+function normalizeTopLevelEmptyParagraphs(
+  nodes: JSONContent[] | undefined
+): JSONContent[] | undefined {
+  if (!nodes) {
+    return nodes
+  }
+
+  const normalizedNodes = nodes.filter((node) => {
+    if (node.type !== 'paragraph') {
+      return true
+    }
+
+    return hasRenderableParagraphContent(node)
+  })
+
+  return normalizedNodes.length > 0 ? normalizedNodes : undefined
+}
+
+function hasRenderableParagraphContent(node: JSONContent) {
+  return (node.content ?? []).some((child) => {
+    if (child.type === 'hardBreak') {
+      return true
+    }
+
+    return child.type !== 'text' || typeof child.text !== 'string' || child.text.length > 0
+  })
 }
 
 function normalizeInlineMarkOrderInMarks(
@@ -442,7 +488,7 @@ function normalizeInlineMarkOrderInMarks(
   })
 }
 
-function normalizeSoftLineBreaksInNodes(
+function normalizeLegacySoftLineBreaksInNodes(
   nodes: JSONContent[] | undefined
 ): JSONContent[] | undefined {
   if (!nodes) {
@@ -452,7 +498,7 @@ function normalizeSoftLineBreaksInNodes(
   const normalizedNodes: JSONContent[] = []
 
   for (const node of nodes) {
-    const expandedNode = expandSoftLineBreaksInNode(node)
+    const expandedNode = normalizeLegacySoftLineBreaksInNode(node)
 
     if (Array.isArray(expandedNode)) {
       normalizedNodes.push(...expandedNode)
@@ -465,9 +511,41 @@ function normalizeSoftLineBreaksInNodes(
   return normalizedNodes
 }
 
-function expandSoftLineBreaksInNode(node: JSONContent): JSONContent | JSONContent[] {
-  if (node.type === 'text' && typeof node.text === 'string' && node.text.includes('\n')) {
-    return splitTextNodeOnSoftLineBreaks(node)
+function normalizeExplicitHardBreaksInNodes(
+  nodes: JSONContent[] | undefined
+): JSONContent[] | undefined {
+  if (!nodes) {
+    return nodes
+  }
+
+  const normalizedNodes: JSONContent[] = []
+
+  for (const node of nodes) {
+    const normalizedNode = normalizeExplicitHardBreaksInNode(node)
+
+    if (Array.isArray(normalizedNode)) {
+      normalizedNodes.push(...normalizedNode)
+      continue
+    }
+
+    normalizedNodes.push(normalizedNode)
+  }
+
+  return normalizedNodes
+}
+
+function normalizeLegacySoftLineBreaksInNode(node: JSONContent): JSONContent | JSONContent[] {
+  if (
+    node.type === 'text'
+    && typeof node.text === 'string'
+    && node.text.includes('\n')
+  ) {
+    return [
+      {
+        ...node,
+        text: node.text.replace(/\n/g, ' ')
+      }
+    ]
   }
 
   if (!node.content) {
@@ -476,31 +554,47 @@ function expandSoftLineBreaksInNode(node: JSONContent): JSONContent | JSONConten
 
   return {
     ...node,
-    content: normalizeSoftLineBreaksInNodes(node.content)
+    content: normalizeLegacySoftLineBreaksInNodes(node.content)
   }
 }
 
-function splitTextNodeOnSoftLineBreaks(node: JSONContent): JSONContent[] {
-  const text = typeof node.text === 'string' ? node.text : ''
-  const segments = text.split('\n')
-  const normalizedNodes: JSONContent[] = []
+function normalizeExplicitHardBreaksInNode(node: JSONContent): JSONContent | JSONContent[] {
+  if (
+    node.type === 'text'
+    && typeof node.text === 'string'
+    && node.text.includes(HTML_BREAK_SENTINEL)
+  ) {
+    const segments = node.text.split(HTML_BREAK_SENTINEL)
+    const normalizedNodes: JSONContent[] = []
 
-  segments.forEach((segment, index) => {
-    if (segment.length > 0) {
-      normalizedNodes.push({
-        ...node,
-        text: segment
-      })
-    }
+    segments.forEach((segment, index) => {
+      const normalizedSegment = segment.replace(/^\n/, '')
 
-    if (index < segments.length - 1) {
-      normalizedNodes.push({
-        type: 'hardBreak'
-      })
-    }
-  })
+      if (normalizedSegment.length > 0) {
+        normalizedNodes.push({
+          ...node,
+          text: normalizedSegment
+        })
+      }
 
-  return normalizedNodes
+      if (index < segments.length - 1) {
+        normalizedNodes.push({
+          type: 'hardBreak'
+        })
+      }
+    })
+
+    return normalizedNodes
+  }
+
+  if (!node.content) {
+    return node
+  }
+
+  return {
+    ...node,
+    content: normalizeExplicitHardBreaksInNodes(node.content)
+  }
 }
 
 const WysiwygCodeBlock = Node.create({
@@ -550,11 +644,11 @@ const WysiwygCodeBlock = Node.create({
     })
   },
   renderMarkdown(node) {
-    return `${buildRawFencedMarkdown({
+    return buildRawFencedMarkdown({
       openingFence: String(node.attrs?.openingFence ?? '```'),
       source: String(node.attrs?.source ?? ''),
       closingFence: String(node.attrs?.closingFence ?? '```')
-    })}\n`
+    })
   },
   addProseMirrorPlugins() {
     return [

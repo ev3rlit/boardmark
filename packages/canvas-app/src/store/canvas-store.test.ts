@@ -10,6 +10,7 @@ import {
   EMPTY_CANVAS_DOCUMENT_NAME,
   EMPTY_CANVAS_SOURCE
 } from '@canvas-app/document/empty-canvas'
+import { createWysiwygMarkdownBridge } from '@canvas-app/components/editor/wysiwyg-markdown-bridge'
 import { createCanvasStore } from '@canvas-app/store/canvas-store'
 
 const templateSource = `---
@@ -271,7 +272,65 @@ describe('viewer store', () => {
     vi.useRealTimers()
   })
 
-  it('does not auto-flush unmatched fenced markdown while a WYSIWYG session is active', async () => {
+  it('does not rewrite source when an unchanged WYSIWYG session blurs and closes', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+
+    const sourceBeforeEditing = store.getState().draftSource
+
+    store.getState().startObjectEditing('welcome')
+    await store.getState().commitInlineEditing()
+
+    expect(store.getState().editingState).toEqual({
+      status: 'idle'
+    })
+    expect(store.getState().draftSource).toBe(sourceBeforeEditing)
+  })
+
+  it('commits paragraph splits and hard breaks without inverting their meaning', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const bridge = createWysiwygMarkdownBridge()
+
+    await store.getState().hydrateTemplate()
+    store.getState().startObjectEditing('welcome')
+    store.getState().updateEditingDocument(
+      bridge.fromMarkdown('Line 1<br>Line 2\n\nLine 3')
+    )
+
+    await store.getState().commitInlineEditing()
+
+    expect(store.getState().draftSource).toContain('Line 1<br>Line 2\n\nLine 3')
+    expect(store.getState().draftSource).not.toContain('Line 1\nLine 2\n\nLine 3')
+  })
+
+  it('drops placeholder empty paragraphs around fenced blocks during WYSIWYG commit', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().startObjectEditing('welcome')
+    store.getState().updateEditingMarkdown('```bash\n# cmd\n```\n\n&nbsp;\n\n&nbsp;\n\nnext')
+
+    await store.getState().commitInlineEditing()
+
+    expect(store.getState().draftSource).toContain('```bash\n# cmd\n```\n\nnext')
+    expect(store.getState().draftSource).not.toContain('&nbsp;')
+    expect(store.getState().draftSource).not.toContain('```\n\n\nnext')
+  })
+
+  it('keeps debounced WYSIWYG drafts flushable even when legacy markdown text looks like an unmatched fence', async () => {
     vi.useFakeTimers()
 
     try {
@@ -290,17 +349,17 @@ describe('viewer store', () => {
         dirty: true,
         draftMarkdown: '```ts',
         flushStatus: {
-          status: 'idle'
+          status: 'debouncing'
         }
       })
 
       await vi.advanceTimersByTimeAsync(450)
 
-      expect(store.getState().draftSource).not.toContain('```ts')
+      expect(store.getState().draftSource).toContain('```ts')
       expect(store.getState().operationError).toBeNull()
       expect(store.getState().editingState).toMatchObject({
         status: 'active',
-        dirty: true,
+        dirty: false,
         flushStatus: {
           status: 'idle'
         }
@@ -310,7 +369,7 @@ describe('viewer store', () => {
     }
   })
 
-  it('blocks close flush for unmatched fenced markdown until the fence is completed', async () => {
+  it('allows close flush for WYSIWYG sessions even when the draft originated from legacy unmatched fence text', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
       documentRepository: createRepository(),
@@ -326,25 +385,11 @@ describe('viewer store', () => {
       reason: 'close'
     })
 
-    expect(blocked).toBe(false)
-    expect(store.getState().editingState).toMatchObject({
-      status: 'active',
-      error: 'Complete the fenced code block before leaving the editor.'
-    })
-    expect(store.getState().operationError).toBe('Complete the fenced code block before leaving the editor.')
-
-    store.getState().updateEditingMarkdown('```ts\nconst x = 1\n```')
-
-    const flushed = await store.getState().flushEditingSession({
-      close: true,
-      reason: 'close'
-    })
-
-    expect(flushed).toBe(true)
+    expect(blocked).toBe(true)
     expect(store.getState().editingState).toEqual({
       status: 'idle'
     })
-    expect(store.getState().draftSource).toContain('```ts\nconst x = 1\n```')
+    expect(store.getState().draftSource).toContain('```ts')
   })
 
   it('restores the baseline when cancelling an active editing session', async () => {

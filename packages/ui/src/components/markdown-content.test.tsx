@@ -137,9 +137,21 @@ describe('MarkdownContent', () => {
     expect(container.querySelector('[data-footnotes]')).not.toBeNull()
   })
 
-  it('renders a single newline inside a paragraph as a visible line break', () => {
+  it('does not treat a single newline inside a paragraph as a visible line break', () => {
     const { container } = render(
       <MarkdownContent content={'첫 줄\n둘째 줄'} />
+    )
+
+    const paragraph = container.querySelector('p')
+
+    expect(paragraph).not.toBeNull()
+    expect(paragraph?.querySelector('br')).toBeNull()
+    expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
+  })
+
+  it('renders html breaks as visible line breaks', () => {
+    const { container } = render(
+      <MarkdownContent content={'첫 줄<br>둘째 줄'} />
     )
 
     const paragraph = container.querySelector('p')
@@ -149,29 +161,53 @@ describe('MarkdownContent', () => {
     expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
   })
 
-  it('preserves extra blank lines between blocks as visible empty paragraphs', () => {
+  it('renders html breaks as visible line breaks inside list items', () => {
+    const { container } = render(
+      <MarkdownContent content={'- 첫 줄<br>둘째 줄'} />
+    )
+
+    const listItem = container.querySelector('li')
+
+    expect(listItem).not.toBeNull()
+    expect(listItem?.querySelector('br')).not.toBeNull()
+    expect(listItem?.textContent).toBe('첫 줄\n둘째 줄')
+  })
+
+  it('keeps a trailing html break visible at the end of a paragraph', () => {
+    const { container } = render(
+      <MarkdownContent content={'첫 줄<br>'} />
+    )
+
+    const paragraph = container.querySelector('p')
+
+    expect(paragraph).not.toBeNull()
+    expect(paragraph?.querySelectorAll('br')).toHaveLength(1)
+    expect(paragraph?.textContent).toBe('첫 줄\n')
+  })
+
+  it('collapses legacy extra blank lines between blocks instead of rendering placeholder paragraphs', () => {
     const { container } = render(
       <MarkdownContent content={'# 제목\n\n\n본문'} />
     )
 
     const paragraphs = container.querySelectorAll('p')
 
-    expect(paragraphs).toHaveLength(2)
-    expect(paragraphs[0]?.textContent).toBe('\u00A0')
-    expect(paragraphs[1]?.textContent).toBe('본문')
+    expect(paragraphs).toHaveLength(1)
+    expect(paragraphs[0]?.textContent).toBe('본문')
+    expect(container.textContent).not.toContain('\u00A0')
   })
 
-  it('treats a WYSIWYG-serialized empty paragraph as a single visible blank line', () => {
+  it('does not recreate repeated empty paragraphs from legacy multiline blank lines', () => {
     const { container } = render(
       <MarkdownContent content={'A\n\n\n\nB'} />
     )
 
     const paragraphs = container.querySelectorAll('p')
 
-    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs).toHaveLength(2)
     expect(paragraphs[0]?.textContent).toBe('A')
-    expect(paragraphs[1]?.textContent).toBe('\u00A0')
-    expect(paragraphs[2]?.textContent).toBe('B')
+    expect(paragraphs[1]?.textContent).toBe('B')
+    expect(container.textContent).not.toContain('\u00A0')
   })
 
   it('does not inject empty paragraphs inside fenced code blocks', async () => {

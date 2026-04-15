@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
+import { createWysiwygMarkdownBridge } from '@canvas-app/components/editor/wysiwyg-markdown-bridge'
 import type { CanvasEditingSessionState } from '@canvas-app/store/canvas-store-types'
 
 const ACTIVE_WYSIWYG_SESSION: CanvasEditingSessionState = {
+  baselineDocument: createWysiwygDocument('New note'),
   baselineMarkdown: 'New note',
   blockMode: { status: 'none' },
   dirty: false,
+  draftDocument: createWysiwygDocument('New note'),
   draftMarkdown: 'New note',
   error: null,
   flushStatus: { status: 'idle' },
@@ -114,10 +117,29 @@ describe('BodyEditorHost', () => {
     expect(onCommit).not.toHaveBeenCalled()
   })
 
+  it('requests a single commit when focus leaves the editor host', async () => {
+    const onCommit = vi.fn(async () => undefined)
+
+    renderHost({
+      onCommit,
+      session: ACTIVE_WYSIWYG_SESSION
+    })
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+
+    fireEvent.focus(editor)
+    fireEvent.blur(editor)
+
+    await waitFor(() => {
+      expect(onCommit).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('does not render the formatting toolbar for textarea fallback sessions', () => {
     renderHost({
       session: {
         ...ACTIVE_WYSIWYG_SESSION,
+        draftDocument: null,
         draftMarkdown: 'Fallback body',
         surface: 'textarea'
       }
@@ -138,6 +160,7 @@ describe('BodyEditorHost', () => {
           onBlockModeChange={() => undefined}
           onCancel={() => undefined}
           onCommit={async () => undefined}
+          onDocumentChange={() => undefined}
           onInteractionChange={() => undefined}
           onMarkdownChange={() => undefined}
           session={ACTIVE_WYSIWYG_SESSION}
@@ -163,6 +186,7 @@ describe('BodyEditorHost', () => {
           onBlockModeChange={() => undefined}
           onCancel={() => undefined}
           onCommit={async () => undefined}
+          onDocumentChange={() => undefined}
           onInteractionChange={() => undefined}
           onMarkdownChange={() => undefined}
           session={ACTIVE_WYSIWYG_SESSION}
@@ -229,6 +253,7 @@ describe('BodyEditorHost', () => {
       onCommit,
       session: {
         ...ACTIVE_WYSIWYG_SESSION,
+        draftDocument: createWysiwygDocument('```ts\nconst shipped = true\n```'),
         draftMarkdown: '```ts\nconst shipped = true\n```'
       }
     })
@@ -259,6 +284,7 @@ describe('BodyEditorHost', () => {
       onCommit,
       session: {
         ...ACTIVE_WYSIWYG_SESSION,
+        draftDocument: createWysiwygDocument('```mermaid\n\n```'),
         draftMarkdown: '```mermaid\n\n```'
       }
     })
@@ -371,6 +397,7 @@ function renderHost({
         onBlockModeChange={() => undefined}
         onCancel={onCancel}
         onCommit={onCommit}
+        onDocumentChange={() => undefined}
         onInteractionChange={() => undefined}
         onMarkdownChange={() => undefined}
         session={session}
@@ -428,4 +455,8 @@ async function waitForToolbarElement() {
   })
 
   return document.querySelector('.canvas-wysiwyg-toolbar') as HTMLDivElement
+}
+
+function createWysiwygDocument(markdown: string) {
+  return createWysiwygMarkdownBridge().fromMarkdown(markdown)
 }

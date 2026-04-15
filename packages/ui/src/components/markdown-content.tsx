@@ -2,7 +2,6 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } f
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
-import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import type { BuiltInImageResolution, BuiltInImageResolver } from '@boardmark/canvas-domain'
 import {
@@ -66,7 +65,6 @@ export function MarkdownContent({
   className,
   imageResolver
 }: MarkdownContentProps) {
-  const previewContent = useMemo(() => preserveExtraBlankLines(content), [content])
   const markdownComponents = useMemo(() => ({
     ...defaultMarkdownComponents,
     img(props: ComponentProps<'img'>) {
@@ -83,80 +81,52 @@ export function MarkdownContent({
     <div className={className}>
       <ReactMarkdown
         components={markdownComponents}
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={[remarkGfm, remarkHtmlBreakToMdastBreak]}
       >
-        {previewContent}
+        {content}
       </ReactMarkdown>
     </div>
   )
 }
 
-function preserveExtraBlankLines(markdown: string) {
-  const normalized = markdown.replace(/\r\n/g, '\n')
-  const lines = normalized.split('\n')
-  const output: string[] = []
-  let blankLineCount = 0
-  let fenceMarker: '```' | '~~~' | null = null
-
-  const flushBlankLines = (nextLineHasContent: boolean) => {
-    if (blankLineCount === 0) {
-      return
-    }
-
-    if (fenceMarker !== null || output.length === 0 || !nextLineHasContent) {
-      for (let index = 0; index < blankLineCount; index += 1) {
-        output.push('')
-      }
-      blankLineCount = 0
-      return
-    }
-
-    output.push('')
-
-    const extraParagraphCount = Math.ceil((blankLineCount - 1) / 2)
-
-    for (let index = 0; index < extraParagraphCount; index += 1) {
-      output.push('&nbsp;')
-      output.push('')
-    }
-
-    blankLineCount = 0
+function remarkHtmlBreakToMdastBreak() {
+  return (tree: { children?: unknown[] }) => {
+    replaceHtmlBreakNodes(tree)
   }
-
-  for (const line of lines) {
-    const fenceToken = readFenceToken(line)
-
-    if (fenceToken !== null) {
-      flushBlankLines(true)
-      fenceMarker = fenceMarker === fenceToken ? null : fenceToken
-      output.push(line)
-      continue
-    }
-
-    if (line.trim().length === 0) {
-      blankLineCount += 1
-      continue
-    }
-
-    flushBlankLines(true)
-    output.push(line)
-  }
-
-  flushBlankLines(false)
-
-  return output.join('\n')
 }
 
-function readFenceToken(line: string): '```' | '~~~' | null {
-  if (/^[\t ]*```/.test(line)) {
-    return '```'
+function replaceHtmlBreakNodes(node: { children?: unknown[] }) {
+  if (!Array.isArray(node.children)) {
+    return
   }
 
-  if (/^[\t ]*~~~/.test(line)) {
-    return '~~~'
-  }
+  node.children = node.children.flatMap((child) => {
+    if (!isMdastNode(child)) {
+      return [child]
+    }
 
-  return null
+    replaceHtmlBreakNodes(child)
+
+    if (child.type !== 'html') {
+      return [child]
+    }
+
+    return isHtmlBreakNode(child.value)
+      ? [{ type: 'break' }]
+      : [child]
+  })
+}
+
+function isMdastNode(value: unknown): value is {
+  children?: unknown[]
+  type: string
+  value?: string
+} {
+  return typeof value === 'object' && value !== null && 'type' in value
+}
+
+function isHtmlBreakNode(value: unknown) {
+  return typeof value === 'string' && /^<br\s*\/?>$/i.test(value.trim())
 }
 
 function MarkdownImage({

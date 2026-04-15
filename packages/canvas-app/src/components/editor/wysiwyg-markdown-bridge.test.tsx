@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -103,10 +103,34 @@ after list
 
 const SOFT_LINE_BREAK_MARKDOWN = `first line
 second line`
+const TWO_SPACE_HARD_BREAK_MARKDOWN = 'first line  \nsecond line'
+const BACKSLASH_HARD_BREAK_MARKDOWN = 'first line\\\nsecond line'
+const HARD_BREAK_MARKDOWN = 'first line<br>second line'
 const EXTRA_BLANK_LINE_MARKDOWN = `A
 
 
 B`
+const CODE_BLOCK_NBSP_MARKDOWN = `\`\`\`bash
+# cmd
+\`\`\`
+
+&nbsp;
+
+next`
+const DOUBLE_EMPTY_AFTER_CODE_BLOCK_MARKDOWN = `\`\`\`bash
+# cmd
+\`\`\`
+
+&nbsp;
+
+&nbsp;
+
+next`
+const CANONICAL_CODE_BLOCK_SPACING_MARKDOWN = `\`\`\`bash
+# cmd
+\`\`\`
+
+next`
 
 describe('WysiwygMarkdownBridge', () => {
   it('round-trips bold inline code without collapsing the code mark into literal asterisks', () => {
@@ -132,8 +156,27 @@ describe('WysiwygMarkdownBridge', () => {
     expect(bridge.roundTrip('> quote\n> :::')).toBe('> quote\n\n:::')
   })
 
-  it('upgrades legacy soft line breaks into visible hard breaks', () => {
+  it('collapses legacy soft line breaks into a single paragraph flow', () => {
     const editor = createTransientWysiwygEditor(SOFT_LINE_BREAK_MARKDOWN)
+
+    try {
+      expect(editor.getJSON()).toEqual({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'first line second line' }]
+          }
+        ]
+      })
+      expect(editor.getMarkdown()).toBe('first line second line')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('parses html breaks as visible hard breaks and serializes them back to html breaks', () => {
+    const editor = createTransientWysiwygEditor(HARD_BREAK_MARKDOWN)
 
     try {
       expect(editor.getJSON()).toEqual({
@@ -149,13 +192,13 @@ describe('WysiwygMarkdownBridge', () => {
           }
         ]
       })
-      expect(editor.getMarkdown()).toBe('first line\nsecond line')
+      expect(editor.getMarkdown()).toBe(HARD_BREAK_MARKDOWN)
     } finally {
       editor.destroy()
     }
   })
 
-  it('preserves extra blank lines as empty paragraphs in the WYSIWYG document', () => {
+  it('collapses legacy multiline blank lines into paragraph boundaries in the WYSIWYG document', () => {
     const editor = createTransientWysiwygEditor(EXTRA_BLANK_LINE_MARKDOWN)
 
     try {
@@ -167,17 +210,35 @@ describe('WysiwygMarkdownBridge', () => {
             content: [{ type: 'text', text: 'A' }]
           },
           {
-            type: 'paragraph'
-          },
-          {
             type: 'paragraph',
             content: [{ type: 'text', text: 'B' }]
           }
         ]
       })
+      expect(editor.getMarkdown()).toBe('A\n\nB')
     } finally {
       editor.destroy()
     }
+  })
+
+  it('canonicalizes fenced block spacing instead of exporting placeholder empty paragraphs', () => {
+    const bridge = createWysiwygMarkdownBridge()
+
+    expect(bridge.roundTrip(CODE_BLOCK_NBSP_MARKDOWN)).toBe(CANONICAL_CODE_BLOCK_SPACING_MARKDOWN)
+  })
+
+  it('drops repeated empty paragraphs after a fenced block during canonical export', () => {
+    const bridge = createWysiwygMarkdownBridge()
+
+    expect(bridge.roundTrip(DOUBLE_EMPTY_AFTER_CODE_BLOCK_MARKDOWN)).toBe(CANONICAL_CODE_BLOCK_SPACING_MARKDOWN)
+  })
+
+  it('canonicalizes paragraph hard break imports to html breaks', () => {
+    const bridge = createWysiwygMarkdownBridge()
+
+    expect(bridge.toMarkdown(bridge.fromMarkdown(TWO_SPACE_HARD_BREAK_MARKDOWN))).toBe(HARD_BREAK_MARKDOWN)
+    expect(bridge.toMarkdown(bridge.fromMarkdown(BACKSLASH_HARD_BREAK_MARKDOWN))).toBe(HARD_BREAK_MARKDOWN)
+    expect(bridge.toMarkdown(bridge.fromMarkdown(HARD_BREAK_MARKDOWN))).toBe(HARD_BREAK_MARKDOWN)
   })
 
   it('supports table commands through the production bridge editor', () => {
@@ -328,7 +389,82 @@ describe('WysiwygMarkdownBridge', () => {
     await waitFor(() => {
       expect(screen.getByTestId('markdown-value').textContent).toContain('~~~tsx')
       expect(screen.getByTestId('markdown-value').textContent).toContain('const ready = true')
-      expect(screen.getByTestId('markdown-value').textContent).toContain('\n~~~\n')
+      expect(screen.getByTestId('markdown-value').textContent).toContain('\n~~~')
+    })
+  })
+
+  it('splits a normal paragraph into a new paragraph on Enter', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown="Line1Line2"
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+    const surface = await screen.findByRole('textbox', { name: 'Surface editor' })
+
+    editor.commands.setTextSelection(findParagraphTextOffset(editor, 'Line1Line2', 5))
+    fireEvent.focus(surface)
+    fireEvent.keyDown(surface, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(editor.getJSON()).toEqual({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Line1' }]
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Line2' }]
+          }
+        ]
+      })
+      expect(screen.getByTestId('markdown-value').textContent).toBe('Line1\n\nLine2')
+    })
+  })
+
+  it('inserts a hard break inside a normal paragraph on Shift+Enter', async () => {
+    const editorRef = { current: null as Editor | null }
+    render(
+      <SurfaceHarness
+        markdown="Line 1"
+        onEditorChange={(editor) => {
+          editorRef.current = editor
+        }}
+      />
+    )
+
+    const editor = await waitForEditor(editorRef)
+    const surface = await screen.findByRole('textbox', { name: 'Surface editor' })
+
+    editor.commands.setTextSelection(findParagraphBoundary(editor, 'Line 1', 'end'))
+    fireEvent.focus(surface)
+    fireEvent.keyDown(surface, {
+      key: 'Enter',
+      code: 'Enter',
+      shiftKey: true
+    })
+
+    await waitFor(() => {
+      expect(editor.getJSON()).toEqual({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'Line 1' },
+              { type: 'hardBreak' }
+            ]
+          }
+        ]
+      })
+      expect(screen.getByTestId('markdown-value').textContent).toBe('Line 1<br>')
     })
   })
 
@@ -639,24 +775,32 @@ describe('WysiwygMarkdownBridge', () => {
     expect(screen.getByRole('textbox', { name: 'Code block markdown' })).toBe(codeMarkdown)
   })
 
-  it('renders legacy soft line breaks as visible breaks in the production surface', async () => {
+  it('does not render legacy soft line breaks as visible breaks in the production surface', async () => {
     const { container } = render(<SurfaceHarness markdown={SOFT_LINE_BREAK_MARKDOWN} />)
+
+    await waitFor(() => {
+      expect(container.querySelector('.canvas-wysiwyg-surface__content br')).toBeNull()
+      expect(container.querySelector('.canvas-wysiwyg-surface__content p')?.textContent).toBe('first line second line')
+    })
+  })
+
+  it('renders html breaks as visible breaks in the production surface', async () => {
+    const { container } = render(<SurfaceHarness markdown={HARD_BREAK_MARKDOWN} />)
 
     await waitFor(() => {
       expect(container.querySelector('.canvas-wysiwyg-surface__content br')).not.toBeNull()
     })
   })
 
-  it('renders extra blank lines as visible empty paragraphs in the production surface', async () => {
+  it('collapses legacy extra blank lines in the production surface', async () => {
     const { container } = render(<SurfaceHarness markdown={EXTRA_BLANK_LINE_MARKDOWN} />)
 
     await waitFor(() => {
       const paragraphs = container.querySelectorAll('.canvas-wysiwyg-surface__content p')
 
-      expect(paragraphs).toHaveLength(3)
+      expect(paragraphs).toHaveLength(2)
       expect(paragraphs[0]?.textContent).toBe('A')
-      expect(paragraphs[1]?.textContent).toBe('')
-      expect(paragraphs[2]?.textContent).toBe('B')
+      expect(paragraphs[1]?.textContent).toBe('B')
     })
   })
 })
@@ -670,18 +814,24 @@ function SurfaceHarness({
   onCancel?: () => void
   onEditorChange?: (editor: Editor | null) => void
 }) {
+  const bridge = useMemo(() => createWysiwygMarkdownBridge(), [])
   const [value, setValue] = useState(markdown)
+  const [documentContent, setDocumentContent] = useState(() => bridge.fromMarkdown(markdown))
 
   return (
     <>
       <WysiwygEditorSurface
         ariaLabel="Surface editor"
+        documentContent={documentContent}
         markdown={value}
+        onDocumentChange={(content) => {
+          setDocumentContent(content)
+          setValue(bridge.toMarkdown(content))
+        }}
         onBlockModeChange={() => undefined}
         onCancel={onCancel}
         onEditorChange={onEditorChange}
         onInteractionChange={() => undefined}
-        onMarkdownChange={setValue}
       />
       <pre data-testid="markdown-value">{value}</pre>
     </>
@@ -746,6 +896,29 @@ function findParagraphBoundary(
   }
 
   return boundaryPosition
+}
+
+function findParagraphTextOffset(
+  editor: Editor,
+  paragraphText: string,
+  textOffset: number
+) {
+  let selectionPosition: number | null = null
+
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== 'paragraph' || node.textContent !== paragraphText) {
+      return true
+    }
+
+    selectionPosition = position + 1 + textOffset
+    return false
+  })
+
+  if (selectionPosition === null) {
+    throw new Error(`Expected paragraph "${paragraphText}" to exist.`)
+  }
+
+  return selectionPosition
 }
 
 function findTextSelection(editor: Editor, text: string): { from: number; to: number } {

@@ -669,8 +669,39 @@ main thread
       expect(commitInlineEditingSpy).toHaveBeenCalledTimes(1)
       expect(store.getState().editingState.status).toBe('idle')
     })
-    expect(store.getState().draftSource).toContain('Line 1\nLine 2')
+    expect(store.getState().draftSource).toContain('Line 1 Line 2')
+    expect(store.getState().draftSource).not.toContain('Line 1\nLine 2')
     expect(screen.queryByRole('textbox', { name: 'Edit welcome' })).not.toBeInTheDocument()
+  })
+
+  it('does not rewrite source when a WYSIWYG session only blurs without edits', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const commitInlineEditingSpy = vi.spyOn(store.getState(), 'commitInlineEditing')
+
+    await renderCanvasAppForTest({ store })
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+    const sourceBeforeEditing = store.getState().draftSource
+
+    await dispatchUiEvent(() => {
+      fireEvent.doubleClick(noteText)
+    })
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+
+    await dispatchUiEvent(() => {
+      fireEvent.blur(editor)
+    })
+
+    await waitFor(() => {
+      expect(commitInlineEditingSpy).toHaveBeenCalledTimes(1)
+      expect(store.getState().editingState.status).toBe('idle')
+    })
+    expect(store.getState().draftSource).toBe(sourceBeforeEditing)
   })
 
   it('flushes an active editor session before saving', async () => {
