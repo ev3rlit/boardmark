@@ -36,6 +36,13 @@
 
 이 문제는 sandpack 기능이 확장될수록 커진다. Boardmark를 **코드 실행 가능한 캔버스 노트**로 발전시키려면, 작성자가 코드를 코드로 쓸 수 있어야 한다.
 
+추가로 Boardmark의 실제 작성 맥락은 독립 markdown 문서가 아니라 **오브젝트의 content body**, 특히 `note` body다. 이 맥락에서는 source authoring 경험만이 아니라 아래 제약도 함께 고려해야 한다.
+
+- sandpack은 note body 안에서 자연스럽게 보이고 저장되어야 한다
+- 현재 WYSIWYG는 `sandpack`을 특수 fenced block 하나로 취급한다
+- markdown string ↔ WYSIWYG node ↔ markdown string round-trip이 깨지면 안 된다
+- ADR-001, ADR-002, ADR-003에서 잡은 renderer/serializer/caret 계약과 충돌이 작아야 한다
+
 ---
 
 ## 2. 결정 드라이버
@@ -46,6 +53,8 @@
 4. **멀티파일 지원** — 여러 파일을 자연스럽고 명확하게 표현할 수 있어야 한다.
 5. **파서 구현 비용** — Boardmark 파서 수정 범위가 합리적이어야 한다.
 6. **생태계 호환성** — 기존 remark/rehype 생태계 또는 표준 markdown 도구와 얼마나 잘 맞는가.
+7. **WYSIWYG round-trip 안정성** — sandpack이 여전히 단일 special fenced block으로 모델링될 수 있어야 한다.
+8. **오브젝트 body 적합성** — `note` content body 안에서 배치 규칙과 문법 경계가 명확해야 한다.
 
 ---
 
@@ -372,232 +381,214 @@ body {
 
 ---
 
+### Option H — outer `sandpack` fenced block + inner file fenced block ⭐
+
+Boardmark의 현재 special fenced block 모델을 유지하면서, `sandpack` block body 안에서 파일별 fenced block을 다시 파싱하는 방식이다.
+
+`````md
+::: note { id: react-demo, at: { x: 0, y: 0, w: 720, h: 520 } }
+
+````sandpack
+template: react
+layout: default
+dependencies:
+  react: "^19.0.0"
+  react-dom: "^19.0.0"
+---
+
+```App.js active
+import { useState } from "react";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount((value) => value + 1)}>{count}</button>;
+}
+```
+
+```styles.css
+body {
+  margin: 0;
+}
+```
+````
+
+:::
+`````
+
+바깥 `sandpack` fenced block 하나가 sandpack 전체를 나타내고, block body 안에서 선택적 YAML metadata header와 파일 fenced block들을 읽어 구조화된 파일 목록으로 변환한다.
+
+**장점**
+
+- ADR-001의 `{ source: string }` 렌더러 계약과 가장 자연스럽게 맞는다
+- WYSIWYG에서 sandpack을 계속 단일 special fenced block으로 유지할 수 있다
+- `note` body 안에 들어가는 실제 사용 맥락이 문법에서 분명하다
+- 코드를 JSON 문자열이 아니라 실제 줄 단위 코드로 작성할 수 있다
+- 기존 JSON 방식과의 하위 호환 및 점진적 마이그레이션이 쉽다
+
+**단점**
+
+- 일반 markdown 에디터는 바깥 block을 `sandpack`으로 보기 때문에 내부 파일 코드의 IDE 구문 강조를 보장하지 못한다
+- inner fenced block은 CommonMark 기본 AST가 아니라 `sandpack` body 재파싱 로직이 필요하다
+- metadata header와 inner fenced block 조합은 Boardmark 고유 규칙이므로 별도 문서화가 필요하다
+
+**프로그래밍 자유도**: ✓ / **편집 경험**: △ / **작성자 UX**: ✓✓ / **WYSIWYG 적합성**: ✓✓
+
+---
+
 ## 4. 트레이드오프 비교표
 
-| 기준                      | A (JSON 문자열) | B (MDX) | C (파일 구분자) | D (YAML+코드) | E (멀티 block) | F (directive) |  **G (MDX+fenced)** ⭐   |
-| ------------------------- | :-------------: | :-----: | :-------------: | :-----------: | :------------: | :-----------: | :----------------------: |
-| 이스케이프 없는 코드 작성 |        ✗        |    ✓    |        ✓        |       ✓       |       ✓        |       ✓       |          **✓**           |
-| IDE 구문 강조             |        ✗        |    △    |        ✗        |       ✗       |       ✓        |       ✓       |          **✓✓**          |
-| 멀티파일 표현 명확성      |        △        |    ✓    |        ✓        |       ✓       |       △        |       ✓       |          **✓✓**          |
-| 작성자 학습 비용          |      낮음       |  중간   |      낮음       |     중간      |      중간      |     높음      |         **낮음**         |
-| 파서 구현 복잡도          |      낮음       |  높음   |      낮음       |     중간      |      높음      |     중간      |         **중간**         |
-| Boardmark `.md` 포맷 유지 |        ✓        |    ✗    |        ✓        |       ✓       |       ✓        |       ✓       |     **△** (MDX 포함)     |
-| 프로그래밍 자유도         |        ✗        |   ✓✓    |        ✓        |       ✓       |       ✓✓       |      ✓✓       |          **✓✓**          |
-| 생태계 레퍼런스 존재      |        ✓        |   ✓✓    |        △        |       △       |       △        |       ✓       | **✓✓** (remark-sandpack) |
-| 장기 확장성               |        ✗        |   ✓✓    |        △        |       △       |       △        |       ✓       |          **✓✓**          |
+| 기준 | A (JSON 문자열) | B (MDX) | C (파일 구분자) | D (YAML+코드) | E (멀티 block) | F (directive) | G (MDX+fenced) | **H (outer sandpack + inner fences)** ⭐ |
+|------|:---------------:|:-------:|:---------------:|:-------------:|:--------------:|:-------------:|:---------------:|:----------------------------------------:|
+| 이스케이프 없는 코드 작성 | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | **✓** |
+| IDE 구문 강조 | ✗ | △ | ✗ | ✗ | ✓ | ✓ | ✓✓ | △ |
+| 멀티파일 표현 명확성 | △ | ✓ | ✓ | ✓ | △ | ✓ | ✓✓ | **✓** |
+| 작성자 학습 비용 | 낮음 | 중간 | 낮음 | 중간 | 중간 | 높음 | 낮음 | **낮음** |
+| 파서 구현 복잡도 | 낮음 | 높음 | 낮음 | 중간 | 높음 | 중간 | 중간 | **중간** |
+| Boardmark `.md` 포맷 유지 | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | △ | **✓** |
+| WYSIWYG round-trip 적합성 | ✓✓ | ✗ | ✓ | ✓ | ✗ | △ | ✗ | **✓✓** |
+| note body 문맥 적합성 | △ | △ | △ | △ | △ | ✓ | △ | **✓✓** |
+| 생태계 레퍼런스 존재 | ✓ | ✓✓ | △ | △ | △ | ✓ | ✓✓ | △ |
+| 장기 확장성 | ✗ | ✓✓ | △ | △ | △ | ✓ | ✓✓ | ✓ |
 
 ---
 
 ## 5. 논의가 필요한 질문들
 
-### Q1. Boardmark 포맷을 `.md`에서 `.mdx`로 전환할 의향이 있는가?
+### Q1. canonical source는 WYSIWYG single-block 모델을 유지해야 하는가?
 
-Option G는 `.md` 포맷을 완전히 버리지 않고 MDX 구문을 점진적으로 도입하는 경로다. `<Sandpack>` 컴포넌트 표현만 MDX 방식으로 처리하고, 나머지 markdown은 그대로 유지할 수 있다. 단, 파서가 JSX 컴포넌트 구문을 해석해야 한다.
+ADR-002와 ADR-003을 기준으로 보면 sandpack은 WYSIWYG에서 여전히 특수 fenced block 하나로 취급되는 편이 안전하다. wrapper + child block 조합은 selection, caret, serializer에서 비용이 크다.
 
-- **JSX 구문 도입 가능하다** → Option G (remark-sandpack 방식) 채택
-- **`.md` 를 완전히 유지한다** → Option C 또는 F
+- **single-block 모델 유지가 우선이다** → Option H
+- **source authoring 경험이 우선이고 editor 모델을 확장해도 된다** → Option G 또는 F
 
-### Q2. 단기 개선이 필요한가, 장기 설계를 먼저 정하는가?
+### Q2. note body 안에서 sandpack의 포함 관계가 source 상에 분명해야 하는가?
 
-Option G는 remark-sandpack 레퍼런스 구현이 있어 다른 MDX 전환 경로보다 구현 비용이 낮다. 단기에 도입해도 장기 방향과 일치한다.
+Boardmark 문서는 독립 markdown 페이지가 아니라 canvas object body의 집합이다. 실제 사용 예시는 `note` body 안에 sandpack이 들어가는 형태여야 하며, 이 맥락이 source에도 드러나는 편이 낫다.
 
-- **지금 당장 개선 + 장기 방향 일치** → Option G
-- **최소 비용으로 일단 개선** → Option C를 단기 도입, 이후 G로 전환
+- **object body 문맥을 source에 드러내야 한다** → Option H 또는 F
+- **문법 자체의 생태계 친화성이 더 중요하다** → Option G
 
-### Q3. IDE 구문 강조가 필수인가?
+### Q3. IDE 구문 강조와 WYSIWYG 안정성 중 무엇을 우선하는가?
 
-Option C, D는 코드를 실제 코드처럼 쓸 수 있지만 언어 식별자가 `sandpack`이라 IDE 구문 강조는 여전히 동작하지 않는다. 이를 해결하려면 언어 식별자가 실제 파일 언어여야 한다 (Option E, F, B).
+Option G, F, E는 IDE 경험이 강하지만 WYSIWYG/round-trip 비용이 높다. Option H는 IDE 경험을 일부 포기하는 대신 현재 renderer/serializer 계약과 잘 맞는다.
 
-### Q4. 일반 사용자와 개발자 작성자를 동시에 고려하는가?
+### Q4. metadata를 어디에 둘 것인가?
 
-Option B와 F는 개발자에게 이상적이지만 마크다운 기반 사용자에게는 진입 장벽이 있다. Boardmark의 주 사용자 페르소나가 개발자라면 이 장벽은 수용 가능하다.
+Option H를 채택할 경우 `template`, `layout`, `readOnly`, `dependencies`를 outer `sandpack` block body 안의 metadata header에 둘지, info string이나 hidden file로 분산할지 정해야 한다.
 
 ---
 
 ## 6. 결정
 
-> **미결 — 논의 후 결정 예정**
+**Option H로 결정.**
 
-**현재 제안 방향: Option G (MDX 컴포넌트 + 중첩 fenced block)**
+Boardmark의 canonical sandpack source format은 **outer `sandpack` fenced block + inner file fenced block**이다.
 
-````mdx
-<Sandpack template="react">
+`````md
+::: note { id: react-demo, at: { x: 0, y: 0, w: 720, h: 520 } }
 
-```js name=App.js active
+````sandpack
+template: react
+layout: default
+---
+
+```App.js active
 export default function App() {
   return <button>Hello</button>;
 }
 ```
 ````
 
-</Sandpack>
-```
+:::
+`````
 
-**Option G로 결정.** remark-sandpack이 이 방식을 채택해 생태계 검증이 되어 있으며, 결정 드라이버 3가지(프로그래밍 자유도, 코드 편집 경험, 작성자 UX)를 모두 충족하는 유일한 옵션이다.
+이 결정은 source authoring만이 아니라 Boardmark의 실제 저장/편집 모델을 함께 고려한 결과다.
+
+**선정 이유**
+
+- `sandpack`을 WYSIWYG에서 계속 단일 special fenced block으로 다룰 수 있다
+- ADR-001의 fenced block renderer 계약과 가장 잘 맞는다
+- `note` content body 안에서 sandpack이 들어가는 실제 사용 맥락이 문법에 드러난다
+- JSON 문자열 문제를 해결하면서도 MDX/JSX serializer 문제를 피할 수 있다
+- 기존 JSON 포맷에서 점진적 전환이 쉽다
 
 **구현 전제 조건:**
 
-- Boardmark 파서가 note body 안의 `<Sandpack>` JSX 컴포넌트 구문을 처리할 수 있어야 함
-- remark-sandpack 플러그인 도입 또는 동등한 커스텀 remark 플러그인 구현
-- 기존 JSON 방식 sandpack block → Option G 포맷 마이그레이션 스크립트 작성
+- `sandpack` fenced block body를 JSON 또는 nested fenced로 읽는 전용 parser가 필요하다
+- outer block body의 metadata header와 inner file fenced block 계약을 문서화해야 한다
+- WYSIWYG serializer는 sandpack을 계속 single special block으로 유지해야 한다
+- 기존 JSON 방식 sandpack block → Option H 포맷 마이그레이션 스크립트가 필요하다
 
 **단계적 전환:**
 
-- **현재 (MDX 파이프라인 없음):** Option A(JSON 방식) 유지
-- **MDX 파이프라인 도입 시점:** Option G로 전환, 기존 JSON block은 마이그레이션 스크립트로 일괄 변환
-- **Option G 확장:** 파일 언어 자동 추론, 레이아웃 제어는 초기 구현에 포함
+- **현재:** Option A(JSON 방식) 유지
+- **1단계:** renderer가 JSON + Option H를 모두 인식
+- **2단계:** WYSIWYG serializer 기본 출력 포맷을 Option H로 전환
+- **3단계:** 기존 JSON block을 Option H로 마이그레이션
+- **하위 호환:** 전환 기간 동안 JSON body 입력은 계속 허용
 
 ---
 
-## 7. MDX 도입 시 코드베이스 마이그레이션 비용 분석
+## 7. 구현 영향 분석
 
-현재 기술 스택을 기준으로 MDX를 도입할 경우 비용이 발생하는 지점을 분석한다.
+Option H는 현재 아키텍처를 크게 뒤집지 않고 도입할 수 있지만, `sandpack` block body를 다시 파싱하는 계약이 새로 필요하다.
 
-### 7-1. 영역별 비용 요약
+### 7.1 영역별 영향 요약
 
-| 영역             | 현재 기술                         |     비용     | 핵심 이유                               |
-| ---------------- | --------------------------------- | :----------: | --------------------------------------- |
-| WYSIWYG 에디터   | TipTap v3 + MarkdownManager       | 🔴 매우 높음 | 데이터 모델 비호환, JSX 직렬화 불가     |
-| 테스트 인프라    | vitest, 200+ 테스트               | 🔴 매우 높음 | react-markdown 기반 테스트 전면 재작성  |
-| 마크다운 렌더러  | react-markdown v9 + remark/rehype |   🟠 높음    | 파이프라인 전체 교체 필요               |
-| 캔버스 포맷 파서 | 커스텀 `:::` 디렉티브 파서        |   🟠 높음    | MDX 구문과 `:::` 경계가 충돌            |
-| 빌드 설정        | Vite (web + desktop)              |   🟢 낮음    | `@mdx-js/vite` 플러그인 추가만으로 해결 |
-| 패키지 의존성    | 기존 npm 패키지 유지 가능         |   🟢 낮음    | +300KB 번들 증가, 기존 패키지 유지      |
+| 영역 | 현재 기술 | 비용 | 핵심 이유 |
+|------|-----------|:----:|-----------|
+| WYSIWYG 에디터 | TipTap v3 + MarkdownManager | 🟠 중간 | serializer 기본 출력 포맷 변경 필요 |
+| 마크다운 렌더러 | react-markdown v9 + remark/rehype | 🟢 낮음 | 기존 fenced block registry 위에서 parser만 추가 |
+| Sandpack 렌더러 | `SandpackBlock` + JSON parse | 🟠 중간 | JSON + nested fenced dual parser 필요 |
+| 캔버스 포맷 파서 | 커스텀 `:::` 디렉티브 파서 | 🟢 낮음 | note body는 여전히 raw markdown 문자열 유지 |
+| 마이그레이션 | 기존 `.canvas.md` | 🟠 중간 | JSON block → Option H 변환 스크립트 필요 |
 
----
+### 7.2 세부 영향
 
-### 7-2. 영역별 상세
+#### WYSIWYG 에디터
 
-#### WYSIWYG 에디터 — 🔴 매우 높음
+- `sandpack`은 계속 special fenced block 하나로 유지한다
+- raw source textarea 편집 UX는 유지할 수 있다
+- 기본 serializer 출력만 JSON에서 nested fenced로 바꾸면 된다
+- selection/caret 모델은 기존 special fenced block 계약을 재사용할 수 있다
 
-**현재 구조**
+#### 마크다운 렌더러
 
-- TipTap v3 (`@tiptap/markdown` extension)이 markdown 문자열 ↔ ProseMirror document 간 직렬화를 담당
-- `packages/canvas-app/src/components/editor/wysiwyg-markdown-bridge.tsx` (~400줄)
-- `WysiwygSpecialFencedBlock` extension이 mermaid/sandpack의 편집 모드를 처리
-- `:::` 디렉티브 경계 정규화 로직이 에디터 내부에 포함
+- `ReactMarkdown`와 ADR-001의 fenced block registry 구조를 유지한다
+- `sandpack` 렌더러 직전에 `source`를 JSON 또는 nested fenced로 해석하는 parser만 추가하면 된다
+- MDX/JSX 파이프라인 도입이 필요 없다
 
-**MDX 도입 시 문제**
+#### 캔버스 포맷 파서
 
-- TipTap의 markdown 직렬화는 JSX 구문을 지원하지 않는다. `<Sandpack>` 컴포넌트 표현이 직렬화 과정에서 손실된다.
-- 현재: `markdown string ↔ ProseMirror JSON ↔ markdown string` (완전한 round-trip 보장)
-- MDX 도입 시: JSX 노드를 ProseMirror 스키마에 추가해야 하고, 직렬화에서 JSX AST를 보존하는 커스텀 serializer가 필요하다.
-- `:::` 경계 정규화 로직이 MDX의 JSX 컴포넌트 경계와 충돌할 수 있다.
+- `:::` 기반 note/object parser는 그대로 둔다
+- note body는 여전히 raw markdown string으로 저장된다
+- `sandpack`의 세부 문법은 note body 전체가 아니라 `sandpack` fenced block body 안에서만 해석하면 된다
 
-**변경 범위:** `wysiwyg-markdown-bridge.tsx`, `WysiwygSpecialFencedBlock` extension, `SpecialFencedBlockView`, TipTap schema 전체
+#### 선택하지 않은 MDX 경로
 
----
+MDX 기반 옵션은 source authoring과 IDE 경험은 강하지만, 현재 코드베이스에서는 아래 비용이 크다.
 
-#### 테스트 인프라 — 🔴 매우 높음
+- TipTap markdown serializer가 JSX 구문을 안정적으로 round-trip 하지 못한다
+- `note` body 안의 `:::` 디렉티브와 JSX wrapper를 함께 다뤄야 한다
+- renderer, test, serializer 계약을 동시에 바꿔야 한다
 
-**현재 테스트 현황**
-
-| 파일                               | 테스트 수 | 내용                                          |
-| ---------------------------------- | --------- | --------------------------------------------- |
-| `markdown-content.test.tsx`        | ~50개     | 마크다운 렌더링, 코드 하이라이팅, 이미지 처리 |
-| `wysiwyg-markdown-bridge.test.tsx` | ~30개     | markdown ↔ ProseMirror round-trip             |
-| `canvas-parser/index.test.ts`      | ~100개    | `:::` 디렉티브 파싱, 메타데이터               |
-
-**MDX 도입 시 문제**
-
-- react-markdown 기반 50개 테스트는 MDX 렌더러 구조와 달라 전면 재작성 필요
-- round-trip 테스트 30개는 JSX 노드가 포함된 경우 비대칭 직렬화 문제로 깨진다
-- `:::` 디렉티브 파서 테스트 100개는 MDX 구문 변경 시 전수 검토 필요
+따라서 MDX 경로는 장기 실험 후보로는 남길 수 있지만, current canonical source로는 채택하지 않는다.
 
 ---
 
-#### 마크다운 렌더러 — 🟠 높음
+## 8. 열린 결정
 
-**현재 구조**
-
-- `packages/ui/src/components/markdown-content.tsx` (~180줄)
-- `ReactMarkdown` (react-markdown v9) + `remark-gfm` + `remark-breaks`
-- fenced block은 `<pre>` 컴포넌트 override + 언어별 레지스트리로 처리 (ADR-001)
-- Shiki v4 기반 코드 하이라이팅
-
-**MDX 도입 시 문제**
-
-- react-markdown은 JSX 실행을 지원하지 않는다. MDX 컴파일러(`@mdx-js/mdx`)로 교체 필요.
-- ADR-001에서 확립한 fenced block 레지스트리 구조(`registry.ts`)는 MDX 컴포넌트 맵으로 재구성해야 한다.
-- 기존 `{ source: string }` 렌더러 계약이 변경될 수 있다.
-
-**변경 범위:** `markdown-content.tsx` 전체, `fenced-block/registry.ts`, 관련 렌더러 컴포넌트
+| 번호 | 질문 | 현재 상태 |
+|------|------|-----------|
+| D1 | metadata header를 YAML로 고정할지, 더 제한된 key/value 문법으로 줄일지 | 미결 |
+| D2 | `dependencies`를 metadata header만 지원할지, 향후 `package.json` hidden file도 허용할지 | 미결 |
+| D3 | TipTap sandpack 노드 serializer 기본 출력 포맷 전환 시점 | 미결 |
+| D4 | 파일 언어 자동 추론 규칙 (확장자 → 언어 매핑 기준) | 미결 |
+| D5 | 기존 JSON block 마이그레이션 시점 (serializer 전환 직후 vs 별도 릴리즈) | 미결 |
 
 ---
 
-#### 캔버스 포맷 파서 — 🟠 높음
-
-**현재 구조**
-
-- `packages/canvas-parser/src/index.ts` (~1000줄)
-- `:::` 시작 / `:::` 종료로 note, image, edge, group 경계를 파싱
-- note body는 raw markdown 문자열로 저장
-
-**MDX 도입 시 문제**
-
-- MDX의 JSX 컴포넌트 구문(`<Sandpack>`)과 Boardmark의 `:::` 디렉티브가 같은 body 안에 공존할 경우 파서 충돌 가능
-- note body를 raw string으로 다루는 현재 방식은 JSX AST를 보존하지 못한다
-- `.canvas.md` 파일은 사람이 읽고 쓰는 텍스트 포맷인데, JSX를 포함하면 직렬화 계약이 변한다
-
-**변경 범위:** `canvas-parser/index.ts` 파서 코어, canvas format spec, 기존 `.canvas.md` 마이그레이션 스크립트
-
----
-
-#### 빌드 설정 — 🟢 낮음
-
-web, desktop 모두 Vite 기반이라 MDX 플러그인 추가만으로 해결된다.
-
-```ts
-// vite.config.ts
-import mdx from '@mdx-js/vite'
-plugins: [mdx(), react(), ...]
-```
-
-번들 크기는 약 +250KB gzip 증가 (MDX 컴파일러 +300KB, react-markdown 제거 -50KB).
-
----
-
-### 7-3. 권장 마이그레이션 경로
-
-MDX 전면 도입은 위 분석 기준으로 최소 12~16주의 비용을 요구한다. 현실적인 점진적 경로는 다음과 같다.
-
-**경로 A — 현재 포맷 유지 + remark 플러그인 (낮은 비용)**
-
-react-markdown을 유지하면서 커스텀 remark 플러그인으로 `<Sandpack>` 구문만 처리한다. MDX 파이프라인 없이도 Option G에 가까운 작성 경험을 제공할 수 있다.
-
-- 영향 범위: `markdown-content.tsx`, 신규 remark 플러그인 1개
-- 비용: 1~2주
-- 한계: 완전한 JSX 실행이 아니므로 컴포넌트 props 타입 검사 등이 동작하지 않음
-
-**경로 B — MDX 격리 도입 (중간 비용)**
-
-`.canvas.md` 포맷은 유지하되, note body 안에서 특정 패턴(예: `<Sandpack>`)만 MDX 처리한다. 전면 포맷 전환 없이 캔버스 포맷의 안정성을 지키면서 MDX 이점을 부분적으로 얻는다.
-
-- 영향 범위: `markdown-content.tsx`, `canvas-parser` (부분), 빌드 설정
-- 비용: 4~6주
-- 한계: 캔버스 파서와 MDX 파서의 경계를 명확히 설계해야 함
-
-**경로 C — 전면 MDX 전환 (매우 높은 비용)**
-
-포맷, 파서, 에디터, 테스트 전체를 MDX로 전환한다. 에디터(TipTap)의 JSX 직렬화 문제가 가장 큰 블로커다.
-
-- 비용: 12~16주
-- 전제 조건: TipTap의 MDX 직렬화 솔루션 또는 에디터 교체 결정
-
----
-
-## 9. 열린 결정
-
-| 번호 | 질문                                                       | 현재 상태 |
-| ---- | ---------------------------------------------------------- | --------- |
-| D1   | MDX 도입 범위: 전면 전환 vs 격리 도입 vs remark 플러그인만 | 미결      |
-| D2   | TipTap sandpack 노드 serializer 교체 구현 시점             | 미결      |
-| D3   | 기존 JSON 방식 sandpack block 마이그레이션 스크립트 설계   | 미결      |
-| D4   | 파일 언어 자동 추론 규칙 (확장자 → 언어 매핑 기준)         | 미결      |
-
----
-
-## 8. 변경 이력
+## 9. 변경 이력
 
 | 날짜       | 변경 내용                                                                     | 작성자     |
 | ---------- | ----------------------------------------------------------------------------- | ---------- |
@@ -605,3 +596,4 @@ react-markdown을 유지하면서 커스텀 remark 플러그인으로 `<Sandpack
 | 2026-04-15 | Option G (MDX+fenced) 추가, remark-sandpack 레퍼런스 반영, 제안 방향 업데이트 | homveloper |
 | 2026-04-15 | 코드베이스 분석 기반 MDX 마이그레이션 비용 분석 섹션 추가                     | homveloper |
 | 2026-04-15 | Option G로 결정 확정, 단계적 전환 경로 및 전제 조건 명시                      | homveloper |
+| 2026-04-15 | note body/WYSIWYG 제약 반영. Option H(outer sandpack + inner fences)로 결정 수정 | Codex |
