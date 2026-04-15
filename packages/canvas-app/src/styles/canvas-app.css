@@ -347,6 +347,7 @@ button {
 }
 
 .boardmark-flow {
+  isolation: isolate;
   background:
     radial-gradient(circle at top left, rgba(96, 66, 214, 0.08), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent);
@@ -354,6 +355,22 @@ button {
 
 .boardmark-flow.boardmark-flow--pan {
   cursor: grab;
+}
+
+.boardmark-flow .react-flow__background {
+  z-index: 1;
+}
+
+.boardmark-flow .react-flow__pane {
+  z-index: 2;
+}
+
+.boardmark-flow .react-flow__viewport {
+  z-index: 3;
+}
+
+.boardmark-flow .react-flow__renderer {
+  z-index: 4;
 }
 
 .boardmark-flow .react-flow__renderer,

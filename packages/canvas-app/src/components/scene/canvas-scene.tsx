@@ -669,15 +669,15 @@ export function CanvasScene({
           viewport={viewport}
         />
         <Background
-          color="rgba(43, 52, 55, 0.06)"
+          color="rgba(43, 52, 55, 0.28)"
           gap={24}
-          size={1}
+          size={1.35}
           variant={BackgroundVariant.Dots}
         />
         <Background
-          color="rgba(96, 66, 214, 0.12)"
+          color="rgba(43, 52, 55, 0.14)"
           gap={120}
-          size={1.2}
+          size={1.1}
           variant={BackgroundVariant.Lines}
         />
       </ReactFlow>
