@@ -1153,3 +1153,4 @@ Modal pattern
 ::: edge {"id":"dashboard-dialog","from":"dashboard","to":"dialog"}
 Detail flow
 :::
+
