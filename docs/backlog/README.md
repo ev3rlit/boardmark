@@ -15,3 +15,4 @@
 - [`input-pipeline-followup/README.md`](./input-pipeline-followup/README.md): input pipeline V1 이후 남은 connect-line lifecycle 편입과 full pointer capture/ownership graph 후속 작업
 - [`note-height-auto/README.md`](./note-height-auto/README.md): `h` 필드 생략 시 콘텐츠 기반으로 높이를 자동 계산하고, 명시 시 고정 높이로 처리하는 아이디어
 - [`coordinate-integer-snap/README.md`](./coordinate-integer-snap/README.md): 직렬화 시 부동소수점 좌표를 정수로 스냅해 git diff 노이즈와 텍스트 가독성 문제를 해소하는 아이디어
+- [`url-encoded-document-share/README.md`](./url-encoded-document-share/README.md): 웹 배포 후 문서 source를 URL에 인코딩해 zero-backend snapshot 링크로 공유하는 아이디어
