@@ -441,6 +441,7 @@ button {
 }
 
 .markdown-content {
+  --markdown-scale-raw: 1;
   --markdown-scale-x: 1;
   --markdown-scale-y: 1;
   --markdown-scale: 1;

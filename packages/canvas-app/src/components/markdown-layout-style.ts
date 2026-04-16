@@ -29,6 +29,7 @@ export function readMarkdownLayoutStyle({
     NOTE_CONTENT_SCALE_FLOOR,
     autoHeight ? scaleX : Math.min(scaleX, scaleY)
   )
+  const contentScale = Math.min(scale, 1)
 
   return {
     '--markdown-body-height': `${bodyHeight}px`,
@@ -40,7 +41,8 @@ export function readMarkdownLayoutStyle({
     '--markdown-mermaid-viewport-height': autoHeight
       ? 'auto'
       : `min(var(--markdown-block-max-height), max(calc(8rem * ${scale}), calc(${bodyHeight}px * 0.72)))`,
-    '--markdown-scale': `${scale}`,
+    '--markdown-scale': `${contentScale}`,
+    '--markdown-scale-raw': `${scale}`,
     '--markdown-scale-x': `${scaleX}`,
     '--markdown-scale-y': `${scaleY}`
   } as CSSProperties

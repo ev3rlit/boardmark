@@ -1045,7 +1045,8 @@ Scaled note
     expect(markdownHost).not.toBeNull()
     expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
     expect(markdownHost?.style.getPropertyValue('--markdown-body-height')).toBe('408px')
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBeCloseTo(600 / 280)
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale-raw'))).toBeCloseTo(600 / 280)
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBe(1)
   })
 
   it('uses width-only scaling for auto-height notes and removes the block height ceiling', async () => {
@@ -1078,7 +1079,8 @@ Auto height note
     expect(markdownHost).not.toBeNull()
     expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
     expect(markdownHost?.style.getPropertyValue('--markdown-block-max-height')).toBe('none')
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBeCloseTo(600 / 280)
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale-raw'))).toBeCloseTo(600 / 280)
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBe(1)
   })
 
   it('rerenders only the edited node selectors while node editing state changes', async () => {
