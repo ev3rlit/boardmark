@@ -1001,7 +1001,7 @@ export function createCanvasCommandSlice(
             x: roundGeometry(nextGeometry.x),
             y: roundGeometry(nextGeometry.y),
             w: roundGeometry(nextGeometry.width),
-            h: roundGeometry(nextGeometry.height)
+            h: geometry.preserveAutoHeight ? undefined : roundGeometry(nextGeometry.height)
           }
         }
       }))
@@ -1033,7 +1033,8 @@ export function createCanvasCommandSlice(
           x: nextGeometry.x,
           y: nextGeometry.y,
           width: nextGeometry.width,
-          height: nextGeometry.height
+          height: nextGeometry.height,
+          preserveAutoHeight: geometry.preserveAutoHeight
         },
         set
       })

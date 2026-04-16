@@ -257,12 +257,14 @@ export type CanvasStoreState = {
     y: number
     width: number
     height: number
+    preserveAutoHeight?: boolean
   }) => void
   commitNodeResize: (nodeId: string, geometry: {
     x: number
     y: number
     width: number
     height: number
+    preserveAutoHeight?: boolean
   }) => Promise<void>
   resetNodeHeight: (nodeId: string) => Promise<void>
   setSelectedObjectColor: (target: 'bg' | 'stroke', color: string) => Promise<void>

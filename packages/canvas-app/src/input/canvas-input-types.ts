@@ -61,6 +61,7 @@ export type CanvasInputIntent =
         y: number
         width: number
         height: number
+        preserveAutoHeight?: boolean
       }
     }
   | {
@@ -189,6 +190,7 @@ export type CanvasResolvedInput =
         y: number
         width: number
         height: number
+        preserveAutoHeight?: boolean
       }
     }
   | {
@@ -264,6 +266,7 @@ export type CanvasInputDispatchContext = {
       y: number
       width: number
       height: number
+      preserveAutoHeight?: boolean
     }
   ) => Promise<void>
   nudgeSelection: (dx: number, dy: number) => Promise<void>

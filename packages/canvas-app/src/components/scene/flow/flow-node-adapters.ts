@@ -13,6 +13,7 @@ export type CanvasNodeGeometryDraft = {
   y: number
   width: number
   height: number
+  preserveAutoHeight?: boolean
 }
 
 export function readFlowNodes(
@@ -106,17 +107,17 @@ export function applyFlowNodeGeometryDrafts(
       },
       data: {
         ...flowNode.data,
-        autoHeight: false,
+        autoHeight: draft.preserveAutoHeight ? flowNode.data.autoHeight : false,
         width: draft.width,
-        height: draft.height
+        height: draft.preserveAutoHeight ? undefined : draft.height
       },
       style: {
         ...flowNode.style,
         width: draft.width,
-        height: draft.height
+        height: draft.preserveAutoHeight ? undefined : draft.height
       },
       width: draft.width,
-      height: draft.height
+      height: draft.preserveAutoHeight ? undefined : draft.height
     }
   })
 }

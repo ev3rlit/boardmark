@@ -37,6 +37,7 @@ import {
 } from '@boardmark/canvas-domain'
 import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
+import { readMarkdownLayoutStyle } from '@canvas-app/components/markdown-layout-style'
 import { SelectionToolbar } from '@canvas-app/components/scene/selection-toolbar'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
 import {
@@ -717,6 +718,7 @@ function CanvasNoteNode({
   onResizePreview
 }: NodeProps<Node<CanvasFlowNodeData>> & { store: CanvasStore } & ResizeCallbacks) {
   const hostAnchorRef = useRef<HTMLDivElement | null>(null)
+  const internalNode = useInternalNode(id)
   const activeSession = useStore(store, (state) => readActiveNodeEditingSession(state.editingState, id))
   const blocksEditingInteractions = useStore(
     store,
@@ -764,7 +766,12 @@ function CanvasNoteNode({
               x: resize.x,
               y: resize.y,
               width: resize.width,
-              height: resize.height
+              height: resize.height,
+              preserveAutoHeight: shouldPreserveAutoHeightResize(
+                data.autoHeight ?? false,
+                resize.height,
+                internalNode?.measured?.height ?? internalNode?.height
+              )
             })
           }
         }}
@@ -774,7 +781,12 @@ function CanvasNoteNode({
               x: resize.x,
               y: resize.y,
               width: resize.width,
-              height: resize.height
+              height: resize.height,
+              preserveAutoHeight: shouldPreserveAutoHeightResize(
+                data.autoHeight ?? false,
+                resize.height,
+                internalNode?.measured?.height ?? internalNode?.height
+              )
             })
           }
         }}
@@ -803,6 +815,11 @@ function CanvasNoteNode({
             ariaLabel={`Edit ${id}`}
             autoFocus
             editable={!data.locked}
+            markdownLayoutStyle={readMarkdownLayoutStyle({
+              autoHeight: data.autoHeight ?? false,
+              height: data.height,
+              width: data.width
+            })}
             onBlockModeChange={setEditingBlockMode}
             onCancel={cancelInlineEditing}
             onCommit={() => commitInlineEditing()}
@@ -825,6 +842,11 @@ function CanvasNoteNode({
               className="markdown-content note-markdown"
               content={data.body ?? ''}
               imageResolver={resolveImageSource}
+              style={readMarkdownLayoutStyle({
+                autoHeight: data.autoHeight ?? false,
+                height: data.height,
+                width: data.width
+              })}
             />
           </div>
         )}
@@ -1146,6 +1168,18 @@ function FallbackComponentNode({
       <div className="mt-3 text-sm text-[inherit]">{body ?? 'Custom component placeholder'}</div>
     </div>
   )
+}
+
+function shouldPreserveAutoHeightResize(
+  autoHeight: boolean,
+  nextHeight: number,
+  currentHeight: number | undefined
+) {
+  if (!autoHeight || currentHeight === undefined) {
+    return false
+  }
+
+  return Math.round(nextHeight) === Math.round(currentHeight)
 }
 
 export {

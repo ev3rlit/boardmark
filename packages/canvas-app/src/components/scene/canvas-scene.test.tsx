@@ -379,6 +379,37 @@ describe('CanvasScene', () => {
     expect(resizedFlowNodes[1]).toBe(flowNodes[1])
   })
 
+  it('keeps auto-height note previews auto-sized when the resize draft only changes width', () => {
+    const flowNodes = readFlowNodes([
+      {
+        id: 'welcome',
+        component: 'note',
+        at: { x: 80, y: 72, w: 320 },
+        body: 'Boardmark Viewer\n',
+        position: {
+          start: { line: 1, offset: 0 },
+          end: { line: 3, offset: 12 }
+        },
+        sourceMap
+      }
+    ])
+
+    const resizedFlowNodes = applyFlowNodeGeometryDrafts(flowNodes, {
+      welcome: {
+        x: 144,
+        y: 168,
+        width: 420,
+        height: 220,
+        preserveAutoHeight: true
+      }
+    })
+
+    expect(resizedFlowNodes[0]?.data.autoHeight).toBe(true)
+    expect(resizedFlowNodes[0]?.data.height).toBeUndefined()
+    expect(resizedFlowNodes[0]?.style?.height).toBeUndefined()
+    expect(resizedFlowNodes[0]?.height).toBeUndefined()
+  })
+
   it('reconciles local drag preview nodes back to store-backed geometry', () => {
     const storeBackedFlowNodes = readFlowNodes([
       {
@@ -982,6 +1013,72 @@ Boardmark Viewer
     expect(previewParagraph).not.toBeNull()
     expect(previewParagraph?.querySelector('br')).not.toBeNull()
     expect(previewParagraph?.textContent).toBe('Line 1\nLine 2')
+  })
+
+  it('writes note size driven markdown scale variables onto the preview host', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: note { id: scaled, at: { x: 80, y: 72, w: 640, h: 440 } }
+Scaled note
+:::`)
+
+    const { container } = render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await screen.findByText('Scaled note')
+
+    const markdownHost = container.querySelector('.note-markdown') as HTMLDivElement | null
+
+    expect(markdownHost).not.toBeNull()
+    expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
+    expect(markdownHost?.style.getPropertyValue('--markdown-body-height')).toBe('408px')
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBeCloseTo(600 / 280)
+  })
+
+  it('uses width-only scaling for auto-height notes and removes the block height ceiling', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: 0
+  y: 0
+  zoom: 1
+---
+
+::: note { id: auto-scaled, at: { x: 80, y: 72, w: 640 } }
+Auto height note
+:::`)
+
+    const { container } = render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await screen.findByText('Auto height note')
+
+    const markdownHost = container.querySelector('.note-markdown') as HTMLDivElement | null
+
+    expect(markdownHost).not.toBeNull()
+    expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
+    expect(markdownHost?.style.getPropertyValue('--markdown-block-max-height')).toBe('none')
+    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBeCloseTo(600 / 280)
   })
 
   it('rerenders only the edited node selectors while node editing state changes', async () => {

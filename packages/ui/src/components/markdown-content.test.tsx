@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps, ReactElement } from 'react'
+import type { ComponentProps, CSSProperties, ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { highlightCodeBlockMock } = vi.hoisted(() => ({
@@ -140,6 +140,21 @@ describe('MarkdownContent', () => {
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).not.toBeChecked()
     expect(container.querySelector('[data-footnotes]')).not.toBeNull()
+  })
+
+  it('applies custom root styles to the markdown host', () => {
+    const { container } = render(
+      <MarkdownContent
+        className="markdown-content note-markdown"
+        content="Scaled"
+        style={{ '--markdown-scale': '1.5' } as CSSProperties}
+      />
+    )
+
+    const root = container.querySelector('.markdown-content.note-markdown') as HTMLDivElement | null
+
+    expect(root).not.toBeNull()
+    expect(root?.style.getPropertyValue('--markdown-scale')).toBe('1.5')
   })
 
   it('does not treat a single newline inside a paragraph as a visible line break', () => {

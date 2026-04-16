@@ -89,7 +89,9 @@ A[Start] --> B[Ship]`} />
 
     expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
 
-    expect(await screen.findByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    const diagram = await screen.findByRole('img', { name: 'Mermaid diagram: flowchart TD' })
+    expect(screen.getByRole('button', { name: 'Export image' })).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
     expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Export JPG' })).toBeInTheDocument()
@@ -143,7 +145,9 @@ A[Start] --> B[Ship]`} />
       svg: '<svg width="320" height="200"><text>diagram</text></svg>'
     })
 
-    expect(await screen.findByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    await screen.findByRole('img', { name: 'Mermaid diagram: flowchart TD' })
+    fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
+    expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
 
     renderMermaidDiagramMock.mockRejectedValueOnce(new Error('Parse error on line 2'))
 
@@ -162,5 +166,6 @@ A[Start] -->`} />
 
     expect(await screen.findByText('Mermaid diagram could not be rendered.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Export PNG' })).toBeNull()
   })
 })

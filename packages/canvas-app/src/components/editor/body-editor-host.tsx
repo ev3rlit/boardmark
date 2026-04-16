@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject
 } from 'react'
@@ -25,6 +26,7 @@ type BodyEditorHostProps = {
   ariaLabel: string
   autoFocus?: boolean
   editable?: boolean
+  markdownLayoutStyle?: CSSProperties
   onBlockModeChange: (mode: CanvasEditingBlockMode) => void
   onCancel: () => void
   onCommit: () => Promise<unknown>
@@ -39,6 +41,7 @@ export function BodyEditorHost({
   ariaLabel,
   autoFocus = false,
   editable = true,
+  markdownLayoutStyle,
   onBlockModeChange,
   onCancel,
   onCommit,
@@ -145,6 +148,7 @@ export function BodyEditorHost({
             autoFocus={autoFocus}
             documentContent={session.draftDocument}
             editable={editable}
+            markdownLayoutStyle={markdownLayoutStyle}
             markdown={session.draftMarkdown}
             onDocumentChange={onDocumentChange}
             onBlockModeChange={onBlockModeChange}

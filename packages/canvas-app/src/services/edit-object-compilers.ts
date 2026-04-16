@@ -98,16 +98,23 @@ const compileSetNodeStyleColor: IntentCompiler<'set-node-style-color'> = (contex
 }
 
 const compileResizeNode: IntentCompiler<'resize-node'> = (context, intent) => {
-  return compileSingleEditTransaction(intent, patchNodeMetadata(context, intent.nodeId, (metadata) => ({
-    ...metadata,
-    at: {
+  return compileSingleEditTransaction(intent, patchNodeMetadata(context, intent.nodeId, (metadata) => {
+    const nextAt: Record<string, unknown> = {
       ...readMetadataRecord(metadata.at),
       x: roundGeometry(intent.x),
       y: roundGeometry(intent.y),
-      w: Math.max(120, roundGeometry(intent.width)),
-      h: Math.max(120, roundGeometry(intent.height))
+      w: Math.max(120, roundGeometry(intent.width))
     }
-  })))
+
+    if (!intent.preserveAutoHeight) {
+      nextAt.h = Math.max(120, roundGeometry(intent.height))
+    }
+
+    return {
+      ...metadata,
+      at: nextAt
+    }
+  }))
 }
 
 const compileReplaceObjectBody: IntentCompiler<'replace-object-body'> = (context, intent) => {

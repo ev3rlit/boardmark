@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { CSSProperties } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
+import { readMarkdownLayoutStyle } from '@canvas-app/components/markdown-layout-style'
 import { createWysiwygMarkdownBridge } from '@canvas-app/components/editor/wysiwyg-markdown-bridge'
 import type { CanvasEditingSessionState } from '@canvas-app/store/canvas-store-types'
 
@@ -316,6 +318,36 @@ describe('BodyEditorHost', () => {
     })
   })
 
+  it('applies the shared markdown layout contract to WYSIWYG special block previews', async () => {
+    renderHost({
+      markdownLayoutStyle: readMarkdownLayoutStyle({
+        autoHeight: false,
+        height: 440,
+        width: 640
+      }),
+      session: {
+        ...ACTIVE_WYSIWYG_SESSION,
+        draftDocument: createWysiwygDocument('```mermaid\nflowchart TD\nA --> B\n```'),
+        draftMarkdown: '```mermaid\nflowchart TD\nA --> B\n```'
+      }
+    })
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+    const preview = await waitFor(() => {
+      const element = document.querySelector('.canvas-wysiwyg-special-block .canvas-wysiwyg-code-block__preview')
+
+      if (!(element instanceof HTMLElement)) {
+        throw new Error('Expected a special fenced block preview to exist.')
+      }
+
+      return element
+    })
+
+    expect(editor.style.getPropertyValue('--markdown-block-max-height')).not.toBe('')
+    expect(editor.style.getPropertyValue('--markdown-mermaid-viewport-height')).not.toBe('')
+    expect(preview).not.toHaveClass('markdown-content')
+  })
+
   it('clamps the toolbar within the viewport when the object is near the edges', async () => {
     const originalInnerWidth = window.innerWidth
     const originalInnerHeight = window.innerHeight
@@ -380,11 +412,13 @@ describe('BodyEditorHost', () => {
 
 function renderHost({
   anchorRef = createDefaultAnchorRef(),
+  markdownLayoutStyle,
   onCancel = () => undefined,
   onCommit = async () => undefined,
   session
 }: {
   anchorRef?: ReturnType<typeof createAnchorRef>
+  markdownLayoutStyle?: CSSProperties
   onCancel?: () => void
   onCommit?: () => Promise<unknown>
   session: CanvasEditingSessionState
@@ -394,6 +428,7 @@ function renderHost({
       <BodyEditorHost
         ariaLabel="Edit welcome"
         editable
+        markdownLayoutStyle={markdownLayoutStyle}
         onBlockModeChange={() => undefined}
         onCancel={onCancel}
         onCommit={onCommit}

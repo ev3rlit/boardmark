@@ -441,52 +441,70 @@ button {
 }
 
 .markdown-content {
+  --markdown-scale-x: 1;
+  --markdown-scale-y: 1;
+  --markdown-scale: 1;
+  --markdown-body-width: 280px;
+  --markdown-body-height: 188px;
+  --markdown-space-2xs: calc(0.12rem * var(--markdown-scale));
+  --markdown-space-xs: calc(0.2rem * var(--markdown-scale));
+  --markdown-space-sm: calc(0.35rem * var(--markdown-scale));
+  --markdown-space-md: calc(0.55rem * var(--markdown-scale));
+  --markdown-space-lg: calc(0.75rem * var(--markdown-scale));
+  --markdown-space-xl: calc(0.9rem * var(--markdown-scale));
+  --markdown-space-2xl: calc(1rem * var(--markdown-scale));
+  --markdown-radius-sm: calc(0.45rem * var(--markdown-scale));
+  --markdown-radius-md: calc(0.7rem * var(--markdown-scale));
+  --markdown-radius-lg: calc(0.9rem * var(--markdown-scale));
+  --markdown-radius-xl: calc(1rem * var(--markdown-scale));
+  --markdown-icon-size: calc(1rem * var(--markdown-scale));
+  --markdown-block-max-height: none;
   color: var(--color-on-surface);
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--markdown-scale));
   line-height: 1.65;
 }
 
 .markdown-content :where(h1, h2, h3, h4, h5, h6) {
-  margin: 0 0 0.65rem;
+  margin: 0 0 calc(0.65rem * var(--markdown-scale));
   line-height: 1.15;
   letter-spacing: -0.03em;
 }
 
 .markdown-content :where(h1) {
-  font-size: 1.4rem;
+  font-size: calc(1.4rem * var(--markdown-scale));
 }
 
 .markdown-content :where(h2) {
-  font-size: 1.15rem;
+  font-size: calc(1.15rem * var(--markdown-scale));
 }
 
 .markdown-content :where(h3) {
-  font-size: 1rem;
+  font-size: calc(1rem * var(--markdown-scale));
 }
 
 .markdown-content :where(h4) {
-  font-size: 0.94rem;
+  font-size: calc(0.94rem * var(--markdown-scale));
 }
 
 .markdown-content :where(h5) {
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--markdown-scale));
 }
 
 .markdown-content :where(h6) {
-  font-size: 0.82rem;
+  font-size: calc(0.82rem * var(--markdown-scale));
   color: var(--color-on-surface-variant);
 }
 
 .markdown-content :where(p, ul, ol, pre) {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--markdown-space-lg);
 }
 
 .markdown-content :where(blockquote, hr) {
-  margin: 0 0 0.9rem;
+  margin: 0 0 var(--markdown-space-xl);
 }
 
 .markdown-content :where(ul, ol) {
-  padding-left: 1.2rem;
+  padding-left: calc(1.2rem * var(--markdown-scale));
 }
 
 .markdown-content :where(ul) {
@@ -498,7 +516,7 @@ button {
 }
 
 .markdown-content :where(li) {
-  margin: 0.2rem 0;
+  margin: var(--markdown-space-xs) 0;
 }
 
 .markdown-content :where(li > p) {
@@ -512,13 +530,13 @@ button {
 .markdown-content :where(a) {
   color: var(--color-primary-dim);
   text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.16em;
+  text-underline-offset: calc(0.16em * var(--markdown-scale));
 }
 
 .markdown-content :where(blockquote) {
-  border-radius: 1rem;
+  border-radius: var(--markdown-radius-xl);
   background: color-mix(in oklab, var(--color-surface-lowest) 82%, transparent);
-  padding: 0.8rem 0.95rem;
+  padding: calc(0.8rem * var(--markdown-scale)) calc(0.95rem * var(--markdown-scale));
   color: var(--color-on-surface-variant);
 }
 
@@ -533,17 +551,17 @@ button {
 }
 
 .markdown-content :where(code) {
-  border-radius: 0.45rem;
+  border-radius: var(--markdown-radius-sm);
   background: rgba(43, 52, 55, 0.07);
-  padding: 0.12rem 0.35rem;
+  padding: var(--markdown-space-2xs) var(--markdown-space-sm);
   font-size: 0.88em;
 }
 
 .markdown-content :where(pre) {
-  border-radius: 1rem;
+  border-radius: var(--markdown-radius-xl);
   background: rgba(43, 52, 55, 0.92);
   color: #f2f4f5;
-  padding: 0.9rem 1rem;
+  padding: var(--markdown-space-xl) var(--markdown-space-2xl);
 }
 
 .markdown-content :where(pre code) {
@@ -553,9 +571,9 @@ button {
 }
 
 .markdown-content :where(.markdown-code-block) {
-  margin: 0 0 0.85rem;
+  margin: 0 0 calc(0.85rem * var(--markdown-scale));
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: var(--markdown-radius-xl);
   background: rgba(43, 52, 55, 0.92);
   color: #f2f4f5;
 }
@@ -564,8 +582,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 0.8rem 0 1rem;
+  gap: var(--markdown-space-lg);
+  padding: calc(0.7rem * var(--markdown-scale)) calc(0.8rem * var(--markdown-scale)) 0
+    var(--markdown-space-2xl);
 }
 
 .markdown-content :where(.markdown-code-block__header-slot) {
@@ -580,9 +599,9 @@ button {
   overflow: hidden;
   border-radius: 999px;
   background: color-mix(in oklab, white 12%, transparent);
-  padding: 0.16rem 0.55rem;
+  padding: calc(0.16rem * var(--markdown-scale)) calc(0.55rem * var(--markdown-scale));
   color: color-mix(in oklab, white 92%, var(--color-on-surface-variant));
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--markdown-scale));
   font-weight: 700;
   letter-spacing: 0.03em;
   text-overflow: ellipsis;
@@ -591,13 +610,13 @@ button {
 
 .markdown-content :where(.markdown-code-block__copy-button) {
   display: inline-flex;
-  height: 1.85rem;
-  width: 1.85rem;
+  height: calc(1.85rem * var(--markdown-scale));
+  width: calc(1.85rem * var(--markdown-scale));
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 0.7rem;
+  border-radius: var(--markdown-radius-md);
   background: transparent;
   color: color-mix(in oklab, white 78%, var(--color-on-surface-variant));
   transition:
@@ -655,8 +674,8 @@ button {
 }
 
 .markdown-content :where(.markdown-code-block__copy-icon) {
-  height: 1rem;
-  width: 1rem;
+  height: var(--markdown-icon-size);
+  width: var(--markdown-icon-size);
   stroke-width: 2.2;
 }
 
@@ -666,7 +685,7 @@ button {
 
 .markdown-content :where(.markdown-code-block__action-status) {
   color: color-mix(in oklab, white 82%, var(--color-on-surface-variant));
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--markdown-scale));
   font-weight: 700;
   letter-spacing: 0.03em;
   white-space: nowrap;
@@ -685,7 +704,7 @@ button {
   overflow-x: auto;
   border-radius: 0;
   background: transparent;
-  padding: 0.35rem 1rem 0.9rem;
+  padding: var(--markdown-space-sm) var(--markdown-space-2xl) var(--markdown-space-xl);
 }
 
 .markdown-content :where(.markdown-code-block__code) {
@@ -704,56 +723,46 @@ button {
 }
 
 .markdown-content :where(.mermaid-diagram) {
-  margin: 0 0 0.85rem;
-  border-radius: 1rem;
+  position: relative;
+  margin: 0 0 calc(0.85rem * var(--markdown-scale));
+  overflow: hidden;
+  border-radius: var(--markdown-radius-xl);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 249, 250, 0.94)),
     color-mix(in oklab, var(--color-surface-lowest) 90%, white);
-  padding: 0.95rem 1rem;
+  padding: var(--markdown-space-2xl);
 }
 
-.markdown-content :where(.mermaid-diagram__header) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.7rem;
-}
-
-.markdown-content :where(.mermaid-diagram__action-status) {
-  color: var(--color-on-surface-variant);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-}
-
-.markdown-content :where(.mermaid-diagram__action-status--success) {
-  color: color-mix(in oklab, #227549 72%, white);
-}
-
-.markdown-content :where(.mermaid-diagram__action-status--error) {
-  color: color-mix(in oklab, #b64a41 76%, var(--color-on-surface));
-}
-
-.markdown-content :where(.mermaid-diagram__action-status--placeholder) {
-  color: var(--color-on-surface-variant);
+.markdown-content :where(.mermaid-diagram__actions) {
+  position: absolute;
+  top: var(--markdown-space-md);
+  right: var(--markdown-space-md);
+  z-index: 1;
+  display: inline-flex;
 }
 
 .markdown-content :where(.mermaid-diagram__viewport) {
-  overflow-x: auto;
-  overflow-y: hidden;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  height: var(--markdown-mermaid-viewport-height);
+  overflow: hidden;
 }
 
 .markdown-content :where(.mermaid-diagram__viewport svg) {
   display: block;
-  height: auto;
-  max-width: none;
+  width: 100%;
+  height: var(--markdown-mermaid-svg-height);
+  max-width: 100%;
+  max-height: var(--markdown-block-max-height);
+  margin-inline: auto;
 }
 
 .markdown-content :where(.mermaid-diagram__status) {
   color: var(--color-on-surface-variant);
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--markdown-scale));
 }
 
 .markdown-content :where(.mermaid-diagram--error) {
@@ -763,24 +772,24 @@ button {
 }
 
 .markdown-content :where(.mermaid-diagram__title) {
-  margin: 0 0 0.35rem;
+  margin: 0 0 var(--markdown-space-sm);
   font-weight: 700;
   color: var(--color-on-surface);
 }
 
 .markdown-content :where(.mermaid-diagram__message) {
-  margin: 0 0 0.7rem;
+  margin: 0 0 calc(0.7rem * var(--markdown-scale));
   color: var(--color-on-surface-variant);
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--markdown-scale));
 }
 
 .markdown-content :where(.mermaid-diagram__source) {
   margin: 0;
   overflow-x: auto;
-  border-radius: 0.9rem;
+  border-radius: var(--markdown-radius-lg);
   background: rgba(43, 52, 55, 0.9);
   color: #f2f4f5;
-  padding: 0.8rem 0.9rem;
+  padding: calc(0.8rem * var(--markdown-scale)) calc(0.9rem * var(--markdown-scale));
 }
 
 .markdown-content :where(.mermaid-diagram__source code) {
@@ -801,6 +810,18 @@ button {
   right: 0;
   left: auto;
   z-index: 60;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.markdown-content__fenced-block-popover .viewer-context-menu-item {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.markdown-content__fenced-block-popover .viewer-context-menu-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 @keyframes markdown-action-spin {
@@ -816,21 +837,30 @@ button {
 .markdown-table-wrap,
 .markdown-content :where(.tableWrapper) {
   display: block;
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--markdown-space-lg);
   overflow-x: auto;
-  border-radius: 1rem;
+  border-radius: var(--markdown-radius-xl);
   background: color-mix(in oklab, var(--color-surface-lowest) 84%, transparent);
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
+.markdown-content :where(.markdown-content__image) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: var(--markdown-block-max-height);
+  border-radius: var(--markdown-radius-xl);
+  object-fit: contain;
+}
+
 .markdown-content :where(table) {
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--markdown-scale));
 }
 
 .markdown-content :where(.tableWrapper > table) {
@@ -839,7 +869,7 @@ button {
 }
 
 .markdown-content :where(th, td) {
-  padding: 0.55rem 0.75rem;
+  padding: calc(0.55rem * var(--markdown-scale)) calc(0.75rem * var(--markdown-scale));
   text-align: left;
   vertical-align: top;
   box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--color-outline-ghost) 84%, transparent);
@@ -867,7 +897,7 @@ button {
 .markdown-content :where(.task-list-item) {
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: calc(0.55rem * var(--markdown-scale));
 }
 
 .markdown-content :where(.task-list-item)::marker {
@@ -878,7 +908,7 @@ button {
 .markdown-content [data-type='taskItem'] {
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: calc(0.55rem * var(--markdown-scale));
   list-style: none;
 }
 
@@ -890,7 +920,7 @@ button {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  padding-top: 0.2rem;
+  padding-top: var(--markdown-space-xs);
   cursor: pointer;
 }
 
@@ -904,7 +934,7 @@ button {
 }
 
 .markdown-content :where(input[type='checkbox']) {
-  margin: 0.3rem 0 0;
+  margin: calc(0.3rem * var(--markdown-scale)) 0 0;
   accent-color: var(--color-primary);
 }
 
@@ -918,7 +948,7 @@ button {
 }
 
 .markdown-content :where([data-footnotes]) {
-  margin-top: 0.95rem;
+  margin-top: calc(0.95rem * var(--markdown-scale));
   font-size: 0.86em;
   color: var(--color-on-surface-variant);
 }
@@ -928,7 +958,48 @@ button {
 }
 
 .markdown-content :where([data-footnote-backref]) {
-  margin-left: 0.2rem;
+  margin-left: var(--markdown-space-xs);
+}
+
+.markdown-content :where(.sandpack-block) {
+  margin: 0 0 calc(0.85rem * var(--markdown-scale));
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--markdown-radius-xl);
+  background: color-mix(in oklab, var(--color-surface-lowest) 92%, white);
+}
+
+.markdown-content :where(.sandpack-block iframe) {
+  max-height: var(--markdown-block-max-height);
+}
+
+.markdown-content :where(.sandpack-block__title) {
+  margin: 0 0 var(--markdown-space-sm);
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+
+.markdown-content :where(.sandpack-block__message) {
+  margin: 0 0 calc(0.7rem * var(--markdown-scale));
+  color: var(--color-on-surface-variant);
+  font-size: calc(0.88rem * var(--markdown-scale));
+}
+
+.markdown-content :where(.sandpack-block__source) {
+  margin: 0;
+  overflow-x: auto;
+  border-radius: var(--markdown-radius-lg);
+  background: rgba(43, 52, 55, 0.9);
+  color: #f2f4f5;
+  padding: calc(0.8rem * var(--markdown-scale)) calc(0.9rem * var(--markdown-scale));
+}
+
+.markdown-content :where(.sandpack-block__source code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  white-space: pre-wrap;
 }
 
 .edge-markdown :where(p:last-child),

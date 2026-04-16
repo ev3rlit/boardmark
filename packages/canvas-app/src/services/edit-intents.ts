@@ -13,7 +13,15 @@ export type CanvasDocumentEditIntent =
       target: 'bg' | 'stroke'
       color: string
     }
-  | { kind: 'resize-node'; nodeId: string; x: number; y: number; width: number; height: number }
+  | {
+      kind: 'resize-node'
+      nodeId: string
+      x: number
+      y: number
+      width: number
+      height: number
+      preserveAutoHeight?: boolean
+    }
   | { kind: 'duplicate-objects'; nodeIds: string[]; edgeIds: string[]; offsetX: number; offsetY: number }
   | { kind: 'paste-objects'; payload: CanvasClipboardPayload; anchorX: number; anchorY: number; inPlace: boolean }
   | { kind: 'nudge-objects'; nodeIds: string[]; dx: number; dy: number }

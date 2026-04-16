@@ -44,7 +44,9 @@ describe('canvas edit compiler registry', () => {
       'replace-edge-body',
       'replace-image-source',
       'replace-object-body',
+      'reset-node-height',
       'resize-node',
+      'set-node-style-color',
       'set-objects-locked',
       'update-edge-endpoints',
       'update-image-metadata',
@@ -102,6 +104,39 @@ describe('canvas edit compiler registry', () => {
 
     expect(result.value.label).toBe('Move node')
     expect(result.value.edits).toHaveLength(2)
+  })
+
+  it('keeps auto-height notes auto-sized when width-only resize preserves auto height', () => {
+    const autoHeightSource = `---
+type: canvas
+version: 2
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320 } }
+Boardmark Viewer
+:::`
+    const record = readRecord(autoHeightSource)
+    const intent: CanvasDocumentEditIntent = {
+      kind: 'resize-node',
+      nodeId: 'welcome',
+      x: 96,
+      y: 88,
+      width: 420,
+      height: 220,
+      preserveAutoHeight: true
+    }
+    const service = createCanvasDocumentEditService()
+    const result = service.compileTransaction(autoHeightSource, record, intent)
+
+    expect(result.isOk()).toBe(true)
+
+    if (result.isErr()) {
+      return
+    }
+
+    expect(result.value.edits).toHaveLength(1)
+    expect(result.value.edits[0]?.replacement).toContain('"w":420')
+    expect(result.value.edits[0]?.replacement).not.toContain('"h":')
   })
 })
 

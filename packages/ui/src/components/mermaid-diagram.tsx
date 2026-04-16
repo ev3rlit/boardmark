@@ -64,65 +64,44 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
         data-state="ready"
         onContextMenu={imageControls.onContextMenu}
       >
-        <div className="mermaid-diagram__header">
-          {imageControls.statusMessage ? (
-            <span
-              data-boardmark-export-ignore="true"
+        {imageControls.quickAction && QuickActionIcon ? (
+          <div
+            ref={imageControls.quickActionTriggerRef}
+            className="mermaid-diagram__actions"
+            data-boardmark-export-ignore="true"
+          >
+            <button
+              aria-label={imageControls.quickAction.label}
               className={joinClassName(
-                'mermaid-diagram__action-status',
-                imageControls.statusTone === 'error'
-                  ? 'mermaid-diagram__action-status--error'
-                  : imageControls.statusTone === 'success'
-                    ? 'mermaid-diagram__action-status--success'
-                    : undefined
+                'markdown-code-block__copy-button',
+                'markdown-code-block__copy-button--light',
+                imageControls.quickAction.label === 'Image exported'
+                  ? 'markdown-code-block__copy-button--copied'
+                  : undefined,
+                imageControls.quickAction.label === 'Export failed'
+                  ? 'markdown-code-block__copy-button--error'
+                  : undefined
               )}
+              disabled={imageControls.quickAction.disabled}
+              onClick={() => {
+                imageControls.quickAction?.onClick()
+              }}
+              title={imageControls.quickAction.label}
+              type="button"
             >
-              {imageControls.statusMessage}
-            </span>
-          ) : (
-            <span className="mermaid-diagram__action-status mermaid-diagram__action-status--placeholder">
-              Diagram ready
-            </span>
-          )}
-          {imageControls.quickAction && QuickActionIcon ? (
-            <div
-              ref={imageControls.quickActionTriggerRef}
-              className="markdown-content__fenced-block-trigger"
-            >
-              <button
-                aria-label={imageControls.quickAction.label}
-                data-boardmark-export-ignore="true"
+              <QuickActionIcon
+                aria-hidden="true"
                 className={joinClassName(
-                  'markdown-code-block__copy-button',
-                  'markdown-code-block__copy-button--light',
-                  imageControls.quickAction.label === 'Image exported'
-                    ? 'markdown-code-block__copy-button--copied'
-                    : undefined,
-                  imageControls.quickAction.label === 'Export failed'
-                    ? 'markdown-code-block__copy-button--error'
+                  'markdown-code-block__copy-icon',
+                  imageControls.quickAction.label === 'Exporting image'
+                    ? 'markdown-code-block__copy-icon--spinning'
                     : undefined
                 )}
-                disabled={imageControls.quickAction.disabled}
-                onClick={() => {
-                  imageControls.quickAction?.onClick()
-                }}
-                title={imageControls.quickAction.label}
-                type="button"
-              >
-                <QuickActionIcon
-                  aria-hidden="true"
-                  className={joinClassName(
-                    'markdown-code-block__copy-icon',
-                    imageControls.quickAction.label === 'Exporting image'
-                      ? 'markdown-code-block__copy-icon--spinning'
-                      : undefined
-                  )}
-                />
-              </button>
-              {imageControls.quickActionMenu}
-            </div>
-          ) : null}
-        </div>
+              />
+            </button>
+            {imageControls.quickActionMenu}
+          </div>
+        ) : null}
         <div
           aria-label={diagramLabel}
           className="mermaid-diagram__viewport"

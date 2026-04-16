@@ -1,4 +1,12 @@
-import { Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type CSSProperties
+} from 'react'
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -17,6 +25,7 @@ type MarkdownContentProps = {
   content: string
   className?: string
   imageResolver?: BuiltInImageResolver
+  style?: CSSProperties
 }
 
 type MarkdownPreProps = ComponentProps<'pre'> & {
@@ -66,7 +75,8 @@ const defaultMarkdownComponents: Components = {
 export function MarkdownContent({
   content,
   className,
-  imageResolver
+  imageResolver,
+  style
 }: MarkdownContentProps) {
   const markdownComponents = useMemo(() => ({
     ...defaultMarkdownComponents,
@@ -81,7 +91,10 @@ export function MarkdownContent({
   } satisfies Components), [imageResolver])
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      style={style}
+    >
       <ReactMarkdown
         components={markdownComponents}
         remarkPlugins={[remarkGfm, remarkHtmlBreakToMdastBreak]}
@@ -167,7 +180,7 @@ function MarkdownImage({
   return (
     <img
       alt={alt ?? ''}
-      className="max-h-[28rem] max-w-full rounded-xl object-contain"
+      className="markdown-content__image"
       src={resolution.src}
       title={title}
     />

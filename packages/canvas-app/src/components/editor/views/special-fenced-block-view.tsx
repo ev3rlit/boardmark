@@ -97,7 +97,7 @@ export function SpecialFencedBlockView(
         </div>
       ) : (
         <div
-          className="canvas-wysiwyg-code-block__preview markdown-content nodrag nopan"
+          className="canvas-wysiwyg-code-block__preview nodrag nopan"
           onMouseDown={(event) => {
             event.preventDefault()
             setIsEditing(true)

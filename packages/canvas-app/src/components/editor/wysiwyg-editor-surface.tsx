@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo } from 'react'
+import { startTransition, useEffect, useMemo, type CSSProperties } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import {
@@ -17,6 +17,7 @@ type WysiwygEditorSurfaceProps = {
   autoFocus?: boolean
   documentContent?: JSONContent | null
   editable?: boolean
+  markdownLayoutStyle?: CSSProperties
   markdown: string
   onDocumentChange: (content: JSONContent) => void
   onEditorChange?: (editor: Editor | null) => void
@@ -30,6 +31,7 @@ export function WysiwygEditorSurface({
   autoFocus = false,
   documentContent = null,
   editable = true,
+  markdownLayoutStyle,
   markdown,
   onDocumentChange,
   onEditorChange,
@@ -121,6 +123,26 @@ export function WysiwygEditorSurface({
       cancelAnimationFrame(animationFrame)
     }
   }, [autoFocus, editor])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    const nextStyleEntries = Object.entries(markdownLayoutStyle ?? {})
+      .filter(([key, value]) => key.startsWith('--') && value !== undefined)
+      .map(([key, value]) => [key, String(value)] as const)
+
+    for (const [key, value] of nextStyleEntries) {
+      editor.view.dom.style.setProperty(key, value)
+    }
+
+    return () => {
+      for (const [key] of nextStyleEntries) {
+        editor.view.dom.style.removeProperty(key)
+      }
+    }
+  }, [editor, markdownLayoutStyle])
 
   useEffect(() => {
     onEditorChange?.(editor as Editor | null)
