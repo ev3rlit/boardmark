@@ -1,4 +1,4 @@
-# PRD: Shared File Object For Sandpack And Other Consumers
+# PRD: Shared File Object For Sandpack, Widget, And Other Consumers
 
 | 항목 | 내용 |
 |------|------|
@@ -22,6 +22,8 @@
 
 즉 필요한 것은 "sandpack 전용 shared file hack"이 아니라, **문서 안에서 선언한 가상 파일 묶음을 여러 consumer가 공유해서 쓸 수 있는 범용 file object 모델**이다.
 
+여기서 consumer는 현재의 `sandpack` fenced block일 수도 있고, 이후 도입할 수 있는 `widget` 같은 실행형 오브젝트일 수도 있다. 이 문서는 특정 표면보다 **공유 file layer**를 먼저 고정하는 데 목적이 있다.
+
 ---
 
 ## 2. 목표
@@ -29,11 +31,12 @@
 ### Goals
 
 - 문서 안에 공유 가상 파일 묶음을 선언할 수 있다
-- sandpack block이 그 파일 묶음을 참조해 사용할 수 있다
+- sandpack block 또는 future `widget` object가 그 파일 묶음을 참조해 사용할 수 있다
 - 공용 파일과 local file의 merge 규칙이 명확하다
 - object header는 JSON canonical syntax를 사용한다
 - author-facing 문법과 참조 키를 `id`로 통일한다
 - sandpack이 첫 consumer이지만, 구조 자체는 범용 consumer 모델로 설계한다
+- future `widget` object가 같은 file layer를 재사용할 수 있는 경계를 유지한다
 - parser/registry/composition 책임을 분리해 이후 다른 consumer에도 확장 가능하게 만든다
 
 ### Non-Goals
@@ -43,6 +46,7 @@
 - 네트워크 drive 또는 remote repository mount
 - 파일셋 전용 WYSIWYG 편집 UI
 - sandpack 외 다른 runtime consumer를 이번 단계에서 모두 구현하는 것
+- `widget` object 자체를 이번 단계에서 구현하는 것
 
 ---
 
@@ -51,7 +55,7 @@
 핵심 개념은 `files` object다.
 
 - `files` object는 문서 범위의 공유 가상 파일셋이다
-- `sandpack` 같은 consumer는 `uses`로 파일셋을 참조한다
+- `sandpack` block이나 future `widget` object 같은 consumer는 `uses`로 파일셋을 참조한다
 - 실행 직전 composition layer가 shared files와 local files를 합친다
 
 ### 3.1 `files` object 초안
@@ -101,7 +105,28 @@ export default function App() {
 :::
 ``````
 
-### 3.3 Local override 초안
+### 3.3 `widget` consumer 초안
+
+`widget` object를 도입하더라도 shared file model은 바뀌지 않는다. 차이는 consumer surface만 달라진다.
+
+``````md
+::: widget {"id":"button-demo","engine":"sandpack","at":{"x":0,"y":0,"w":720,"h":520},"uses":["design-system"],"entry":"App.js"}
+
+```App.js
+import "./styles/tokens.css";
+import "./styles/button.css";
+
+export default function App() {
+  return <button className="button">Hello</button>;
+}
+```
+
+:::
+``````
+
+이 문서의 초점은 `widget` object 문법 자체가 아니라, `widget`이 생기더라도 같은 `files` object와 `uses` 규칙을 재사용할 수 있어야 한다는 점이다.
+
+### 3.4 Local override 초안
 
 같은 path가 shared files와 local files에 모두 존재하면 local file이 우선한다.
 
@@ -152,6 +177,7 @@ export default function App() {
 ### 4.3 Consumer Rules
 
 - consumer는 `uses`로 하나 이상의 shared file set name을 참조할 수 있다
+- consumer는 current `sandpack` block일 수도 있고, future `widget` object일 수도 있다
 - merge 순서는 `shared files -> local files`다
 - 동일 path 충돌 시 local file이 최종 우선한다
 - 동일 path가 여러 shared set에 중복되면 parse/composition error로 처리한다
@@ -170,7 +196,7 @@ export default function App() {
 - 현재 문서의 shared files는 앱 화면 우측하단 전역 컨트롤 영역의 폴더 버튼으로 연다
 - 폴더 버튼을 누르면 문서에 선언된 shared file set 목록과 내부 파일을 볼 수 있는 패널이 열린다
 - v1의 files 패널은 읽기 전용으로 시작한다
-- 필요하면 consumer note 쪽에는 `uses` 참조를 보여주는 작은 badge를 둘 수 있지만, file set 본체를 캔버스에 배치하지는 않는다
+- 필요하면 consumer note 또는 future `widget` object 쪽에는 `uses` 참조를 보여주는 작은 badge를 둘 수 있지만, file set 본체를 캔버스에 배치하지는 않는다
 
 ### 4.6 Failure Rules
 
@@ -183,7 +209,9 @@ export default function App() {
 
 - `files` object는 sandpack 전용 개념이 아니다
 - sandpack은 첫 번째 consumer일 뿐이다
+- future `widget` object는 가장 자연스러운 다음 consumer 후보다
 - future consumer 예:
+  - `widget` object with `engine: sandpack`
   - html preview block
   - custom runtime preview
   - export/build pipeline
@@ -261,6 +289,7 @@ sandpack document model에 `uses`를 추가하고, local file과 shared file을 
 
 - sandpack이 `uses`를 읽을 수 있다
 - shared file set과 local file을 최종 sandpack files로 compose 한다
+- composition 경계가 future `widget` consumer에도 재사용 가능하도록 유지된다
 
 **변경 범위**
 
@@ -281,6 +310,7 @@ packages/ui/src/components/
 - `uses`가 있는 sandpack은 shared files를 포함해 렌더된다
 - local file override가 동작한다
 - missing reference와 shared path conflict를 오류로 렌더한다
+- sandpack 전용 로직이 shared file model 자체를 잠그지 않는다
 
 ---
 
@@ -320,6 +350,7 @@ sandpack 이외 consumer도 같은 shared file set을 사용할 수 있도록 re
 
 - `files` object가 특정 runtime에 종속되지 않도록 분리한다
 - consumer별 merge/validation 규칙을 registry에서 선택한다
+- future `widget` object가 registry를 통해 같은 file layer를 재사용할 수 있게 한다
 
 **변경 범위**
 
@@ -333,6 +364,7 @@ packages/ui/src/components/fenced-block/
 
 - sandpack consumer가 registry 기반 composition으로 바뀐다
 - future runtime 확장 지점이 문서화된다
+- `widget` consumer를 붙일 때 sandpack compose 로직을 다시 복제하지 않아도 된다
 
 ---
 
@@ -402,9 +434,10 @@ packages/canvas-app/src/
 
 - `files` object가 공유 정의를 담당한다
 - `sandpack`은 첫 번째 consumer다
+- `widget`은 가장 자연스러운 다음 실행형 consumer 후보다
 - author-facing key와 참조 키는 모두 `id`다
 - object header는 JSON canonical syntax를 사용한다
 - merge 규칙은 `shared -> local`, 충돌 시 local 우선이다
 - UI에서는 우측하단 전역 컨트롤의 폴더 버튼으로 files 패널을 열고, 캔버스 오브젝트로는 렌더하지 않는다
 
-이 방향이 맞으면, 이후 sandpack을 넘어서 Boardmark의 여러 실행형 블록이 같은 file object layer를 공유할 수 있다.
+이 방향이 맞으면, 이후 sandpack을 넘어서 Boardmark의 `widget` object와 다른 실행형 블록들이 같은 file object layer를 공유할 수 있다.
