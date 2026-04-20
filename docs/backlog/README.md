@@ -16,3 +16,11 @@
 - [`note-height-auto/README.md`](./note-height-auto/README.md): `h` 필드 생략 시 콘텐츠 기반으로 높이를 자동 계산하고, 명시 시 고정 높이로 처리하는 아이디어
 - [`coordinate-integer-snap/README.md`](./coordinate-integer-snap/README.md): 직렬화 시 부동소수점 좌표를 정수로 스냅해 git diff 노이즈와 텍스트 가독성 문제를 해소하는 아이디어
 - [`url-encoded-document-share/README.md`](./url-encoded-document-share/README.md): 웹 배포 후 문서 source를 URL에 인코딩해 zero-backend snapshot 링크로 공유하는 아이디어
+- [`workspace-package-manifest-completeness/README.md`](./workspace-package-manifest-completeness/README.md): 워크스페이스 패키지의 `package.json` 의존 관계를 실제 import에 맞춰 정비하는 백로그
+- [`canvas-store-and-app-decomposition/README.md`](./canvas-store-and-app-decomposition/README.md): 50+ 메서드 god-store와 `CanvasApp`을 도메인 슬라이스/hook으로 분할하는 백로그
+- [`canvas-scene-module-split/README.md`](./canvas-scene-module-split/README.md): 1,190줄 `canvas-scene.tsx`를 scene/nodes/edges 단위로 쪼개 promptable boundary를 회복하는 백로그
+- [`package-boundary-and-alias-cleanup/README.md`](./package-boundary-and-alias-cleanup/README.md): `@canvas-app` vs `@boardmark/canvas-app` 이중 alias와 ui 재export, CSS 상대경로 결합을 정리하는 백로그
+- [`design-system-drift-cleanup/README.md`](./design-system-drift-cleanup/README.md): DESIGN.md(no-line, primary-as-event) 위반과 raw rgba 하드코딩을 토큰 기반으로 재정렬하는 백로그
+- [`inline-image-insert-dialogs/README.md`](./inline-image-insert-dialogs/README.md): 이미지 삽입·alt 편집의 `window.prompt()` 3연타를 앱 내부 폼 다이얼로그로 대체하는 백로그
+- [`note-markdown-readability-guard/README.md`](./note-markdown-readability-guard/README.md): 노트 markdown 자동 스케일 하한(현재 0.4)이 본문을 ~6px까지 축소시키는 가독성 회귀를 막는 백로그
+- [`file-menu-and-destructive-action-ux/README.md`](./file-menu-and-destructive-action-ux/README.md): 파일 메뉴 가시성, 단축키 노출, 파괴적 액션 톤 분리, status panel 정리를 묶은 UX 백로그

@@ -6,6 +6,17 @@ The Creative North Star for this design system is **The Luminous Curator**. This
 
 By leveraging the "Vivid Mono" DNA—high-contrast whites and grays punctuated by a singular electric purple—we move away from "app-like" grids toward an intentional, asymmetric layout. The goal is to break the "template" look through expansive breathing room, overlapping elements, and a hierarchy driven by tonal depth rather than structural lines.
 
+### Scope Clarification
+
+This document defines the design language for the **canvas app's UI/UX shell**: app surfaces, panels, overlays, controls, preview chrome, typography, and interaction affordances around content.
+
+It does **not** directly define the visual design contract for canvas-internal objects themselves. In particular, object-level semantics such as node shape, connector logic, canvas geometry, object ownership boundaries, or the intrinsic visual language of content placed inside the canvas should not be inferred from this file alone.
+
+Practical rule:
+
+- Use this document for app chrome and embedded preview surface styling.
+- Do not treat this document as the canonical source for canvas object appearance or object-model semantics.
+
 ---
 
 ## 2. Colors & Surface Architecture

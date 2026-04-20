@@ -15,6 +15,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useMarkdownContentImageActions } from './image-actions-context'
 import {
   exportCodeBlockImage,
@@ -32,6 +33,11 @@ type FencedBlockImageActionState =
   | { status: 'error'; message: string }
 
 type ContextMenuState = {
+  x: number
+  y: number
+}
+
+type QuickActionMenuPosition = {
   x: number
   y: number
 }
@@ -67,6 +73,7 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
   const imageActions = useMarkdownContentImageActions()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [quickActionMenuOpen, setQuickActionMenuOpen] = useState(false)
+  const [quickActionMenuPosition, setQuickActionMenuPosition] = useState<QuickActionMenuPosition | null>(null)
   const [actionState, setActionState] = useState<FencedBlockImageActionState>({ status: 'idle' })
   const menuRef = useRef<HTMLDivElement | null>(null)
   const quickActionMenuRef = useRef<HTMLDivElement | null>(null)
@@ -208,16 +215,44 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
 
   useEffect(() => {
     if (!quickActionMenuOpen) {
+      setQuickActionMenuPosition(null)
       return
     }
+
+    const updateMenuPosition = () => {
+      const trigger = quickActionTriggerRef.current
+
+      if (!trigger) {
+        setQuickActionMenuPosition(null)
+        return
+      }
+
+      const rect = trigger.getBoundingClientRect()
+      setQuickActionMenuPosition({
+        x: rect.right,
+        y: rect.bottom
+      })
+    }
+
+    updateMenuPosition()
+
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
 
     const firstEnabledIndex = menuItems.findIndex((item) => !item.disabled)
 
     if (firstEnabledIndex < 0) {
-      return
+      return () => {
+        window.removeEventListener('resize', updateMenuPosition)
+        window.removeEventListener('scroll', updateMenuPosition, true)
+      }
     }
 
     quickActionMenuItemRefs.current[firstEnabledIndex]?.focus()
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
   }, [menuItems, quickActionMenuOpen])
 
   const quickAction = readQuickAction(actionState)
@@ -227,6 +262,9 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
       : actionState.message
 
   return {
+    bindQuickActionTriggerRef(node: HTMLDivElement | null) {
+      quickActionTriggerRef.current = node
+    },
     canShowAffordance,
     contextMenu:
       canShowAffordance && contextMenu
@@ -272,50 +310,54 @@ export function useFencedBlockImageControls<TElement extends HTMLElement>({
           )
         : null,
     quickActionMenu:
-      canShowAffordance && quickActionMenuOpen
+      canShowAffordance && quickActionMenuOpen && quickActionMenuPosition && typeof document !== 'undefined'
         ? (
-            <div
-              ref={quickActionMenuRef}
-              data-boardmark-export-ignore="true"
-              className="viewer-context-menu markdown-content__fenced-block-popover"
-              role="menu"
-              onKeyDown={(event) => {
-                handleMenuKeyDown(
-                  event,
-                  menuItems,
-                  quickActionMenuItemRefs,
-                  () => setQuickActionMenuOpen(false)
-                )
-              }}
-            >
-              <div className="viewer-context-menu-section">
-                {menuItems.map((item, index) => {
-                  const Icon = item.icon
-
-                  return (
-                    <button
-                      key={item.label}
-                      ref={(button) => {
-                        quickActionMenuItemRefs.current[index] = button
-                      }}
-                      className="viewer-context-menu-item"
-                      disabled={item.disabled}
-                      onClick={() => {
-                        item.onSelect()
-                      }}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        className="viewer-context-menu-icon"
-                      />
-                      <span>{item.label}</span>
-                    </button>
+            createPortal(
+              <div
+                ref={quickActionMenuRef}
+                data-boardmark-export-ignore="true"
+                className="viewer-context-menu markdown-content__fenced-block-popover"
+                role="menu"
+                style={alignQuickActionMenuPosition(quickActionMenuPosition)}
+                onKeyDown={(event) => {
+                  handleMenuKeyDown(
+                    event,
+                    menuItems,
+                    quickActionMenuItemRefs,
+                    () => setQuickActionMenuOpen(false)
                   )
-                })}
-              </div>
-            </div>
+                }}
+              >
+                <div className="viewer-context-menu-section">
+                  {menuItems.map((item, index) => {
+                    const Icon = item.icon
+
+                    return (
+                      <button
+                        key={item.label}
+                        ref={(button) => {
+                          quickActionMenuItemRefs.current[index] = button
+                        }}
+                        className="viewer-context-menu-item"
+                        disabled={item.disabled}
+                        onClick={() => {
+                          item.onSelect()
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <Icon
+                          aria-hidden="true"
+                          className="viewer-context-menu-icon"
+                        />
+                        <span>{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>,
+              document.body
+            )
           )
         : null,
     quickActionTriggerRef,
@@ -351,6 +393,13 @@ function alignMenuPosition(position: ContextMenuState) {
   return {
     left: Math.min(position.x, window.innerWidth - 248),
     top: Math.min(position.y, window.innerHeight - 132)
+  }
+}
+
+function alignQuickActionMenuPosition(position: QuickActionMenuPosition) {
+  return {
+    left: Math.max(12, Math.min(position.x - 224, window.innerWidth - 236)),
+    top: Math.max(12, Math.min(position.y + 8, window.innerHeight - 144))
   }
 }
 

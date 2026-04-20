@@ -191,6 +191,40 @@ describe('canvas-input-dispatcher', () => {
     expect(nextViewport.y).not.toBe(viewport.y)
   })
 
+  it('keeps the visible viewport center stable for step zoom without an explicit anchor', () => {
+    const viewport = {
+      x: -180,
+      y: -120,
+      zoom: 0.92
+    }
+    const viewportSize = {
+      width: 800,
+      height: 600
+    }
+
+    const nextViewport = readViewportAfterCanvasZoom({
+      direction: 'in',
+      mode: 'step',
+      viewport,
+      viewportSize
+    })
+
+    const centerX = viewportSize.width / 2
+    const centerY = viewportSize.height / 2
+    const beforeFlowPoint = {
+      x: Number(((centerX - viewport.x) / viewport.zoom).toFixed(6)),
+      y: Number(((centerY - viewport.y) / viewport.zoom).toFixed(6))
+    }
+    const afterFlowPoint = {
+      x: Number(((centerX - nextViewport.x) / nextViewport.zoom).toFixed(6)),
+      y: Number(((centerY - nextViewport.y) / nextViewport.zoom).toFixed(6))
+    }
+
+    expect(nextViewport.zoom).toBe(1.02)
+    expect(afterFlowPoint.x).toBeCloseTo(beforeFlowPoint.x, 2)
+    expect(afterFlowPoint.y).toBeCloseTo(beforeFlowPoint.y, 2)
+  })
+
   it('dispatches pointer-side effects through the shared dispatcher context', async () => {
     const setViewport = vi.fn()
     const setTemporaryPanState = vi.fn()

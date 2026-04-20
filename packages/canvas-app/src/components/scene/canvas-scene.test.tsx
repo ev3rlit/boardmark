@@ -1664,15 +1664,16 @@ function readSceneAppCommandContext(store: CanvasStore) {
     objectContextMenuOpen: false,
     pointerInteractionState: state.pointerInteractionState,
     redo: state.redo,
-      selectedEdgeIds: state.selectedEdgeIds,
-      selectedGroupIds: state.selectedGroupIds,
-      selectedNodeIds: state.selectedNodeIds,
-      setObjectContextMenu: () => undefined,
-      setTemporaryPanState: state.setTemporaryPanState,
-      temporaryPanState: state.temporaryPanState,
-      setViewport: state.setViewport,
-      undo: state.undo,
-      viewport: state.viewport
+    selectedEdgeIds: state.selectedEdgeIds,
+    selectedGroupIds: state.selectedGroupIds,
+    selectedNodeIds: state.selectedNodeIds,
+    setObjectContextMenu: () => undefined,
+    setTemporaryPanState: state.setTemporaryPanState,
+    temporaryPanState: state.temporaryPanState,
+    setViewport: state.setViewport,
+    undo: state.undo,
+    viewport: state.viewport,
+    viewportSize: state.viewportSize
   })
 }
 

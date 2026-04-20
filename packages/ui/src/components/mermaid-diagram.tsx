@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { renderMermaidDiagram } from '../lib/mermaid-renderer'
+import { MermaidDiagramAction } from './mermaid-diagram-action'
 import { useFencedBlockImageControls } from './fenced-block/image-export-controls'
 
 export type MermaidDiagramProps = {
@@ -15,6 +16,8 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
   const rawId = useId()
   const diagramId = `boardmark-mermaid-${rawId.replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const [state, setState] = useState<MermaidDiagramState>({ status: 'loading' })
+  const [isActionHovered, setIsActionHovered] = useState(false)
+  const [isFigureHovered, setIsFigureHovered] = useState(false)
   const diagramLabel = readMermaidLabel(source)
   const rootRef = useRef<HTMLElement | null>(null)
   const imageControls = useFencedBlockImageControls({
@@ -23,6 +26,7 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
     rootRef
   })
   const QuickActionIcon = imageControls.quickAction?.icon
+  const isActionVisible = isFigureHovered || isActionHovered || imageControls.quickActionMenu !== null
 
   useEffect(() => {
     let cancelled = false
@@ -62,45 +66,42 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
         ref={rootRef}
         className="mermaid-diagram"
         data-state="ready"
+        onMouseEnter={() => {
+          setIsFigureHovered(true)
+        }}
+        onMouseLeave={() => {
+          setIsFigureHovered(false)
+        }}
         onContextMenu={imageControls.onContextMenu}
+        onPointerEnter={() => {
+          setIsFigureHovered(true)
+        }}
+        onPointerLeave={() => {
+          setIsFigureHovered(false)
+        }}
       >
         {imageControls.quickAction && QuickActionIcon ? (
-          <div
-            ref={imageControls.quickActionTriggerRef}
-            className="mermaid-diagram__actions"
-            data-boardmark-export-ignore="true"
-          >
-            <button
-              aria-label={imageControls.quickAction.label}
-              className={joinClassName(
-                'markdown-code-block__copy-button',
-                'markdown-code-block__copy-button--light',
-                imageControls.quickAction.label === 'Image exported'
-                  ? 'markdown-code-block__copy-button--copied'
-                  : undefined,
-                imageControls.quickAction.label === 'Export failed'
-                  ? 'markdown-code-block__copy-button--error'
-                  : undefined
-              )}
-              disabled={imageControls.quickAction.disabled}
-              onClick={() => {
-                imageControls.quickAction?.onClick()
-              }}
-              title={imageControls.quickAction.label}
-              type="button"
-            >
-              <QuickActionIcon
-                aria-hidden="true"
-                className={joinClassName(
-                  'markdown-code-block__copy-icon',
-                  imageControls.quickAction.label === 'Exporting image'
-                    ? 'markdown-code-block__copy-icon--spinning'
-                    : undefined
-                )}
-              />
-            </button>
-            {imageControls.quickActionMenu}
-          </div>
+          <MermaidDiagramAction
+            disabled={imageControls.quickAction.disabled}
+            icon={QuickActionIcon}
+            label={imageControls.quickAction.label}
+            menu={imageControls.quickActionMenu}
+            onBlurWithin={() => {
+              setIsActionHovered(false)
+            }}
+            onClick={() => {
+              imageControls.quickAction?.onClick()
+            }}
+            onPointerEnter={() => {
+              setIsActionHovered(true)
+            }}
+            onPointerLeave={() => {
+              setIsActionHovered(false)
+            }}
+            rootRef={rootRef}
+            setTriggerNode={imageControls.bindQuickActionTriggerRef}
+            visible={isActionVisible}
+          />
         ) : null}
         <div
           aria-label={diagramLabel}
@@ -172,8 +173,4 @@ function readMermaidErrorMessage(error: unknown) {
   }
 
   return 'Mermaid render failed with an unknown error.'
-}
-
-function joinClassName(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(' ')
 }

@@ -115,6 +115,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
   const toolMode = useStore(store, (state) => state.toolMode)
   const viewport = useStore(store, (state) => state.viewport)
+  const viewportSize = useStore(store, (state) => state.viewportSize)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
@@ -148,7 +149,8 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
       temporaryPanState,
       setViewport,
       undo,
-      viewport
+      viewport,
+      viewportSize
     }),
     [
       deleteSelection,
@@ -168,7 +170,8 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
       temporaryPanState,
       setViewport,
       undo,
-      viewport
+      viewport,
+      viewportSize
     ]
   )
   const objectCommandContext = useMemo(

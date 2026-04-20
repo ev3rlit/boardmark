@@ -373,7 +373,7 @@ function CodeBlockRenderer({
         ) : null}
         {imageControls.quickAction && QuickActionIcon ? (
           <div
-            ref={imageControls.quickActionTriggerRef}
+            ref={imageControls.bindQuickActionTriggerRef}
             className="markdown-content__fenced-block-trigger"
           >
             <button

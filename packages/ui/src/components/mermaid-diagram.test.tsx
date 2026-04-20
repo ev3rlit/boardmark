@@ -90,7 +90,14 @@ A[Start] --> B[Ship]`} />
     expect(screen.queryByRole('button', { name: 'Export image' })).toBeNull()
 
     const diagram = await screen.findByRole('img', { name: 'Mermaid diagram: flowchart TD' })
-    expect(screen.getByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    const diagramSurface = diagram.closest('.mermaid-diagram')
+
+    expect(diagramSurface).not.toBeNull()
+
+    fireEvent.mouseEnter(diagramSurface as HTMLElement)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
     expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
@@ -145,7 +152,11 @@ A[Start] --> B[Ship]`} />
       svg: '<svg width="320" height="200"><text>diagram</text></svg>'
     })
 
-    await screen.findByRole('img', { name: 'Mermaid diagram: flowchart TD' })
+    const readyDiagram = await screen.findByRole('img', { name: 'Mermaid diagram: flowchart TD' })
+    fireEvent.mouseEnter(readyDiagram.closest('.mermaid-diagram') as HTMLElement)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Export image' })).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Export image' }))
     expect(screen.getByRole('menuitem', { name: 'Export PNG' })).toBeInTheDocument()
 

@@ -608,7 +608,8 @@ main thread
       temporaryPanState: state.temporaryPanState,
       setViewport: state.setViewport,
       undo: state.undo,
-      viewport: state.viewport
+      viewport: state.viewport,
+      viewportSize: state.viewportSize
     })
     const objectContext = createCanvasObjectCommandContext({
       arrangeSelection: state.arrangeSelection,
@@ -870,18 +871,27 @@ main thread
     await renderCanvasAppForTest({ store })
 
     await screen.findByText('Boardmark Viewer')
+    act(() => {
+      store.getState().setViewportSize({
+        width: 800,
+        height: 600
+      })
+    })
+    const initialViewport = store.getState().viewport
 
     await dispatchUiEvent(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
     })
 
     expect(store.getState().viewport.zoom).toBe(1.02)
+    expect(store.getState().viewport.x).not.toBe(initialViewport.x)
+    expect(store.getState().viewport.y).not.toBe(initialViewport.y)
 
     await dispatchUiEvent(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
     })
 
-    expect(store.getState().viewport.zoom).toBe(0.92)
+    expect(store.getState().viewport).toEqual(initialViewport)
   })
 
   it('dispatches undo and redo shortcuts only when the canvas is idle', async () => {
@@ -996,6 +1006,13 @@ main thread
     await renderCanvasAppForTest({ store })
 
     const noteText = await screen.findByText('Boardmark Viewer')
+    act(() => {
+      store.getState().setViewportSize({
+        width: 800,
+        height: 600
+      })
+    })
+    const initialViewport = store.getState().viewport
 
     await dispatchUiEvent(() => {
       fireEvent.doubleClick(noteText)
@@ -1025,6 +1042,8 @@ main thread
     expect(pasteSpy).not.toHaveBeenCalled()
     expect(pasteInPlaceSpy).not.toHaveBeenCalled()
     expect(store.getState().viewport.zoom).toBe(1.02)
+    expect(store.getState().viewport.x).not.toBe(initialViewport.x)
+    expect(store.getState().viewport.y).not.toBe(initialViewport.y)
   })
 })
 

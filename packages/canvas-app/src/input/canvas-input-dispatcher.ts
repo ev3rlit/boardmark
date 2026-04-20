@@ -44,6 +44,7 @@ export function dispatchCanvasResolvedInput(
         direction: input.direction,
         mode: input.mode,
         viewport: context.appCommandContext.viewport,
+        viewportSize: context.appCommandContext.viewportSize,
         viewportBounds: context.viewportBounds
       })
 
@@ -143,6 +144,10 @@ export function readViewportAfterCanvasZoom(input: {
   direction?: 'in' | 'out'
   mode: 'continuous' | 'step'
   viewport: CanvasViewportValue
+  viewportSize?: {
+    width: number
+    height: number
+  }
   viewportBounds?: {
     left: number
     top: number
@@ -154,27 +159,62 @@ export function readViewportAfterCanvasZoom(input: {
     return input.viewport
   }
 
-  if (
-    input.anchorClientX === undefined ||
-    input.anchorClientY === undefined ||
-    input.viewportBounds === undefined
-  ) {
+  const localAnchor = readLocalZoomAnchor(input)
+
+  if (!localAnchor) {
     return {
       ...input.viewport,
       zoom: nextZoom
     }
   }
 
-  const localX = input.anchorClientX - input.viewportBounds.left
-  const localY = input.anchorClientY - input.viewportBounds.top
-  const flowX = (localX - input.viewport.x) / input.viewport.zoom
-  const flowY = (localY - input.viewport.y) / input.viewport.zoom
+  const flowX = (localAnchor.x - input.viewport.x) / input.viewport.zoom
+  const flowY = (localAnchor.y - input.viewport.y) / input.viewport.zoom
 
   return {
-    x: Number((localX - flowX * nextZoom).toFixed(2)),
-    y: Number((localY - flowY * nextZoom).toFixed(2)),
+    x: Number((localAnchor.x - flowX * nextZoom).toFixed(2)),
+    y: Number((localAnchor.y - flowY * nextZoom).toFixed(2)),
     zoom: nextZoom
   }
+}
+
+function readLocalZoomAnchor(input: {
+  anchorClientX?: number
+  anchorClientY?: number
+  mode: 'continuous' | 'step'
+  viewportSize?: {
+    width: number
+    height: number
+  }
+  viewportBounds?: {
+    left: number
+    top: number
+  }
+}) {
+  if (
+    input.anchorClientX !== undefined &&
+    input.anchorClientY !== undefined &&
+    input.viewportBounds !== undefined
+  ) {
+    return {
+      x: input.anchorClientX - input.viewportBounds.left,
+      y: input.anchorClientY - input.viewportBounds.top
+    }
+  }
+
+  if (
+    input.mode === 'step' &&
+    input.viewportSize &&
+    input.viewportSize.width > 0 &&
+    input.viewportSize.height > 0
+  ) {
+    return {
+      x: input.viewportSize.width / 2,
+      y: input.viewportSize.height / 2
+    }
+  }
+
+  return null
 }
 
 function isSameViewportValue(left: CanvasViewportValue, right: CanvasViewportValue) {
