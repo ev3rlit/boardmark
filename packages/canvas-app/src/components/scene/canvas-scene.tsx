@@ -29,6 +29,8 @@ import {
   type CanvasFlowNodeData
 } from '@boardmark/canvas-renderer'
 import {
+  MAX_CANVAS_ZOOM,
+  MIN_CANVAS_ZOOM,
   resolveCanvasObjectBackgroundColor,
   resolveCanvasObjectStrokeColor,
   type BuiltInComponentKey,
@@ -389,6 +391,8 @@ export function CanvasScene({
         zoomOnScroll={false}
         zoomOnPinch={false}
         zoomOnDoubleClick={false}
+        minZoom={MIN_CANVAS_ZOOM}
+        maxZoom={MAX_CANVAS_ZOOM}
         defaultViewport={viewport}
         proOptions={{ hideAttribution: true }}
         onPaneClick={() => {

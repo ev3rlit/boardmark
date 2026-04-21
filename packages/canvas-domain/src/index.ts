@@ -154,7 +154,7 @@ export const DEFAULT_CANVAS_VIEWPORT: CanvasViewport = {
 
 export const DEFAULT_NOTE_WIDTH = 320
 export const DEFAULT_NOTE_HEIGHT = 220
-export const MIN_CANVAS_ZOOM = 0.5
+export const MIN_CANVAS_ZOOM = 0.01
 export const MAX_CANVAS_ZOOM = 1.8
 export const ZOOM_STEP = 0.1
 

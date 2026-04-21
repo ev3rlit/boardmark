@@ -995,6 +995,27 @@ Rectangle
     })
   })
 
+  it('clamps viewport zoom down to the minimum navigation floor', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().setViewport({
+      x: 320.123,
+      y: 240.987,
+      zoom: 0
+    })
+
+    expect(store.getState().viewport).toEqual({
+      x: 320.12,
+      y: 240.99,
+      zoom: 0.01
+    })
+  })
+
   it('preserves history across save flows and autosave', async () => {
     vi.useFakeTimers()
 
