@@ -1,18 +1,38 @@
-import { Minus, Plus } from 'lucide-react'
+import { Compass, Minus, Plus } from 'lucide-react'
 import { useStore } from 'zustand'
 import type { CanvasMatchedInput } from '@canvas-app/input/canvas-input-types'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ZoomControlsProps = {
+  canFitCanvas: boolean
   dispatchCanvasInput: (input: CanvasMatchedInput) => boolean
+  onFitCanvas: () => void
   store: CanvasStore
 }
 
-export function ZoomControls({ dispatchCanvasInput, store }: ZoomControlsProps) {
+export function ZoomControls({
+  canFitCanvas,
+  dispatchCanvasInput,
+  onFitCanvas,
+  store
+}: ZoomControlsProps) {
   const viewport = useStore(store, (state) => state.viewport)
 
   return (
     <div className="viewer-control-group">
+      <button
+        aria-label="Fit canvas"
+        className="viewer-control-button"
+        disabled={!canFitCanvas}
+        onClick={onFitCanvas}
+        type="button"
+      >
+        <Compass
+          aria-hidden="true"
+          className="viewer-control-icon viewer-control-icon--zoom"
+        />
+        <span className="sr-only">Fit canvas</span>
+      </button>
       <button
         aria-label="Zoom out"
         className="viewer-control-button"

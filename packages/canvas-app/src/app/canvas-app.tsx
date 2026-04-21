@@ -3,6 +3,12 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
 import {
+  readCanvasDocumentBounds,
+  readViewportForFitBounds,
+  readViewportForNavigationJump,
+  type CanvasNavigationEntry
+} from '@canvas-app/app/canvas-navigation'
+import {
   canExecuteCanvasAppCommand
 } from '@canvas-app/app/commands/canvas-app-commands'
 import {
@@ -16,6 +22,7 @@ import {
 } from '@canvas-app/app/hooks/use-object-context-menu'
 import {
   isCanvasMarkdownFile,
+  isEditableTarget,
   pickImageFileFromDocument,
   readDroppedFileText,
   readSelectionLabel
@@ -41,10 +48,15 @@ import {
 } from '@canvas-app/components/scene/canvas-scene-export'
 import { FileMenu } from '@canvas-app/components/controls/file-menu'
 import { HistoryControls } from '@canvas-app/components/controls/history-controls'
+import {
+  CanvasNavigationToggleButton,
+  NavigationPanel
+} from '@canvas-app/components/controls/navigation-panel'
 import { ObjectContextMenu } from '@canvas-app/components/context-menu/object-context-menu'
 import { StatusPanels } from '@canvas-app/components/controls/status-panels'
 import { ToolMenu } from '@canvas-app/components/controls/tool-menu'
 import { ZoomControls } from '@canvas-app/components/controls/zoom-controls'
+import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 export type CanvasAppCapabilities = {
@@ -119,6 +131,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null)
   const [exportFormat, setExportFormat] = useState<CanvasExportFormat>('png')
@@ -236,6 +249,37 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
     return () => globalThis.document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  useEffect(() => {
+    const handleNavigationShortcut = (event: KeyboardEvent) => {
+      if (editingState.status === 'active') {
+        return
+      }
+
+      if (isEditableTarget(event.target)) {
+        return
+      }
+
+      const isFindShortcut = (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === 'f'
+
+      if (isFindShortcut) {
+        event.preventDefault()
+        setObjectContextMenu(null)
+        setIsNavigationOpen(true)
+        return
+      }
+
+      if (isNavigationOpen && matchesEscapeKey(event)) {
+        setIsNavigationOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleNavigationShortcut)
+    return () => window.removeEventListener('keydown', handleNavigationShortcut)
+  }, [editingState.status, isNavigationOpen, setObjectContextMenu])
+
   const exportSelection = useMemo(
     () =>
       readDocumentSelection({
@@ -253,6 +297,14 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   )
   const canExportDocument = nodes.length + edges.length > 0
   const canExportSelection = exportSelection.nodeIds.length + exportSelection.edgeIds.length > 0
+  const documentBounds = useMemo(() => readCanvasDocumentBounds({
+    edges,
+    nodes
+  }), [edges, nodes])
+  const canRunNavigationViewportAction =
+    viewportSize.width > 0 &&
+    viewportSize.height > 0
+  const canFitCanvas = canRunNavigationViewportAction && documentBounds !== null
 
   useEffect(() => {
     if (exportDialogOpen && exportScope === 'selection' && !canExportSelection) {
@@ -349,6 +401,46 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
     },
     []
   )
+
+  const jumpToNavigationEntry = (entry: CanvasNavigationEntry) => {
+    if (!entry.bounds) {
+      return
+    }
+
+    const nextViewport = readViewportForNavigationJump({
+      bounds: entry.bounds,
+      viewport,
+      viewportSize
+    })
+
+    if (!nextViewport) {
+      return
+    }
+
+    replaceSelection({
+      groupIds: [],
+      nodeIds: entry.kind === 'node' ? [entry.id] : [],
+      edgeIds: entry.kind === 'edge' ? [entry.id] : []
+    })
+    setViewport(nextViewport)
+  }
+
+  const fitCanvasViewport = () => {
+    if (!documentBounds) {
+      return
+    }
+
+    const nextViewport = readViewportForFitBounds({
+      bounds: documentBounds,
+      viewportSize
+    })
+
+    if (!nextViewport) {
+      return
+    }
+
+    setViewport(nextViewport)
+  }
 
   const selectionLabel = readSelectionLabel(
     selectedGroupIds.length,
@@ -494,10 +586,19 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
           <div className="app-drag-region absolute inset-x-0 top-0 z-20 h-18">
             <div className="flex h-full items-start justify-between px-5 pt-4">
               <div className="app-no-drag pointer-events-auto">
-                <FileMenu
-                  store={store}
-                  capabilities={capabilities}
-                />
+                <div className="flex items-center gap-3">
+                  <FileMenu
+                    store={store}
+                    capabilities={capabilities}
+                  />
+                  <CanvasNavigationToggleButton
+                    isOpen={isNavigationOpen}
+                    onClick={() => {
+                      setObjectContextMenu(null)
+                      setIsNavigationOpen((current) => !current)
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="app-no-drag pointer-events-auto">
@@ -519,7 +620,18 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
           <div className="pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">
             <HistoryControls store={store} />
             <ZoomControls
+              canFitCanvas={canFitCanvas}
               dispatchCanvasInput={dispatchCanvasInput}
+              onFitCanvas={fitCanvasViewport}
+              store={store}
+            />
+          </div>
+
+          <div className="pointer-events-auto absolute left-5 top-24 z-20">
+            <NavigationPanel
+              isOpen={isNavigationOpen}
+              onClose={() => setIsNavigationOpen(false)}
+              onJumpToEntry={jumpToNavigationEntry}
               store={store}
             />
           </div>

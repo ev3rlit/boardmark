@@ -894,6 +894,133 @@ main thread
     expect(store.getState().viewport).toEqual(initialViewport)
   })
 
+  it('opens the navigation panel and jumps to the selected search result', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+    act(() => {
+      store.getState().setViewportSize({
+        width: 800,
+        height: 600
+      })
+    })
+    const initialViewport = store.getState().viewport
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    })
+
+    const searchInput = screen.getByRole('textbox', { name: 'Search canvas' })
+    expect(searchInput).toBeInTheDocument()
+
+    await dispatchUiEvent(() => {
+      fireEvent.change(searchInput, { target: { value: 'overview' } })
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: /Node overview Overview/i }))
+    })
+
+    expect(store.getState().selectedNodeIds).toEqual(['overview'])
+    expect(store.getState().selectedEdgeIds).toEqual([])
+    expect(store.getState().viewport).not.toEqual(initialViewport)
+  })
+
+  it('fits the canvas from the zoom controls and navigates between search results', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+    act(() => {
+      store.getState().setViewportSize({
+        width: 800,
+        height: 600
+      })
+    })
+    const initialViewport = store.getState().viewport
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    })
+    const searchInput = screen.getByRole('textbox', { name: 'Search canvas' })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Fit canvas' }))
+    })
+
+    const fittedCanvasViewport = store.getState().viewport
+    expect(fittedCanvasViewport).not.toEqual(initialViewport)
+
+    await dispatchUiEvent(() => {
+      fireEvent.change(searchInput, { target: { value: 'o' } })
+    })
+    const selectionAfterSearch = [...store.getState().selectedNodeIds, ...store.getState().selectedEdgeIds]
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Next result' }))
+    })
+    const selectionAfterNext = [...store.getState().selectedNodeIds, ...store.getState().selectedEdgeIds]
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Previous result' }))
+    })
+    const selectionAfterPrevious = [...store.getState().selectedNodeIds, ...store.getState().selectedEdgeIds]
+
+    expect(selectionAfterNext).not.toEqual(selectionAfterSearch)
+    expect(selectionAfterPrevious).not.toEqual(selectionAfterNext)
+  })
+
+  it('opens canvas navigation with the find shortcut when the canvas is idle', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(window, { key: 'f', metaKey: true })
+    })
+
+    expect(screen.getByRole('textbox', { name: 'Search canvas' })).toBeInTheDocument()
+  })
+
+  it('does not intercept the find shortcut while inline editing is active', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.doubleClick(noteText)
+    })
+
+    const editor = await screen.findByRole('textbox', { name: 'Edit welcome' })
+
+    await dispatchUiEvent(() => {
+      fireEvent.keyDown(editor, { key: 'f', metaKey: true })
+    })
+
+    expect(screen.queryByRole('textbox', { name: 'Search canvas' })).not.toBeInTheDocument()
+  })
+
   it('dispatches undo and redo shortcuts only when the canvas is idle', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
