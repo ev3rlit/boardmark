@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Circle,
-  Expand,
   Frame,
   Hand,
   ImagePlus,
   MousePointer2,
   Shapes,
-  Shrink,
   Square,
   StickyNote,
   Triangle,
@@ -21,12 +19,10 @@ import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
 
 type ToolMenuProps = {
-  isFullscreen: boolean
-  onToggleFullscreen: () => void
   store: CanvasStore
 }
 
-export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuProps) {
+export function ToolMenu({ store }: ToolMenuProps) {
   const createFrameAtViewport = useStore(store, (state) => state.createFrameAtViewport)
   const insertImageFromFile = useStore(store, (state) => state.insertImageFromFile)
   const insertImageFromLink = useStore(store, (state) => state.insertImageFromLink)
@@ -235,13 +231,6 @@ export function ToolMenu({ isFullscreen, onToggleFullscreen, store }: ToolMenuPr
           </div>
         ) : null}
       </div>
-      <ToolMenuButton
-        active={isFullscreen}
-        className="viewer-control-button--spaced"
-        icon={isFullscreen ? Shrink : Expand}
-        label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-        onClick={onToggleFullscreen}
-      />
     </div>
   )
 }

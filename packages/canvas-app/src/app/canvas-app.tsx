@@ -130,7 +130,6 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const viewportSize = useStore(store, (state) => state.viewportSize)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
-  const [isFullscreen, setIsFullscreen] = useState(() => Boolean(globalThis.document?.fullscreenElement))
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null)
@@ -239,15 +238,6 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
       void store.getState().hydrateTemplate()
     }
   }, [currentDocument, store])
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(globalThis.document.fullscreenElement))
-    }
-
-    globalThis.document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => globalThis.document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
 
   useEffect(() => {
     const handleNavigationShortcut = (event: KeyboardEvent) => {
@@ -389,18 +379,6 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
     onDropRejected: () => setDropError('Only canvas markdown documents or image files can be dropped.'),
     onDropAccepted
   })
-
-  const onToggleFullscreen = useMemo(
-    () => async () => {
-      if (globalThis.document.fullscreenElement) {
-        await globalThis.document.exitFullscreen()
-        return
-      }
-
-      await globalThis.document.documentElement.requestFullscreen()
-    },
-    []
-  )
 
   const jumpToNavigationEntry = (entry: CanvasNavigationEntry) => {
     if (!entry.bounds) {
@@ -610,11 +588,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
           </div>
 
           <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2">
-            <ToolMenu
-              isFullscreen={isFullscreen}
-              onToggleFullscreen={() => void onToggleFullscreen()}
-              store={store}
-            />
+            <ToolMenu store={store} />
           </div>
 
           <div className="pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">

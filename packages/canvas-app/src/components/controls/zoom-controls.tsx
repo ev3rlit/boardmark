@@ -1,4 +1,4 @@
-import { Compass, Minus, Plus } from 'lucide-react'
+import { Expand, Minus, Plus } from 'lucide-react'
 import { useStore } from 'zustand'
 import type { CanvasMatchedInput } from '@canvas-app/input/canvas-input-types'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
@@ -27,7 +27,7 @@ export function ZoomControls({
         onClick={onFitCanvas}
         type="button"
       >
-        <Compass
+        <Expand
           aria-hidden="true"
           className="viewer-control-icon viewer-control-icon--zoom"
         />

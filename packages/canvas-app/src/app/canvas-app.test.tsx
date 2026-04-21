@@ -246,7 +246,7 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Enter fullscreen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Fit canvas' })).toBeInTheDocument()
   })
 
   it('shows conflict actions in the status banner', async () => {
