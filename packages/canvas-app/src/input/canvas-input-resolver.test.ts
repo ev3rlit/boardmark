@@ -362,6 +362,71 @@ describe('canvas-input-dispatcher', () => {
       y: 180
     })
   })
+
+  it('routes pane context menus to the selection menu while a selection is active', async () => {
+    const openObjectContextMenu = vi.fn()
+    const openPaneContextMenu = vi.fn()
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: toGateway(createCanvasMarkdownDocumentRepository()),
+      templateSource: TEMPLATE_SOURCE
+    })
+
+    await store.getState().hydrateTemplate()
+
+    const baseDispatchContext = {
+      clearSelection: vi.fn(),
+      commitNodeMove: vi.fn(async () => undefined),
+      commitNodeResize: vi.fn(async () => undefined),
+      nudgeSelection: vi.fn(async () => undefined),
+      openObjectContextMenu,
+      openPaneContextMenu,
+      objectCommandContext: createCanvasObjectCommandContext(store.getState()),
+      replaceSelection: vi.fn(),
+      reconnectEdge: vi.fn(async () => undefined),
+      selectEdgeFromCanvas: vi.fn(),
+      selectNodeFromCanvas: vi.fn(),
+      setPointerInteractionState: vi.fn(),
+      setTemporaryPanState: vi.fn()
+    }
+
+    dispatchCanvasResolvedInput({
+      kind: 'open-pane-context-menu',
+      x: 48,
+      y: 64
+    }, {
+      ...baseDispatchContext,
+      appCommandContext: createCanvasAppCommandContext({
+        ...store.getState(),
+        objectContextMenuOpen: false,
+        setObjectContextMenu: () => undefined,
+        setTemporaryPanState: baseDispatchContext.setTemporaryPanState,
+        setViewport: vi.fn()
+      })
+    })
+
+    expect(openPaneContextMenu).toHaveBeenCalledWith({ x: 48, y: 64 })
+    expect(openObjectContextMenu).not.toHaveBeenCalled()
+
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+
+    dispatchCanvasResolvedInput({
+      kind: 'open-pane-context-menu',
+      x: 72,
+      y: 96
+    }, {
+      ...baseDispatchContext,
+      appCommandContext: createCanvasAppCommandContext({
+        ...store.getState(),
+        objectContextMenuOpen: false,
+        setObjectContextMenu: () => undefined,
+        setTemporaryPanState: baseDispatchContext.setTemporaryPanState,
+        setViewport: vi.fn()
+      })
+    })
+
+    expect(openObjectContextMenu).toHaveBeenCalledWith({ x: 72, y: 96 })
+  })
 })
 
 function createPicker() {

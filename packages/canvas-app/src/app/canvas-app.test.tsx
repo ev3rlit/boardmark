@@ -6,9 +6,6 @@ import type {
 } from '@boardmark/canvas-repository'
 import { createCanvasMarkdownDocumentRepository } from '@boardmark/canvas-repository'
 import {
-  canExecuteCanvasAppCommand
-} from '@canvas-app/app/commands/canvas-app-commands'
-import {
   canExecuteCanvasObjectCommand
 } from '@canvas-app/app/commands/canvas-object-commands'
 import { createCanvasAppCommandContext, createCanvasObjectCommandContext } from '@canvas-app/app/context/canvas-command-context'
@@ -111,6 +108,17 @@ vi.mock('@canvas-app/components/scene/canvas-scene', async () => {
             className="react-flow__pane"
             onContextMenu={(event) => {
               event.preventDefault()
+              const hasSelection =
+                selectedGroupIds.length + selectedNodeIds.length + selectedEdgeIds.length > 0
+
+              if (hasSelection) {
+                onObjectContextMenu?.({
+                  x: event.clientX,
+                  y: event.clientY
+                })
+                return
+              }
+
               onPaneContextMenu?.({
                 x: event.clientX,
                 y: event.clientY
@@ -386,10 +394,10 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Cut' })).toBeEnabled()
-    expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeEnabled()
-    expect(screen.getByRole('menuitem', { name: 'Group' })).toBeDisabled()
-    expect(screen.getByRole('menuitem', { name: 'Ungroup' })).toBeDisabled()
+    expect(screen.queryByRole('menuitem', { name: 'Paste' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Group' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Ungroup' })).not.toBeInTheDocument()
   })
 
   it('opens the canvas context menu on empty canvas right-click', async () => {
@@ -433,7 +441,7 @@ describe('CanvasApp', () => {
     })
 
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Export…' })).toBeDisabled()
+    expect(screen.queryByRole('menuitem', { name: 'Export…' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Paste' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Paste in place' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Select all' })).toBeEnabled()
@@ -540,15 +548,41 @@ describe('CanvasApp', () => {
     expect(store.getState().selectedNodeIds).toEqual(['welcome', 'overview'])
     expect(screen.getByRole('menuitem', { name: 'Delete 2 items' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Group' })).toBeEnabled()
-    expect(screen.getByRole('menuitem', { name: 'Align' })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: 'Bring forward' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Send backward' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Bring to front' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Send to back' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Lock selection' })).toBeEnabled()
+    expect(screen.queryByRole('menuitem', { name: 'Align' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Color' })).not.toBeInTheDocument()
   })
 
-  it('matches context menu disabled state with command enablement for locked selections', async () => {
+  it('opens the selection context menu when right-clicking the pane with an active multi-selection', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await act(async () => {
+      await store.getState().hydrateTemplate()
+    })
+    act(() => {
+      store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    })
+
+    const { container } = await renderCanvasAppForTest({ store })
+
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(readFlowPane(container))
+    })
+
+    expect(screen.getByRole('menuitem', { name: 'Delete 2 items' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Group' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Select all' })).not.toBeInTheDocument()
+  })
+
+  it('shows only executable context menu items for locked selections', async () => {
     const lockedSource = `---
 type: canvas
 version: 2
@@ -634,22 +668,15 @@ main thread
       ungroupSelection: state.ungroupSelection
     })
 
-    expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeDisabled()
-    expect(screen.getByRole('menuitem', { name: 'Delete object' })).toHaveProperty(
+    expect(screen.queryByRole('menuitem', { name: 'Edit object' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete object' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Cut' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Duplicate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Bring forward' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Unlock selection' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveProperty(
       'disabled',
-      !canExecuteCanvasAppCommand('delete-selection', appContext)
-    )
-    expect(screen.getByRole('menuitem', { name: 'Cut' })).toHaveProperty(
-      'disabled',
-      !canExecuteCanvasObjectCommand('cut-selection', objectContext)
-    )
-    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toHaveProperty(
-      'disabled',
-      !canExecuteCanvasObjectCommand('duplicate-selection', objectContext)
-    )
-    expect(screen.getByRole('menuitem', { name: 'Bring forward' })).toHaveProperty(
-      'disabled',
-      !canExecuteCanvasObjectCommand('bring-forward', objectContext)
+      !canExecuteCanvasObjectCommand('copy-selection', objectContext)
     )
     expect(screen.getByRole('menuitem', { name: 'Unlock selection' })).toHaveProperty(
       'disabled',

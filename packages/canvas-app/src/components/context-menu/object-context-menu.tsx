@@ -1,5 +1,4 @@
 import {
-  AlignLeft,
   BetweenHorizontalStart,
   CheckCheck,
   Copy,
@@ -105,6 +104,57 @@ export function ObjectContextMenu({
   onUngroup,
   onExport
 }: ObjectContextMenuProps) {
+  const sections = mode === 'canvas'
+    ? buildCanvasContextMenuSections({
+        canExport,
+        canPaste,
+        canSelectAll,
+        onExport,
+        onPaste,
+        onPasteInPlace,
+        onSelectAll
+      })
+    : buildSelectionContextMenuSections({
+        canBringForward,
+        canBringToFront,
+        canCopy,
+        canCut,
+        canDelete,
+        canDuplicate,
+        canEdit,
+        canExport,
+        canGroup,
+        canLock,
+        canPaste,
+        canResetHeight,
+        canSendBackward,
+        canSendToBack,
+        canUngroup,
+        imageActions,
+        lockLabel,
+        onBringForward,
+        onBringToFront,
+        onCopy,
+        onCut,
+        onDelete,
+        onDuplicate,
+        onEdit,
+        onExport,
+        onGroup,
+        onLock,
+        onPaste,
+        onPasteInPlace,
+        onResetHeight,
+        onSendBackward,
+        onSendToBack,
+        onUngroup,
+        selectionLabel
+      })
+
+  if (sections.length === 0) {
+    return null
+  }
+
   if (mode === 'canvas') {
     return (
       <div
@@ -116,32 +166,21 @@ export function ObjectContextMenu({
           top: y
         }}
       >
-        <div className="viewer-context-menu-section">
-          <ContextMenuItem
-            disabled={!canExport}
-            icon={Download}
-            label="Export…"
-            onClick={onExport}
-          />
-          <ContextMenuItem
-            disabled={!canPaste}
-            icon={BetweenHorizontalStart}
-            label="Paste"
-            onClick={onPaste}
-          />
-          <ContextMenuItem
-            disabled={!canPaste}
-            icon={BetweenHorizontalStart}
-            label="Paste in place"
-            onClick={onPasteInPlace}
-          />
-          <ContextMenuItem
-            disabled={!canSelectAll}
-            icon={CheckCheck}
-            label="Select all"
-            onClick={onSelectAll}
-          />
-        </div>
+        {sections.map((section, index) => (
+          <div
+            className="viewer-context-menu-section"
+            key={index}
+          >
+            {section.map((item) => (
+              <ContextMenuItem
+                key={item.label}
+                icon={item.icon}
+                label={item.label}
+                onClick={item.onClick}
+              />
+            ))}
+          </div>
+        ))}
       </div>
     )
   }
@@ -156,173 +195,38 @@ export function ObjectContextMenu({
         top: y
       }}
     >
-      <div className="viewer-context-menu-section">
-        <ContextMenuItem
-          disabled={!canExport}
-          icon={Download}
-          label="Export…"
-          onClick={onExport}
-        />
-        <ContextMenuItem
-          disabled={!canEdit}
-          icon={Pencil}
-          label={`Edit ${selectionLabel}`}
-          onClick={onEdit}
-        />
-        <ContextMenuItem
-          disabled={!canDelete}
-          icon={Trash2}
-          label={`Delete ${selectionLabel}`}
-          onClick={onDelete}
-        />
-        {onResetHeight ? (
-          <ContextMenuItem
-            disabled={!canResetHeight}
-            icon={Maximize2}
-            label="Auto height"
-            onClick={onResetHeight}
-          />
-        ) : null}
-      </div>
-
-      <div className="viewer-context-menu-section">
-        {imageActions ? (
-          <>
+      {sections.map((section, index) => (
+        <div
+          className="viewer-context-menu-section"
+          key={index}
+        >
+          {section.map((item) => (
             <ContextMenuItem
-              icon={Copy}
-              label="Replace image"
-              onClick={imageActions.onReplaceImage}
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              onClick={item.onClick}
             />
-            <ContextMenuItem
-              icon={Palette}
-              label="Edit alt text"
-              onClick={imageActions.onEditAltText}
-            />
-            <ContextMenuItem
-              icon={Layers}
-              label={imageActions.lockAspectRatioLabel}
-              onClick={imageActions.onToggleLockAspectRatio}
-            />
-            <ContextMenuItem
-              icon={BetweenHorizontalStart}
-              label="Open source"
-              onClick={imageActions.onOpenSource}
-            />
-            <ContextMenuItem
-              disabled={!imageActions.canReveal}
-              icon={Lock}
-              label="Reveal file"
-              onClick={imageActions.onRevealFile}
-            />
-          </>
-        ) : null}
-      </div>
-
-      <div className="viewer-context-menu-section">
-        <ContextMenuItem
-          disabled={!canCopy}
-          icon={Copy}
-          label="Copy"
-          onClick={onCopy}
-        />
-        <ContextMenuItem
-          disabled={!canCut}
-          icon={Trash2}
-          label="Cut"
-          onClick={onCut}
-        />
-        <ContextMenuItem
-          disabled={!canPaste}
-          icon={BetweenHorizontalStart}
-          label="Paste"
-          onClick={onPaste}
-        />
-      </div>
-
-      <div className="viewer-context-menu-section">
-        <ContextMenuItem
-          disabled={!canDuplicate}
-          icon={Copy}
-          label="Duplicate"
-          onClick={onDuplicate}
-        />
-        <ContextMenuItem
-          disabled={!canGroup}
-          icon={Group}
-          label="Group"
-          onClick={onGroup}
-        />
-        <ContextMenuItem
-          disabled={!canUngroup}
-          icon={Group}
-          label="Ungroup"
-          onClick={onUngroup}
-        />
-        <ContextMenuItem
-          disabled
-          icon={AlignLeft}
-          label="Align"
-          onClick={() => undefined}
-        />
-      </div>
-
-      <div className="viewer-context-menu-section">
-        <ContextMenuItem
-          disabled={!canPaste}
-          icon={BetweenHorizontalStart}
-          label="Paste in place"
-          onClick={onPasteInPlace}
-        />
-        <ContextMenuItem
-          disabled={!canBringForward}
-          icon={Layers}
-          label="Bring forward"
-          onClick={onBringForward}
-        />
-        <ContextMenuItem
-          disabled={!canSendBackward}
-          icon={Layers}
-          label="Send backward"
-          onClick={onSendBackward}
-        />
-        <ContextMenuItem
-          disabled={!canBringToFront}
-          icon={Layers}
-          label="Bring to front"
-          onClick={onBringToFront}
-        />
-        <ContextMenuItem
-          disabled={!canSendToBack}
-          icon={Layers}
-          label="Send to back"
-          onClick={onSendToBack}
-        />
-        <ContextMenuItem
-          disabled
-          icon={Palette}
-          label="Color"
-          onClick={() => undefined}
-        />
-        <ContextMenuItem
-          disabled={!canLock}
-          icon={Lock}
-          label={lockLabel}
-          onClick={onLock}
-        />
-      </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }
 
+type MenuItemDefinition = {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}
+
 type ContextMenuItemProps = {
-  disabled?: boolean
   icon: LucideIcon
   label: string
   onClick: () => void
 }
 
 function ContextMenuItem({
-  disabled = false,
   icon: Icon,
   label,
   onClick
@@ -330,7 +234,6 @@ function ContextMenuItem({
   return (
     <button
       className="viewer-context-menu-item"
-      disabled={disabled}
       onClick={onClick}
       role="menuitem"
       type="button"
@@ -342,4 +245,136 @@ function ContextMenuItem({
       <span>{label}</span>
     </button>
   )
+}
+
+function buildCanvasContextMenuSections(input: {
+  canExport: boolean
+  canPaste: boolean
+  canSelectAll: boolean
+  onExport: () => void
+  onPaste: () => void
+  onPasteInPlace: () => void
+  onSelectAll: () => void
+}) {
+  return [
+    [
+      createMenuItem(input.canExport, Download, 'Export…', input.onExport)
+    ],
+    [
+      createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste', input.onPaste),
+      createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste in place', input.onPasteInPlace)
+    ],
+    [
+      createMenuItem(input.canSelectAll, CheckCheck, 'Select all', input.onSelectAll)
+    ]
+  ].map(filterMenuItems).filter(hasMenuItems)
+}
+
+function buildSelectionContextMenuSections(input: {
+  canBringForward: boolean
+  canBringToFront: boolean
+  canCopy: boolean
+  canCut: boolean
+  canDelete: boolean
+  canDuplicate: boolean
+  canEdit: boolean
+  canExport: boolean
+  canGroup: boolean
+  canLock: boolean
+  canPaste: boolean
+  canResetHeight?: boolean
+  canSendBackward: boolean
+  canSendToBack: boolean
+  canUngroup: boolean
+  imageActions?: ObjectContextMenuProps['imageActions']
+  lockLabel: string
+  onBringForward: () => void
+  onBringToFront: () => void
+  onCopy: () => void
+  onCut: () => void
+  onDelete: () => void
+  onDuplicate: () => void
+  onEdit: () => void
+  onExport: () => void
+  onGroup: () => void
+  onLock: () => void
+  onPaste: () => void
+  onPasteInPlace: () => void
+  onResetHeight?: () => void
+  onSendBackward: () => void
+  onSendToBack: () => void
+  onUngroup: () => void
+  selectionLabel: string
+}) {
+  return [
+    [
+      createMenuItem(input.canExport, Download, 'Export…', input.onExport),
+      createMenuItem(input.canEdit, Pencil, `Edit ${input.selectionLabel}`, input.onEdit),
+      createMenuItem(input.canDelete, Trash2, `Delete ${input.selectionLabel}`, input.onDelete),
+      createMenuItem(
+        input.canResetHeight === true && input.onResetHeight !== undefined,
+        Maximize2,
+        'Auto height',
+        input.onResetHeight ?? (() => undefined)
+      )
+    ],
+    input.imageActions
+      ? [
+          createMenuItem(true, Copy, 'Replace image', input.imageActions.onReplaceImage),
+          createMenuItem(true, Palette, 'Edit alt text', input.imageActions.onEditAltText),
+          createMenuItem(
+            true,
+            Layers,
+            input.imageActions.lockAspectRatioLabel,
+            input.imageActions.onToggleLockAspectRatio
+          ),
+          createMenuItem(true, BetweenHorizontalStart, 'Open source', input.imageActions.onOpenSource),
+          createMenuItem(
+            input.imageActions.canReveal,
+            Lock,
+            'Reveal file',
+            input.imageActions.onRevealFile
+          )
+        ]
+      : [],
+    [
+      createMenuItem(input.canCopy, Copy, 'Copy', input.onCopy),
+      createMenuItem(input.canCut, Trash2, 'Cut', input.onCut),
+      createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste', input.onPaste),
+      createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste in place', input.onPasteInPlace)
+    ],
+    [
+      createMenuItem(input.canDuplicate, Copy, 'Duplicate', input.onDuplicate),
+      createMenuItem(input.canGroup, Group, 'Group', input.onGroup),
+      createMenuItem(input.canUngroup, Group, 'Ungroup', input.onUngroup),
+      createMenuItem(input.canBringForward, Layers, 'Bring forward', input.onBringForward),
+      createMenuItem(input.canSendBackward, Layers, 'Send backward', input.onSendBackward),
+      createMenuItem(input.canBringToFront, Layers, 'Bring to front', input.onBringToFront),
+      createMenuItem(input.canSendToBack, Layers, 'Send to back', input.onSendToBack),
+      createMenuItem(input.canLock, Lock, input.lockLabel, input.onLock)
+    ]
+  ].map(filterMenuItems).filter(hasMenuItems)
+}
+
+function createMenuItem(
+  enabled: boolean,
+  icon: LucideIcon,
+  label: string,
+  onClick: () => void
+): MenuItemDefinition | null {
+  return enabled
+    ? {
+        icon,
+        label,
+        onClick
+      }
+    : null
+}
+
+function filterMenuItems(items: Array<MenuItemDefinition | null>) {
+  return items.filter((item): item is MenuItemDefinition => item !== null)
+}
+
+function hasMenuItems(items: MenuItemDefinition[]) {
+  return items.length > 0
 }

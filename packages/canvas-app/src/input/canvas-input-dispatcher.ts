@@ -8,6 +8,7 @@ import {
   applyEdgeSelectionChangeResult,
   applyNodeSelectionChangeResult
 } from '@canvas-app/components/scene/flow/flow-selection-changes'
+import { hasAnySelection } from '@canvas-app/store/canvas-object-selection'
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
 import type {
   CanvasInputDispatchContext,
@@ -81,10 +82,17 @@ export function dispatchCanvasResolvedInput(
       return true
 
     case 'open-pane-context-menu':
-      context.openPaneContextMenu({
-        x: input.x,
-        y: input.y
-      })
+      if (hasAnySelection(context.appCommandContext)) {
+        context.openObjectContextMenu({
+          x: input.x,
+          y: input.y
+        })
+      } else {
+        context.openPaneContextMenu({
+          x: input.x,
+          y: input.y
+        })
+      }
       return true
 
     case 'open-node-context-menu':

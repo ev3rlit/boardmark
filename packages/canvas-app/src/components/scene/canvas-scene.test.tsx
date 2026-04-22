@@ -760,6 +760,57 @@ Boardmark Viewer
     expect(await screen.findByRole('textbox', { name: 'Edit welcome' })).toBeInTheDocument()
   })
 
+  it('captures right-clicks from selected note content into the shared context-menu input path', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::`)
+
+    store.getState().replaceSelectedNodes(['welcome'])
+
+    const sceneInputProps = createSceneInputProps(store)
+    const dispatchCanvasInputAsync = vi.fn(async () => true)
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...sceneInputProps}
+          dispatchCanvasInputAsync={dispatchCanvasInputAsync}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    const note = await screen.findByText('Boardmark Viewer')
+
+    await act(async () => {
+      fireEvent.contextMenu(note, {
+        clientX: 120,
+        clientY: 180
+      })
+    })
+
+    expect(dispatchCanvasInputAsync).toHaveBeenCalledWith({
+      allowEditableTarget: true,
+      intent: {
+        kind: 'pointer-node-context-menu',
+        additive: false,
+        nodeId: 'welcome',
+        x: 120,
+        y: 180
+      },
+      preventDefault: false
+    })
+  })
+
   it('shows the color toolbar action for supported selections and applies swatch colors', async () => {
     const store = await createHydratedCanvasStore(`---
 type: canvas

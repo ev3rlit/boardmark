@@ -73,9 +73,11 @@ import { readCanvasWheelInput } from '@canvas-app/input/canvas-wheel-input'
 import { readZoomDirectionFromWheelEvent } from '@canvas-app/keyboard/key-event-matchers'
 import type {
   CanvasMatchedInput,
+  CanvasInputIntent,
   CanvasPointerCapabilities
 } from '@canvas-app/input/canvas-input-types'
 import { readActiveToolMode, type CanvasStore } from '@canvas-app/store/canvas-store'
+import type { CanvasEditingState } from '@canvas-app/store/canvas-store-types'
 
 type CanvasSceneProps = {
   dispatchCanvasInput: (
@@ -386,6 +388,22 @@ export function CanvasScene({
   return (
     <div
       className="h-full w-full"
+      onContextMenuCapture={(event) => {
+        const intent = readCapturedContextMenuIntent(event, editingState.status)
+
+        if (!intent) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+
+        void dispatchCanvasInputAsync({
+          allowEditableTarget: true,
+          intent,
+          preventDefault: false
+        })
+      }}
       ref={(element) => {
         viewportRef.current = element
 
@@ -1203,6 +1221,59 @@ function shouldPreserveAutoHeightResize(
   }
 
   return Math.round(nextHeight) === Math.round(currentHeight)
+}
+
+function readCapturedContextMenuIntent(
+  event: React.MouseEvent<HTMLDivElement>,
+  editingStatus: CanvasEditingState['status']
+): CanvasInputIntent | null {
+  if (editingStatus === 'active') {
+    return null
+  }
+
+  const target = event.target
+
+  if (!(target instanceof Element)) {
+    return null
+  }
+
+  if (target.closest('[role="menu"], .markdown-code-block')) {
+    return null
+  }
+
+  const nodeId = target.closest<HTMLElement>('.react-flow__node[data-id]')?.dataset.id
+
+  if (nodeId) {
+    return {
+      kind: 'pointer-node-context-menu',
+      additive: event.shiftKey,
+      nodeId,
+      x: event.clientX,
+      y: event.clientY
+    }
+  }
+
+  const edgeId = target.closest<HTMLElement>('.react-flow__edge[data-id]')?.dataset.id
+
+  if (edgeId) {
+    return {
+      kind: 'pointer-edge-context-menu',
+      additive: event.shiftKey,
+      edgeId,
+      x: event.clientX,
+      y: event.clientY
+    }
+  }
+
+  if (target.closest('.react-flow__selection, .react-flow__nodesselection, .react-flow__selectionpane, .react-flow__pane')) {
+    return {
+      kind: 'pointer-pane-context-menu',
+      x: event.clientX,
+      y: event.clientY
+    }
+  }
+
+  return null
 }
 
 export {
