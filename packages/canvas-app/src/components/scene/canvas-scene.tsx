@@ -67,6 +67,7 @@ import {
   readEdgeEditingInteractionBlock,
   readNodeEditingInteractionBlock
 } from '@canvas-app/store/canvas-editing-session'
+import { isNodeLocked } from '@canvas-app/store/canvas-object-selection'
 import { readCanvasGestureInput } from '@canvas-app/input/canvas-gesture-input'
 import { readCanvasWheelInput } from '@canvas-app/input/canvas-wheel-input'
 import { readZoomDirectionFromWheelEvent } from '@canvas-app/keyboard/key-event-matchers'
@@ -137,6 +138,7 @@ export function CanvasScene({
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const activeToolMode = useStore(store, readActiveToolMode)
   const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
+  const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const setViewportSize = useStore(store, (state) => state.setViewportSize)
@@ -158,6 +160,29 @@ export function CanvasScene({
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const [resizeDrafts, setResizeDrafts] = useState<Record<string, CanvasNodeGeometryDraft>>({})
   const flowEdges = useMemo(() => readFlowEdges(edges, selectedEdgeIds), [edges, selectedEdgeIds])
+  const selectionToolbarNodeIds = useMemo(
+    () => selectedNodeIds.filter((nodeId) => nodes.some((node) => node.id === nodeId)),
+    [nodes, selectedNodeIds]
+  )
+  const selectionToolbarAnchorNode = useMemo(
+    () => (selectionToolbarNodeIds[0]
+      ? nodes.find((node) => node.id === selectionToolbarNodeIds[0]) ?? null
+      : null),
+    [nodes, selectionToolbarNodeIds]
+  )
+  const selectionToolbarAllLocked = useMemo(
+    () => selectionToolbarNodeIds.length > 0 && selectionToolbarNodeIds
+      .every((nodeId) => isNodeLocked({ groups, nodes }, nodeId)),
+    [groups, nodes, selectionToolbarNodeIds]
+  )
+  const selectionToolbarIsEditing = useMemo(
+    () => editingState.status === 'active' &&
+      editingState.target.kind === 'object-body' &&
+      selectionToolbarNodeIds.includes(editingState.target.objectId),
+    [editingState, selectionToolbarNodeIds]
+  )
+  const selectionToolbarAutoHeight = selectionToolbarNodeIds.length === 1 &&
+    selectionToolbarAnchorNode?.at.h === undefined
   const syncFlowNodesFromStore = (drafts: Record<string, CanvasNodeGeometryDraft> = resizeDrafts) => {
     const state = store.getState()
     const nextFlowNodes = applyFlowNodeGeometryDrafts(
@@ -685,6 +710,16 @@ export function CanvasScene({
           size={1.1}
           variant={BackgroundVariant.Lines}
         />
+        {selectionToolbarAnchorNode ? (
+          <SelectionToolbar
+            anchorNodeId={selectionToolbarAnchorNode.id}
+            nodeIds={selectionToolbarNodeIds}
+            isEditing={selectionToolbarIsEditing}
+            allLocked={selectionToolbarAllLocked}
+            autoHeight={selectionToolbarAutoHeight}
+            store={store}
+          />
+        ) : null}
       </ReactFlow>
     </div>
   )
@@ -749,14 +784,6 @@ function CanvasNoteNode({
         }
       }}
     >
-      <SelectionToolbar
-        nodeId={id}
-        selected={selected ?? false}
-        isEditing={isEditing}
-        locked={data.locked ?? false}
-        autoHeight={data.autoHeight ?? false}
-        store={store}
-      />
       <NodeResizer
         isVisible={selected && !isEditing && !data.locked}
         minWidth={160}
@@ -901,14 +928,6 @@ function CanvasComponentNode({
         }
       }}
     >
-      <SelectionToolbar
-        nodeId={id}
-        selected={selected ?? false}
-        isEditing={isEditing}
-        locked={data.locked ?? false}
-        autoHeight={data.autoHeight ?? false}
-        store={store}
-      />
       <NodeResizer
         isVisible={selected && !isEditing && !data.locked}
         minWidth={isImageNode ? 96 : 120}

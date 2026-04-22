@@ -142,7 +142,7 @@ const desktopCapabilities = {
   canPersist: true,
   canDropDocumentImport: false,
   canDropImageInsertion: true,
-  supportsMultiSelect: false,
+  supportsMultiSelect: true,
   newDocumentMode: 'persist-template'
 } as const
 

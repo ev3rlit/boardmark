@@ -796,14 +796,45 @@ Boardmark Viewer
     })
 
     expect(await screen.findByRole('dialog', { name: 'Background colors' })).toBeInTheDocument()
-    expect(store.getState().draftSource).toContain(
-      'style: { bg: { color: "#D7E8FF" } }'
-    )
+    expect(store.getState().nodes.find((node) => node.id === 'welcome')?.style?.bg?.color).toBe('#D7E8FF')
 
     const noteSurface = (await screen.findByText('Boardmark Viewer')).closest('[data-note-surface="sticky"]') as HTMLDivElement | null
 
     expect(noteSurface).not.toBeNull()
     expect(noteSurface?.style.background).toContain('215, 232, 255')
+  })
+
+  it('renders a single shared toolbar for multi-selected nodes', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+Boardmark Viewer
+:::
+
+::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
+Overview
+:::`)
+
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+
+    render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store, true)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    expect(await screen.findAllByRole('button', { name: 'Background color' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Auto height' })).toBeDisabled()
   })
 
   it('keeps the open color popover across source-driven document patches', async () => {

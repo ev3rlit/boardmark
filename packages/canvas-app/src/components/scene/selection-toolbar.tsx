@@ -21,10 +21,10 @@ import type { CanvasStore } from '@canvas-app/store/canvas-store'
 import type { CanvasStoreState } from '@canvas-app/store/canvas-store-types'
 
 type SelectionToolbarProps = {
-  nodeId: string
-  selected: boolean
+  anchorNodeId: string
+  nodeIds: string[]
   isEditing: boolean
-  locked: boolean
+  allLocked: boolean
   autoHeight: boolean
   store: CanvasStore
 }
@@ -55,10 +55,10 @@ type ColorSwatchItem =
   | { kind: 'no-fill' }
 
 export function SelectionToolbar({
-  nodeId,
-  selected,
+  anchorNodeId,
+  nodeIds,
   isEditing,
-  locked,
+  allLocked,
   autoHeight,
   store
 }: SelectionToolbarProps) {
@@ -67,28 +67,16 @@ export function SelectionToolbar({
   const setSelectedObjectColor = useStore(store, (state) => state.setSelectedObjectColor)
   const selectionToolbarState = useStore(store, (state) => state.selectionToolbarState)
   const setSelectionToolbarState = useStore(store, (state) => state.setSelectionToolbarState)
-  const colorEnabled = useStore(store, (state) => readSelectionToolbarColorState(state, nodeId).enabled)
-  const backgroundMixed = useStore(store, (state) => readSelectionToolbarColorState(state, nodeId).background.mixed)
-  const backgroundValue = useStore(store, (state) => readSelectionToolbarColorState(state, nodeId).background.value)
-  const outlineMixed = useStore(store, (state) => readSelectionToolbarColorState(state, nodeId).outline.mixed)
-  const outlineValue = useStore(store, (state) => readSelectionToolbarColorState(state, nodeId).outline.value)
-  const internalNode = useInternalNode(nodeId)
+  const nodes = useStore(store, (state) => state.nodes)
+  const internalNode = useInternalNode(anchorNodeId)
   const [customPickerColor, setCustomPickerColor] = useState<Color>(parseColor('#FFF5BF'))
   const popoverRef = useRef<HTMLDivElement | null>(null)
-  const openTarget = selectionToolbarState.nodeId === nodeId ? selectionToolbarState.target : null
+  const openTarget = selectionToolbarState.nodeId === anchorNodeId ? selectionToolbarState.target : null
   const customPickerOpen =
-    selectionToolbarState.nodeId === nodeId && selectionToolbarState.customPickerOpen
-  const colorState = useMemo(() => ({
-    enabled: colorEnabled,
-    background: {
-      mixed: backgroundMixed,
-      value: backgroundValue
-    },
-    outline: {
-      mixed: outlineMixed,
-      value: outlineValue
-    }
-  }), [backgroundMixed, backgroundValue, colorEnabled, outlineMixed, outlineValue])
+    selectionToolbarState.nodeId === anchorNodeId && selectionToolbarState.customPickerOpen
+  const autoHeightEnabled = nodeIds.length === 1
+  const isVisible = nodeIds.length > 0 && !isEditing && !allLocked
+  const colorState = useMemo(() => readSelectionToolbarColorState(nodes, nodeIds), [nodeIds, nodes])
 
   useEffect(() => {
     if (!openTarget) {
@@ -129,11 +117,11 @@ export function SelectionToolbar({
   }, [openTarget, setSelectionToolbarState])
 
   useEffect(() => {
-    if (selectionToolbarState.nodeId !== nodeId) {
+    if (selectionToolbarState.nodeId === null) {
       return
     }
 
-    if (selected && !isEditing && !locked) {
+    if (selectionToolbarState.nodeId === anchorNodeId && isVisible) {
       return
     }
 
@@ -142,7 +130,7 @@ export function SelectionToolbar({
       target: null,
       customPickerOpen: false
     })
-  }, [isEditing, locked, nodeId, selected, selectionToolbarState.nodeId, setSelectionToolbarState])
+  }, [anchorNodeId, isVisible, selectionToolbarState.nodeId, setSelectionToolbarState])
 
   useEffect(() => {
     if (!openTarget) {
@@ -157,12 +145,16 @@ export function SelectionToolbar({
   }, [colorState.background.value, colorState.outline.value, openTarget])
 
   const handleToggle = () => {
+    if (!autoHeightEnabled) {
+      return
+    }
+
     if (autoHeight) {
       // auto → fixed: freeze at current measured height
       if (!internalNode) return
       const height = internalNode.measured?.height ?? internalNode.height
       if (height === undefined) return
-      void commitNodeResize(nodeId, {
+      void commitNodeResize(anchorNodeId, {
         x: internalNode.position.x,
         y: internalNode.position.y,
         width: internalNode.measured?.width ?? internalNode.width ?? 200,
@@ -170,7 +162,7 @@ export function SelectionToolbar({
       })
     } else {
       // fixed → auto: remove explicit h
-      void resetNodeHeight(nodeId)
+      void resetNodeHeight(anchorNodeId)
     }
   }
 
@@ -187,7 +179,8 @@ export function SelectionToolbar({
 
   return (
     <NodeToolbar
-      isVisible={selected && !isEditing && !locked}
+      isVisible={isVisible}
+      nodeId={nodeIds}
       position={Position.Top}
       offset={8}
     >
@@ -208,6 +201,7 @@ export function SelectionToolbar({
               'viewer-control-button',
               autoHeight ? 'viewer-control-button--active' : ''
             ].join(' ').trim()}
+            disabled={!autoHeightEnabled}
             onClick={handleToggle}
             type="button"
           >
@@ -231,7 +225,7 @@ export function SelectionToolbar({
               }
 
               setSelectionToolbarState({
-                nodeId,
+                nodeId: anchorNodeId,
                 target: openTarget === 'bg' ? null : 'bg',
                 customPickerOpen: false
               })
@@ -258,7 +252,7 @@ export function SelectionToolbar({
               }
 
               setSelectionToolbarState({
-                nodeId,
+                nodeId: anchorNodeId,
                 target: openTarget === 'stroke' ? null : 'stroke',
                 customPickerOpen: false
               })
@@ -286,7 +280,7 @@ export function SelectionToolbar({
               onColorInputChange={(value) => {
                 if (value === '__custom__') {
                   setSelectionToolbarState({
-                    nodeId,
+                    nodeId: anchorNodeId,
                     target: openTarget,
                     customPickerOpen: !customPickerOpen
                   })
@@ -483,15 +477,11 @@ type ToolbarColorState = {
 }
 
 function readSelectionToolbarColorState(
-  state: CanvasStoreState,
-  nodeId: string
+  nodes: CanvasStoreState['nodes'],
+  nodeIds: string[]
 ): ToolbarColorState {
-  const selectedNodeIds =
-    state.selectedNodeIds.length > 0 && state.selectedNodeIds.includes(nodeId)
-      ? state.selectedNodeIds
-      : [nodeId]
-  const selectedNodes = selectedNodeIds
-    .map((selectedId) => state.nodes.find((node) => node.id === selectedId))
+  const selectedNodes = nodeIds
+    .map((selectedId) => nodes.find((node) => node.id === selectedId))
     .filter((node): node is CanvasStoreState['nodes'][number] => node !== undefined)
     .filter((node) => isCanvasNodeColorableComponent(node.component))
 
