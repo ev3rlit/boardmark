@@ -1,205 +1,207 @@
-# boardmark-reader 독립 라이브러리 기술 구현 명세
+# 백로그: standalone reader library 책임 경계
 
-## 개요
+## 문제
 
-`boardmark-reader`는 `.canvas.md`(캔버스 방식)와 일반 `.md`(상하 구조 선형 읽기 방식) 모두를 단일 API로 처리하는 독립 라이브러리다.
+Boardmark를 별도 라이브러리로 꺼내 블로그나 문서 사이트에 붙일 수 있게 하려면, 어디까지를 라이브러리 책임으로 보고 어디부터를 host 앱 책임으로 둘지 먼저 고정해야 한다.
 
-Boardmark 앱 내부(Electron, Zustand, React Flow, canvas-app)에 대한 의존 없이, 블로그·문서 사이트·Next.js 앱 등 어디서든 import 해서 쓸 수 있는 형태를 목표로 한다.
+이 경계가 흐리면 라이브러리는 곧 아래 성격이 한데 섞인다.
 
-**라이브러리 책임 범위: 렌더링만.** 파싱은 소비자가 담당하거나 별도 선택적 패키지(`boardmark-parser`)를 사용한다.
+- markdown parser
+- blog article renderer
+- fenced block runtime
+- canvas explainer renderer
+- file open/save bridge
+- editor shell
 
----
+이렇게 되면 재사용성이 오히려 떨어진다. 블로그에서는 너무 무겁고, Boardmark 앱 입장에서는 host-specific 요구가 공용 패키지 안으로 다시 새어 들어온다.
 
-## 핵심 아이디어
+## 목표
 
-라이브러리는 파싱된 데이터 구조(`CanvasDocument`)를 입력으로 받아 렌더링만 수행한다. 소비자는 데이터를 어떻게 만들지 자유롭게 선택할 수 있다.
+Boardmark 라이브러리를 "새 문서 플랫폼"이 아니라 "문서에 붙는 시각 설명 레이어"로 정의한다.
 
-```
-source (string)
-     │
-     ▼  ← 소비자 영역 (boardmark-parser 또는 직접 구현)
-parseCanvasDocument()
-     │
-     ▼
-CanvasDocument  ──── mode: canvas? ────┬── No  → LinearView (react-markdown)
-                                       └── Yes → CanvasView (absolute layout)
-     ▲
-     │
-  boardmark-reader-react 입력 경계
-```
+핵심 문장은 아래 정도로 좁히는 편이 맞다.
 
----
+- source of truth는 계속 markdown 문서다
+- Boardmark 라이브러리는 그 문서를 canvas로 투영해 이해를 돕는다
+- host 앱은 블로그 본문, 라우팅, SEO, 저장, 제품 chrome을 계속 소유한다
 
-## 패키지 구조
+## 권장 책임 범위
 
-```
-packages/
-  boardmark-types/             ← 공유 타입만. 의존성 없음
-    src/
-      canvas-document.ts       ← CanvasDocument, CanvasNode, CanvasEdge 타입
-      index.ts
-    package.json
+라이브러리가 직접 책임질 범위는 여기까지로 제한한다.
 
-  boardmark-parser/            ← 선택적. .canvas.md → CanvasDocument 변환
-    src/
-      parse.ts                 ← canvas-parser 로직 추출 (js-yaml만 의존)
-      linearize.ts             ← CanvasDocument → 소스 순서 노드 배열 변환
-      index.ts
-    package.json
+### 1. Boardmark 문법 해석 또는 그에 준하는 입력 계약
 
-  boardmark-reader-react/      ← 렌더러. boardmark-types만 의존
-    src/
-      BoardmarkView.tsx        ← 메인 컴포넌트 (mode 분기)
-      CanvasView.tsx           ← 캔버스 모드 (CSS absolute + SVG edges)
-      LinearView.tsx           ← 선형 모드 (react-markdown)
-      index.ts
-    package.json
-```
+- Boardmark source string을 받아 parse할 수 있거나
+- 이미 parse된 AST/document contract를 입력으로 받을 수 있어야 한다
+- 어떤 방식을 택하든 public contract는 좁고 명시적이어야 한다
 
----
+즉, parser를 반드시 렌더러에 강제 결합할 필요는 없지만, 최소한 "무슨 입력을 받는가"는 라이브러리 계약 안에 있어야 한다.
 
-## 의존성 설계
+### 2. 읽기 전용 canvas projection
 
-| 패키지 | 의존성 |
-|---|---|
-| `boardmark-types` | 없음 |
-| `boardmark-parser` | `boardmark-types`, `js-yaml`, `neverthrow` |
-| `boardmark-reader-react` | `boardmark-types`, `react`, `react-dom`, `react-markdown`, `remark-gfm` |
+- node, edge, viewport를 읽기 전용으로 렌더링한다
+- note body markdown을 node 내부에서 렌더링한다
+- hover, select, focus, scroll-to-anchor 같은 읽기 경험용 상호작용만 제공한다
+- 편집기 수준의 drag/resize/transaction/save는 포함하지 않는다
 
-`boardmark-reader-react`는 `boardmark-parser`를 의존하지 않는다. 파싱 방법은 소비자가 결정한다.
+### 3. 본문과 canvas 사이의 연결 정보
 
-**제거 항목 및 이유:**
+- 특정 note가 어떤 section을 설명하는지
+- 어떤 note를 먼저 강조할지
+- 본문 스크롤과 canvas highlight를 어떻게 동기화할지
 
-- **React Flow**: 캔버스 모드는 CSS `position: absolute` + SVG path로 자체 구현. 외부 소비자에게 무거운 의존성을 강요하지 않는다.
-- **Zustand**: 독립 라이브러리에 외부 상태 관리자 불필요. 필요한 상태는 컴포넌트 내부 `useState`로 관리한다.
-- **Electron / IPC**: 브라우저, Node.js 서버 어디서든 동작해야 한다.
-- **canvas-app / canvas-repository**: 파일 I/O, 저장, 편집 기능은 포함하지 않는다.
+이 연결 정보는 "시각 설명 레이어"의 핵심이므로 라이브러리 계약 안에 들어가는 편이 맞다.
 
----
+### 4. fenced block 확장 포인트
 
-## 공개 API
+- Mermaid, code, Sandpack 같은 fenced block을 note body 안에서 읽기 전용으로 렌더링할 수 있어야 한다
+- 다만 모든 runtime과 툴링을 라이브러리가 내장할 필요는 없다
+- registry, lazy loading contract, fallback contract 정도까지만 공용 책임으로 둔다
 
-### 타입 (boardmark-types)
+## 라이브러리가 책임지지 말아야 할 것
 
-```ts
-import type { CanvasDocument, CanvasNode, CanvasEdge } from 'boardmark-types'
+아래는 host 앱 또는 제품 shell이 책임져야 한다.
 
-interface CanvasDocument {
-  mode: 'canvas' | 'linear'
-  nodes: CanvasNode[]
-  edges: CanvasEdge[]
-}
+- 블로그 전체 markdown 렌더링 정책
+- 페이지 레이아웃, header, sidebar, CTA, comments
+- CMS 모델링, MDX 파이프라인, SEO
+- 파일 열기/저장, asset import, 파일 권한 UX
+- WYSIWYG 편집기, source editor, command system
+- analytics, auth, deployment, product theming
 
-interface CanvasNode {
-  id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  component: string   // 'note' | 'image' | ...
-  body: string        // markdown 본문
-}
+특히 "article 전체를 Boardmark가 대신 렌더링한다"는 방향은 피하는 편이 낫다. 그 순간 라이브러리는 explainer layer가 아니라 blog engine으로 커진다.
 
-interface CanvasEdge {
-  id: string
-  source: string
-  target: string
-}
-```
+## 제품 형태 제안
 
-### React 어댑터 (boardmark-reader-react)
+가장 안전한 공개 surface는 아래 3단계다.
 
-```ts
-import { BoardmarkView } from 'boardmark-reader-react'
+### 1. Canvas-only mode
 
-<BoardmarkView
-  document={canvasDocument}      // 필수: CanvasDocument
-  className?: string
-  onError?: (err: Error) => void
-/>
+host가 article markdown를 렌더링하고, Boardmark는 별도 패널이나 inline slot에 canvas만 그린다.
+
+- 장점: 책임 경계가 가장 선명하다
+- 장점: 기존 블로그/문서 시스템에 붙이기 쉽다
+- 장점: SEO, markdown theme, TOC 같은 기존 host 기능을 건드리지 않는다
+
+### 2. Synced article + canvas mode
+
+라이브러리가 설명용 article surface와 canvas surface를 함께 제공한다.
+
+단, 이 article surface는 "full blog renderer"가 아니라 "Boardmark 설명용 읽기 surface"여야 한다.
+
+- note 클릭 -> article section highlight
+- article scroll -> note focus
+- explainer overlay / side-by-side layout
+
+이 모드는 가능하지만, 여기가 라이브러리 최대 책임 범위에 가깝다.
+
+### 3. Embedded block mode
+
+블로그 본문 안의 특정 block 하나를 `boardmark` explainer로 렌더링한다.
+
+- 가장 쉽게 도입 가능하다
+- 본문 전체를 장악하지 않는다
+- "이 단락의 시각 설명 보기" 같은 용도와 잘 맞는다
+
+## 필요한 메타데이터 후보
+
+블로그 설명 보조 장치로 쓰려면 좌표만으로는 부족하다. 최소한 아래 정도의 읽기 메타데이터를 backlog 후보로 본다.
+
+```yaml
+anchor: section-message-queue
+intent: summary
+priority: 10
+presentation: sidecar
 ```
 
-소비자가 `mode: 'linear'`로 설정한 `CanvasDocument`를 넘기면 선형 모드로 렌더된다.
+의미는 아래 정도로 제한한다.
 
-### 파서 (boardmark-parser, 선택적)
+- `anchor`: 연결할 본문 section id
+- `intent`: summary, flow, warning, comparison 같은 설명 의도
+- `priority`: 초기 진입 시 어떤 note를 먼저 강조할지
+- `presentation`: inline, sidecar, fullscreen 같은 추천 표현 방식
 
-```ts
-import { parse, linearize } from 'boardmark-parser'
+이 메타는 editor를 위한 것이 아니라 reader experience를 위한 계약이다.
 
-const document = parse(markdownString)
-// → CanvasDocument (mode는 frontmatter.type === 'canvas' 여부로 결정)
+## 패키지 경계 초안
 
-const nodes = linearize(document)
-// → 소스 순서 노드 배열 (CanvasNode[])
-```
+이 백로그를 실제로 진행한다면 아래처럼 나누는 편이 안전하다.
 
-파서가 필요 없는 소비자(서버사이드 전처리, 커스텀 파서 등)는 `boardmark-parser`를 설치하지 않아도 된다.
+### `@boardmark/core`
 
----
+- domain type
+- parse/validate
+- projection contract
+- article-anchor metadata contract
 
-## 소비자 사용 예시
+### `@boardmark/react`
 
-### boardmark-parser를 쓰는 경우
+- React용 읽기 전용 viewer
+- canvas-only mode
+- synced article + canvas mode
+- interaction event surface
 
-```ts
-import { parse } from 'boardmark-parser'
-import { BoardmarkView } from 'boardmark-reader-react'
+### `@boardmark/fenced-blocks`
 
-const document = parse(markdownString)
+- fenced block registry interface
+- built-in 최소 renderer
+- lazy/fallback contract
 
-<BoardmarkView document={document} />
-```
+핵심은 `@boardmark/react`가 `@boardmark/canvas-app`의 편집기 책임을 가져오지 않는 것이다.
 
-### 직접 데이터를 구성하는 경우
+## 현재 코드베이스와의 연결
 
-```ts
-import type { CanvasDocument } from 'boardmark-types'
-import { BoardmarkView } from 'boardmark-reader-react'
+현재 저장소에는 이미 재사용 가능한 조각이 있다.
 
-const document: CanvasDocument = {
-  mode: 'canvas',
-  nodes: [...],
-  edges: [...],
-}
+- `packages/canvas-parser`
+- `packages/canvas-repository`
+- `packages/canvas-renderer`
+- `packages/ui`
 
-<BoardmarkView document={document} />
-```
+반대로 아래는 라이브러리 공개 surface에 그대로 노출하기보다 분리해야 할 가능성이 높다.
 
----
+- `packages/canvas-app`
+- browser/desktop file bridge
+- app shell CSS와 command surface
 
-## 모드별 렌더링 규칙
+즉, 새 라이브러리는 "없는 것을 새로 만든다"보다 "지금 있는 읽기 경계를 편집기 shell에서 분리한다"에 가깝다.
 
-### 선형 모드 (mode: 'linear')
+## 진행 순서 제안
 
-- 노드를 소스 파일 등장 순서(`sourceMap.objectRange.start.line` 오름차순)로 정렬 (`boardmark-parser`가 처리)
-- 각 노드의 `body`를 `react-markdown`으로 렌더
-- edge는 렌더하지 않음 (관계선은 선형 읽기에서 의미 없음)
-- `component`가 `note` 이외인 노드는 `body`만 표시하거나 스킵
+### P0. 책임 경계 고정
 
-### 캔버스 모드 (mode: 'canvas')
+- Canvas-only mode를 기본 공개 형태로 고정한다
+- synced mode는 optional package surface로 둔다
+- full blog renderer는 scope 밖으로 명시한다
 
-- 외부 컨테이너: `position: relative; overflow: hidden`
-- 각 노드: `position: absolute; left: {x}px; top: {y}px; width: {w}px; height: {h}px`
-- 엣지: SVG overlay (z-index 낮음), 노드 중심점 직선 연결 (MVP)
-- pan/zoom: CSS `transform: translate(x, y) scale(z)` + wheel/drag 이벤트
+### P1. 읽기 전용 viewer 조립
 
----
+- parser/domain/renderer/ui의 읽기 경로만 모아 최소 viewer를 만든다
+- file I/O 없이 `source` 또는 parsed document만 받아 렌더한다
 
-## 검증 방법
+### P2. article-anchor 계약 추가
 
-1. `pnpm -F boardmark-parser test` — parse + linearize 단위 테스트
-2. `pnpm -F boardmark-reader-react test` — CanvasDocument를 받아 렌더되는지 확인
-3. `mode: 'canvas'` 문서를 넘겼을 때 캔버스 모드로 렌더 확인
-4. `mode: 'linear'` 문서를 넘겼을 때 선형 모드로 렌더 확인
-5. `boardmark-parser` 없이 직접 구성한 `CanvasDocument`로 렌더 가능한지 확인
-6. `nodes`가 빈 배열이거나 `edges`가 없을 때 에러 없이 렌더 확인
+- note와 article section을 연결하는 metadata를 정의한다
+- scroll/focus/highlight event contract를 좁게 고정한다
 
----
+### P3. fenced block registry 정리
 
-## 구현 시 주의사항
+- built-in fenced block renderer와 host-supplied renderer 경계를 정리한다
+- lazy loading/fallback을 공용 contract로 올린다
 
-- `boardmark-reader-react`는 `boardmark-parser`를 import하지 않는다. 파싱 로직이 렌더러에 섞이지 않도록 한다.
-- `CanvasDocument` 타입은 `boardmark-types`에서만 정의한다. 렌더러와 파서가 같은 타입을 공유한다.
-- `CanvasView.tsx`의 pan/zoom 구현은 pointer events API 기반으로 터치/마우스 통합 처리한다.
-- `onError` prop을 통해 렌더 실패를 소비자에게 위임한다. 라이브러리 내부에서 콘솔 출력이나 silent fallback을 쓰지 않는다.
-- `boardmark-parser`의 `parse.ts` 로직은 현재 `packages/canvas-parser`에서 추출한다. 추출 시 `js-yaml` 외 앱 내부 의존을 모두 제거한다.
+## 열어둘 질문
+
+- parser를 core에 포함할지, optional package로 둘지
+- article surface를 정말 라이브러리가 제공할지, host adapter만 둘지
+- fenced block renderer를 어디까지 built-in으로 제공할지
+- style/theming을 라이브러리가 얼마나 소유할지
+
+## 결론
+
+이 backlog의 방향은 "Boardmark를 독립 제품으로 다시 만드는 것"이 아니다.
+
+대신 아래 방향을 고정해두는 것이 맞다.
+
+- Boardmark 라이브러리는 markdown-native visual explanation layer다
+- host 앱은 문서 플랫폼과 제품 경험을 계속 소유한다
+- 라이브러리는 읽기 전용 canvas projection과 article-canvas 연결까지만 책임진다

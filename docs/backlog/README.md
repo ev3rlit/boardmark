@@ -9,6 +9,7 @@
 - [`large-canvas-performance/README.md`](./large-canvas-performance/README.md): 대형 보드에서 pan, zoom, drag, render 성능을 안정화하는 백로그
 - [`onboarding-templates-and-empty-states/README.md`](./onboarding-templates-and-empty-states/README.md): 첫 진입, 새 문서, 템플릿, empty state 경험을 강화하는 백로그
 - [`multi-target-distribution/README.md`](./multi-target-distribution/README.md): VS Code extension, Obsidian plugin, desktop app, Vercel web 배포를 위한 공통/타겟별 백로그
+- [`standalone-reader-library/README.md`](./standalone-reader-library/README.md): 블로그/문서에 붙는 standalone reader library를 visual explanation layer로 제한하는 책임 경계 백로그
 - [`markdown-render-style-plugins/README.md`](./markdown-render-style-plugins/README.md): 마크다운 엔진과 렌더 스타일을 분리하고 기본 스타일 + 교체형 스타일 플러그인을 도입하는 아이디어
 - [`fenced-block-image-export/README.md`](./fenced-block-image-export/README.md): Mermaid, code block, Sandpack 같은 fenced block과 향후 object export를 공통 export 인터페이스로 다루는 아이디어
 - [`object-markdown-copy/README.md`](./object-markdown-copy/README.md): 캔버스 내부 복사와 함께 외부 메모장/툴에 붙여넣기 가능한 plain markdown body 복사를 제공하는 아이디어
