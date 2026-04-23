@@ -444,6 +444,33 @@ button {
   color: var(--color-on-surface-variant);
 }
 
+.viewer-context-menu-group {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.25rem 0;
+}
+
+.viewer-context-menu-group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.85rem 0.35rem;
+  color: var(--color-on-surface-variant);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.viewer-context-menu-group-items {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.viewer-context-menu-group-items .viewer-context-menu-item {
+  padding-left: 2.35rem;
+}
+
 .selection-color-popover {
   min-width: 16.5rem;
   padding: 0.75rem;

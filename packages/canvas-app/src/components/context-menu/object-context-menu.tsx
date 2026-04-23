@@ -1,8 +1,10 @@
 import {
   BetweenHorizontalStart,
+  Braces,
   CheckCheck,
   Copy,
   Download,
+  FileText,
   Group,
   Layers,
   Lock,
@@ -20,6 +22,8 @@ type ObjectContextMenuProps = {
   y: number
   canEdit: boolean
   canCopy: boolean
+  canCopyMarkdownContentBody: boolean
+  canCopyRaw: boolean
   canCut: boolean
   canDelete: boolean
   canDuplicate: boolean
@@ -46,6 +50,8 @@ type ObjectContextMenuProps = {
   onBringForward: () => void
   onBringToFront: () => void
   onCopy: () => void
+  onCopyMarkdownContentBody: () => void
+  onCopyRaw: () => void
   onCut: () => void
   onDelete: () => void
   onDuplicate: () => void
@@ -70,6 +76,8 @@ export function ObjectContextMenu({
   y,
   canEdit,
   canCopy,
+  canCopyMarkdownContentBody,
+  canCopyRaw,
   canCut,
   canDelete,
   canDuplicate,
@@ -90,6 +98,8 @@ export function ObjectContextMenu({
   onBringForward,
   onBringToFront,
   onCopy,
+  onCopyMarkdownContentBody,
+  onCopyRaw,
   onCut,
   onDelete,
   onDuplicate,
@@ -118,6 +128,8 @@ export function ObjectContextMenu({
         canBringForward,
         canBringToFront,
         canCopy,
+        canCopyMarkdownContentBody,
+        canCopyRaw,
         canCut,
         canDelete,
         canDuplicate,
@@ -135,6 +147,8 @@ export function ObjectContextMenu({
         onBringForward,
         onBringToFront,
         onCopy,
+        onCopyMarkdownContentBody,
+        onCopyRaw,
         onCut,
         onDelete,
         onDuplicate,
@@ -172,11 +186,9 @@ export function ObjectContextMenu({
             key={index}
           >
             {section.map((item) => (
-              <ContextMenuItem
+              <ContextMenuEntry
+                entry={item}
                 key={item.label}
-                icon={item.icon}
-                label={item.label}
-                onClick={item.onClick}
               />
             ))}
           </div>
@@ -201,11 +213,9 @@ export function ObjectContextMenu({
           key={index}
         >
           {section.map((item) => (
-            <ContextMenuItem
+            <ContextMenuEntry
+              entry={item}
               key={item.label}
-              icon={item.icon}
-              label={item.label}
-              onClick={item.onClick}
             />
           ))}
         </div>
@@ -214,16 +224,70 @@ export function ObjectContextMenu({
   )
 }
 
-type MenuItemDefinition = {
+type MenuActionDefinition = {
   icon: LucideIcon
+  kind: 'item'
   label: string
   onClick: () => void
 }
+
+type MenuGroupDefinition = {
+  icon: LucideIcon
+  items: MenuActionDefinition[]
+  kind: 'group'
+  label: string
+}
+
+type MenuItemDefinition = MenuActionDefinition | MenuGroupDefinition
 
 type ContextMenuItemProps = {
   icon: LucideIcon
   label: string
   onClick: () => void
+}
+
+function ContextMenuEntry({
+  entry
+}: {
+  entry: MenuItemDefinition
+}) {
+  if (entry.kind === 'group') {
+    const GroupIcon = entry.icon
+
+    return (
+      <div
+        aria-label={entry.label}
+        className="viewer-context-menu-group"
+        role="group"
+      >
+        <div className="viewer-context-menu-group-label">
+          <GroupIcon
+            aria-hidden="true"
+            className="viewer-context-menu-icon"
+          />
+          <span>{entry.label}</span>
+        </div>
+        <div className="viewer-context-menu-group-items">
+          {entry.items.map((item) => (
+            <ContextMenuItem
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              onClick={item.onClick}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ContextMenuItem
+      icon={entry.icon}
+      label={entry.label}
+      onClick={entry.onClick}
+    />
+  )
 }
 
 function ContextMenuItem({
@@ -274,6 +338,8 @@ function buildSelectionContextMenuSections(input: {
   canBringForward: boolean
   canBringToFront: boolean
   canCopy: boolean
+  canCopyMarkdownContentBody: boolean
+  canCopyRaw: boolean
   canCut: boolean
   canDelete: boolean
   canDuplicate: boolean
@@ -291,6 +357,8 @@ function buildSelectionContextMenuSections(input: {
   onBringForward: () => void
   onBringToFront: () => void
   onCopy: () => void
+  onCopyMarkdownContentBody: () => void
+  onCopyRaw: () => void
   onCut: () => void
   onDelete: () => void
   onDuplicate: () => void
@@ -339,6 +407,15 @@ function buildSelectionContextMenuSections(input: {
       : [],
     [
       createMenuItem(input.canCopy, Copy, 'Copy', input.onCopy),
+      createMenuGroup(input.canCopyRaw || input.canCopyMarkdownContentBody, Copy, 'Copy as', [
+        createMenuItem(input.canCopyRaw, Braces, 'Raw copy', input.onCopyRaw),
+        createMenuItem(
+          input.canCopyMarkdownContentBody,
+          FileText,
+          'Markdown content body copy',
+          input.onCopyMarkdownContentBody
+        )
+      ]),
       createMenuItem(input.canCut, Trash2, 'Cut', input.onCut),
       createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste', input.onPaste),
       createMenuItem(input.canPaste, BetweenHorizontalStart, 'Paste in place', input.onPasteInPlace)
@@ -364,11 +441,32 @@ function createMenuItem(
 ): MenuItemDefinition | null {
   return enabled
     ? {
+        kind: 'item',
         icon,
         label,
         onClick
       }
     : null
+}
+
+function createMenuGroup(
+  enabled: boolean,
+  icon: LucideIcon,
+  label: string,
+  items: Array<MenuItemDefinition | null>
+): MenuItemDefinition | null {
+  const filteredItems = filterMenuItems(items).filter((item): item is MenuActionDefinition => item.kind === 'item')
+
+  if (!enabled || filteredItems.length === 0) {
+    return null
+  }
+
+  return {
+    kind: 'group',
+    icon,
+    label,
+    items: filteredItems
+  }
 }
 
 function filterMenuItems(items: Array<MenuItemDefinition | null>) {

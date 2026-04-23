@@ -57,6 +57,7 @@ import { StatusPanels } from '@canvas-app/components/controls/status-panels'
 import { ToolMenu } from '@canvas-app/components/controls/tool-menu'
 import { ZoomControls } from '@canvas-app/components/controls/zoom-controls'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+import { readSelectionMarkdownContentBody } from '@canvas-app/services/selection-plain-text'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
 
 export type CanvasAppCapabilities = {
@@ -77,6 +78,7 @@ type CanvasAppProps = {
 
 export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppProps) {
   const currentDocument = useStore(store, selectCanvasDocument)
+  const draftSource = useStore(store, (state) => state.draftSource)
   const createMarkdownImageAsset = useStore(store, (state) => state.createMarkdownImageAsset)
   const deleteSelection = useStore(store, (state) => state.deleteSelection)
   const insertImageFromClipboard = useStore(store, (state) => state.insertImageFromClipboard)
@@ -97,6 +99,8 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const toggleSelectedImageLockAspectRatio = useStore(store, (state) => state.toggleSelectedImageLockAspectRatio)
   const redo = useStore(store, (state) => state.redo)
   const copySelection = useStore(store, (state) => state.copySelection)
+  const copySelectionAsRawText = useStore(store, (state) => state.copySelectionAsRawText)
+  const copySelectionMarkdownContentBody = useStore(store, (state) => state.copySelectionMarkdownContentBody)
   const cutSelection = useStore(store, (state) => state.cutSelection)
   const pasteClipboard = useStore(store, (state) => state.pasteClipboard)
   const pasteClipboardInPlace = useStore(store, (state) => state.pasteClipboardInPlace)
@@ -234,6 +238,18 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
       ungroupSelection
     ]
   )
+  const canCopySelectionMarkdownContentBody = useMemo(() => {
+    return readSelectionMarkdownContentBody({
+      draftSource,
+      edges,
+      groupSelectionState,
+      groups,
+      nodes,
+      selectedEdgeIds,
+      selectedGroupIds,
+      selectedNodeIds
+    }) !== null
+  }, [draftSource, edges, groupSelectionState, groups, nodes, selectedEdgeIds, selectedGroupIds, selectedNodeIds])
 
   useEffect(() => {
     if (!currentDocument) {
@@ -628,6 +644,8 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
                 canExport={alignedObjectContextMenu.kind === 'canvas' ? canExportDocument : canExportSelection}
                 canEdit={canEditSelection}
                 canCopy={canCopySelection}
+                canCopyMarkdownContentBody={canCopySelectionMarkdownContentBody}
+                canCopyRaw={canCopySelection}
                 canCut={canCutSelection}
                 canDelete={canDeleteSelection}
                 canDuplicate={canDuplicateSelection}
@@ -684,6 +702,14 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
                 onCopy={() => {
                   setObjectContextMenu(null)
                   void copySelection()
+                }}
+                onCopyMarkdownContentBody={() => {
+                  setObjectContextMenu(null)
+                  void copySelectionMarkdownContentBody()
+                }}
+                onCopyRaw={() => {
+                  setObjectContextMenu(null)
+                  void copySelectionAsRawText()
                 }}
                 onCut={() => {
                   setObjectContextMenu(null)

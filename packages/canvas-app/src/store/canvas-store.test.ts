@@ -564,6 +564,54 @@ Shape body
     })
   })
 
+  it('copies the selected raw object blocks to the system clipboard', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome'])
+    await store.getState().copySelectionAsRawText()
+
+    expect(writeText).toHaveBeenCalledWith(
+      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }\nBoardmark Viewer\n:::'
+    )
+    expect(store.getState().operationError).toBeNull()
+  })
+
+  it('copies markdown content bodies from the current selection to the system clipboard', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    })
+
+    await store.getState().hydrateTemplate()
+    store.getState().replaceSelectedNodes(['welcome', 'overview'])
+    await store.getState().copySelectionMarkdownContentBody()
+
+    expect(writeText).toHaveBeenCalledWith('Boardmark Viewer\n\n---\n\nOverview\n\n---\n\nmain thread')
+    expect(store.getState().operationError).toBeNull()
+  })
+
   it('cuts the current selection into clipboard payload and records a single undo step', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

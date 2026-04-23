@@ -20,6 +20,11 @@ import {
   normalizeAssetFileName,
   prepareCanvasImageAsset
 } from '@canvas-app/services/canvas-image-service'
+import { writePlainTextToClipboard } from '@canvas-app/services/plain-text-clipboard'
+import {
+  readSelectionMarkdownContentBody,
+  readSelectionRawText
+} from '@canvas-app/services/selection-plain-text'
 import {
   createEmptyCanvasHistoryState,
   type CanvasHistoryService
@@ -522,6 +527,8 @@ export function createCanvasCommandSlice(
   | 'selectNodeFromCanvas'
   | 'selectEdgeFromCanvas'
   | 'copySelection'
+  | 'copySelectionAsRawText'
+  | 'copySelectionMarkdownContentBody'
   | 'cutSelection'
   | 'pasteClipboard'
   | 'pasteClipboardInPlace'
@@ -1578,6 +1585,50 @@ export function createCanvasCommandSlice(
         },
         operationError: null
       }))
+    },
+
+    async copySelectionAsRawText() {
+      const text = readSelectionRawText(get())
+
+      if (!text) {
+        set({
+          operationError: 'Select at least one object before copying raw source.'
+        })
+        return
+      }
+
+      try {
+        await writePlainTextToClipboard(text)
+        set({
+          operationError: null
+        })
+      } catch (error) {
+        set({
+          operationError: readErrorMessage(error, 'Raw copy failed. Try again.')
+        })
+      }
+    },
+
+    async copySelectionMarkdownContentBody() {
+      const text = readSelectionMarkdownContentBody(get())
+
+      if (!text) {
+        set({
+          operationError: 'Selected objects do not contain markdown content to copy.'
+        })
+        return
+      }
+
+      try {
+        await writePlainTextToClipboard(text)
+        set({
+          operationError: null
+        })
+      } catch (error) {
+        set({
+          operationError: readErrorMessage(error, 'Markdown content copy failed. Try again.')
+        })
+      }
     },
 
     async cutSelection() {
@@ -3092,4 +3143,16 @@ function hasWysiwygDocumentChanged(
 
 function readWysiwygDocumentSnapshotKeyOrNull(content: JSONContent | null) {
   return content ? readWysiwygDocumentSnapshotKey(content) : null
+}
+
+function readErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error
+  }
+
+  return fallback
 }

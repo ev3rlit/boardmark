@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   CanvasDocumentPicker,
   CanvasDocumentRepositoryGateway
@@ -228,6 +228,15 @@ vi.mock('@canvas-app/components/scene/canvas-scene', async () => {
 })
 
 describe('CanvasApp', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+  })
+
   it('renders the shared shell', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -393,6 +402,9 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('menuitem', { name: 'Edit object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Delete object' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeEnabled()
+    expect(screen.getByRole('group', { name: 'Copy as' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Raw copy' })).toBeEnabled()
+    expect(screen.getByRole('menuitem', { name: 'Markdown content body copy' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Cut' })).toBeEnabled()
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeEnabled()
     expect(screen.queryByRole('menuitem', { name: 'Paste' })).not.toBeInTheDocument()
@@ -470,6 +482,28 @@ describe('CanvasApp', () => {
     expect(screen.getByRole('radio', { name: /^PNG/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /^Selection only/ })).toBeChecked()
     expect(screen.getByRole('radio', { name: /^Whole board/ })).not.toBeChecked()
+  })
+
+  it('copies markdown content body from the object context menu', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+    const copyMarkdownSpy = vi.spyOn(store.getState(), 'copySelectionMarkdownContentBody')
+
+    await renderCanvasAppForTest({ store })
+
+    const noteText = await screen.findByText('Boardmark Viewer')
+
+    await dispatchUiEvent(() => {
+      fireEvent.contextMenu(noteText)
+    })
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Markdown content body copy' }))
+    })
+
+    expect(copyMarkdownSpy).toHaveBeenCalledTimes(1)
   })
 
   it('allows switching export format and scope from the dialog', async () => {
