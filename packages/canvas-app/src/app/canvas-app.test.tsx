@@ -921,6 +921,32 @@ main thread
     expect(store.getState().viewport).toEqual(initialViewport)
   })
 
+  it('toggles grid snapping from the zoom controls menu', async () => {
+    const store = createCanvasStore({
+      documentPicker: createPicker(),
+      documentRepository: createRepository(),
+      templateSource
+    })
+
+    await renderCanvasAppForTest({ store })
+    await screen.findByText('Boardmark Viewer')
+
+    expect(store.getState().smartGuides.gridSnappingEnabled).toBe(true)
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom options' }))
+    })
+
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Grid snap' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+    await dispatchUiEvent(() => {
+      fireEvent.click(toggle)
+    })
+
+    expect(store.getState().smartGuides.gridSnappingEnabled).toBe(false)
+  })
+
   it('opens the navigation panel and jumps to the selected search result', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),

@@ -1,11 +1,23 @@
-import { Expand, Minus, Plus } from 'lucide-react'
+import { Check, Ellipsis, Expand, Grid2x2, Minus, Plus, type LucideIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import type { CanvasMatchedInput } from '@canvas-app/input/canvas-input-types'
 import type { CanvasStore } from '@canvas-app/store/canvas-store'
+import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
+
+export type ZoomControlsMenuItem = {
+  checked?: boolean
+  icon?: LucideIcon
+  id: string
+  kind?: 'action' | 'toggle'
+  label: string
+  onSelect: () => void
+}
 
 type ZoomControlsProps = {
   canFitCanvas: boolean
   dispatchCanvasInput: (input: CanvasMatchedInput) => boolean
+  menuItems?: ZoomControlsMenuItem[]
   onFitCanvas: () => void
   store: CanvasStore
 }
@@ -13,13 +25,47 @@ type ZoomControlsProps = {
 export function ZoomControls({
   canFitCanvas,
   dispatchCanvasInput,
+  menuItems = [],
   onFitCanvas,
   store
 }: ZoomControlsProps) {
   const viewport = useStore(store, (state) => state.viewport)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+
+      if (!menuRef.current?.contains(target)) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (matchesEscapeKey(event)) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMenuOpen])
 
   return (
-    <div className="viewer-control-group">
+    <div
+      className="viewer-control-group"
+      ref={menuRef}
+    >
       <button
         aria-label="Fit canvas"
         className="viewer-control-button"
@@ -84,6 +130,66 @@ export function ZoomControls({
         />
         <span className="sr-only">Zoom in</span>
       </button>
+      {menuItems.length > 0 ? (
+        <div className="relative">
+          <button
+            aria-expanded={isMenuOpen}
+            aria-haspopup="menu"
+            aria-label="Zoom options"
+            className={[
+              'viewer-control-button',
+              isMenuOpen ? 'viewer-control-button--active' : ''
+            ].join(' ')}
+            onClick={() => setIsMenuOpen((current) => !current)}
+            type="button"
+          >
+            <Ellipsis
+              aria-hidden="true"
+              className="viewer-control-icon viewer-control-icon--zoom"
+            />
+            <span className="sr-only">Zoom options</span>
+          </button>
+          {isMenuOpen ? (
+            <div
+              className="viewer-context-menu bottom-[calc(100%+0.75rem)] right-0 min-w-52"
+              role="menu"
+            >
+              <div className="viewer-context-menu-section">
+                {menuItems.map((item) => {
+                  const Icon = item.icon ?? Grid2x2
+                  const isToggle = item.kind === 'toggle'
+
+                  return (
+                    <button
+                      aria-checked={isToggle ? Boolean(item.checked) : undefined}
+                      className="viewer-context-menu-item"
+                      key={item.id}
+                      onClick={() => {
+                        item.onSelect()
+                        setIsMenuOpen(false)
+                      }}
+                      role={isToggle ? 'menuitemcheckbox' : 'menuitem'}
+                      type="button"
+                    >
+                      <Icon
+                        aria-hidden="true"
+                        className="viewer-context-menu-icon"
+                      />
+                      <span className="flex-1">{item.label}</span>
+                      {isToggle && item.checked ? (
+                        <Check
+                          aria-hidden="true"
+                          className="viewer-context-menu-icon"
+                        />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

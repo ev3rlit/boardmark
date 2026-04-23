@@ -50,6 +50,8 @@ export function selectCanvasToolMenuState(state: CanvasStoreState) {
 
 export function selectCanvasZoomState(state: CanvasStoreState) {
   return {
+    setGridSnappingEnabled: state.setGridSnappingEnabled,
+    smartGuides: state.smartGuides,
     setViewport: state.setViewport,
     viewport: state.viewport
   }

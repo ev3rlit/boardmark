@@ -188,6 +188,10 @@ export type CanvasHistoryState = {
   future: CanvasHistoryEntry[]
 }
 
+export type CanvasSmartGuidesState = {
+  gridSnappingEnabled: boolean
+}
+
 export type CanvasStoreOptions = {
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
@@ -212,6 +216,7 @@ export type CanvasStoreState = {
   pointerInteractionState: CanvasPointerInteractionState
   lastCanvasPointer: CanvasPointer | null
   viewportSize: CanvasViewportSize
+  smartGuides: CanvasSmartGuidesState
   loadState: CanvasLoadState
   saveState: CanvasSaveState
   parseIssues: CanvasParseIssue[]
@@ -245,6 +250,7 @@ export type CanvasStoreState = {
   setDropError: (message: string) => void
   setViewport: (viewport: CanvasViewport) => void
   setViewportSize: (size: CanvasViewportSize) => void
+  setGridSnappingEnabled: (enabled: boolean) => void
   setToolMode: (mode: ToolMode) => void
   setTemporaryPanState: (state: CanvasTemporaryPanState) => void
   setPointerInteractionState: (state: CanvasPointerInteractionState) => void

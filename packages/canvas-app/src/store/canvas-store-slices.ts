@@ -443,6 +443,9 @@ export function createCanvasInteractionSlice() {
       width: 0,
       height: 0
     },
+    smartGuides: {
+      gridSnappingEnabled: true
+    },
     interactionOverrides: {}
   }
 }
@@ -484,6 +487,7 @@ export function createCanvasCommandSlice(
   | 'setDropError'
   | 'setViewport'
   | 'setViewportSize'
+  | 'setGridSnappingEnabled'
   | 'setToolMode'
   | 'setTemporaryPanState'
   | 'setPointerInteractionState'
@@ -878,6 +882,20 @@ export function createCanvasCommandSlice(
               viewportSize: nextSize
             }
       })
+    },
+
+    setGridSnappingEnabled(enabled) {
+      set((state) =>
+        state.smartGuides.gridSnappingEnabled === enabled
+          ? state
+          : {
+              ...state,
+              smartGuides: {
+                ...state.smartGuides,
+                gridSnappingEnabled: enabled
+              }
+            }
+      )
     },
 
     setToolMode(mode) {

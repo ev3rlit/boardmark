@@ -67,6 +67,15 @@ import {
   readEdgeEditingInteractionBlock,
   readNodeEditingInteractionBlock
 } from '@canvas-app/store/canvas-editing-session'
+import { GuideOverlay } from '@canvas-app/features/smart-guides/guide-overlay'
+import { createConfiguredGuideSession } from '@canvas-app/features/smart-guides/guide-session'
+import {
+  applyDraggedNodePositions,
+  readDragGuidePreview,
+  readDraggedNodeIdsFromChanges,
+  readResizeGuidePreview
+} from '@canvas-app/features/smart-guides/scene-guide-preview'
+import type { GuideOverlayModel } from '@canvas-app/features/smart-guides/guide-overlay-model'
 import { isNodeLocked } from '@canvas-app/store/canvas-object-selection'
 import { readCanvasGestureInput } from '@canvas-app/input/canvas-gesture-input'
 import { readCanvasWheelInput } from '@canvas-app/input/canvas-wheel-input'
@@ -142,6 +151,8 @@ export function CanvasScene({
   const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
   const editingState = useStore(store, (state) => state.editingState)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
+  const gridSnappingEnabled = useStore(store, (state) => state.smartGuides.gridSnappingEnabled)
+  const viewportSize = useStore(store, (state) => state.viewportSize)
   const setLastCanvasPointer = useStore(store, (state) => state.setLastCanvasPointer)
   const setViewportSize = useStore(store, (state) => state.setViewportSize)
   const replaceSelection = useStore(store, (state) => state.replaceSelection)
@@ -149,8 +160,20 @@ export function CanvasScene({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const gestureScaleRef = useRef(1)
   const panePanLifecycleActiveRef = useRef(false)
+  const dragPreviewRef = useRef<{
+    commitPosition: {
+      x: number
+      y: number
+    }
+    nodePositions: Map<string, { x: number; y: number }>
+  } | null>(null)
+  const resizePreviewRef = useRef<Record<string, CanvasNodeGeometryDraft>>({})
 
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
+  const guideSession = useMemo(
+    () => createConfiguredGuideSession({ gridSnappingEnabled }),
+    [gridSnappingEnabled]
+  )
   const baseFlowNodes = useMemo(
     () =>
       readFlowNodes(nodes, undefined, selectedNodeIds, {
@@ -159,7 +182,11 @@ export function CanvasScene({
       }),
     [nodes, selectedNodeIds, defaultStyle, resolveImageSource]
   )
+  const flowNodesRef = useRef<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
+  const [guideOverlay, setGuideOverlay] = useState<GuideOverlayModel>({
+    lines: []
+  })
   const [resizeDrafts, setResizeDrafts] = useState<Record<string, CanvasNodeGeometryDraft>>({})
   const flowEdges = useMemo(() => readFlowEdges(edges, selectedEdgeIds), [edges, selectedEdgeIds])
   const selectionToolbarNodeIds = useMemo(
@@ -185,6 +212,20 @@ export function CanvasScene({
   )
   const selectionToolbarAutoHeight = selectionToolbarNodeIds.length === 1 &&
     selectionToolbarAnchorNode?.at.h === undefined
+
+  const updateFlowNodes = (nextFlowNodes: Node<CanvasFlowNodeData>[]) => {
+    flowNodesRef.current = nextFlowNodes
+    setFlowNodes(nextFlowNodes)
+  }
+
+  const clearGuidePreview = () => {
+    dragPreviewRef.current = null
+    resizePreviewRef.current = {}
+    setGuideOverlay({
+      lines: []
+    })
+  }
+
   const syncFlowNodesFromStore = (drafts: Record<string, CanvasNodeGeometryDraft> = resizeDrafts) => {
     const state = store.getState()
     const nextFlowNodes = applyFlowNodeGeometryDrafts(
@@ -195,44 +236,64 @@ export function CanvasScene({
       drafts
     )
 
-    setFlowNodes((currentFlowNodes) => mergeFlowNodes(nextFlowNodes, currentFlowNodes))
+    updateFlowNodes(mergeFlowNodes(nextFlowNodes, flowNodesRef.current))
   }
   const resizeCallbacks = useMemo<ResizeCallbacks>(
     () => ({
       onResizePreview(nodeId, geometry) {
-        const nextDraft = {
+        const preview = readResizeGuidePreview({
+          baseFlowNodes,
+          flowNodes: flowNodesRef.current,
+          geometry,
+          guideSession,
+          nodeId,
+          viewport,
+          viewportSize
+        })
+        const nextDraft = preview?.geometry ?? {
+          ...geometry,
           x: Math.round(geometry.x),
           y: Math.round(geometry.y),
           width: Math.round(geometry.width),
           height: Math.round(geometry.height)
         }
 
+        resizePreviewRef.current = {
+          ...resizePreviewRef.current,
+          [nodeId]: nextDraft
+        }
         setResizeDrafts((currentDrafts) => ({
           ...currentDrafts,
           [nodeId]: nextDraft
         }))
-        setFlowNodes((currentFlowNodes) => applyFlowNodeGeometryDrafts(currentFlowNodes, {
+        setGuideOverlay(preview?.overlay ?? {
+          lines: []
+        })
+        updateFlowNodes(applyFlowNodeGeometryDrafts(flowNodesRef.current, {
           [nodeId]: nextDraft
         }))
       },
       async onResizeCommit(nodeId, geometry) {
+        const committedGeometry = resizePreviewRef.current[nodeId] ?? geometry
+
         try {
           await dispatchCanvasInputAsync({
             allowEditableTarget: true,
             intent: {
               kind: 'pointer-node-resize-commit',
               nodeId,
-              geometry
+              geometry: committedGeometry
             },
             preventDefault: false
           })
         } finally {
           setResizeDrafts({})
+          clearGuidePreview()
           syncFlowNodesFromStore({})
         }
       }
     }),
-    [dispatchCanvasInputAsync, store]
+    [baseFlowNodes, dispatchCanvasInputAsync, guideSession, viewport, viewportSize]
   )
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
@@ -268,8 +329,8 @@ export function CanvasScene({
   )
 
   useEffect(() => {
-    setFlowNodes((currentFlowNodes) => applyFlowNodeGeometryDrafts(
-      mergeFlowNodes(baseFlowNodes, currentFlowNodes),
+    updateFlowNodes(applyFlowNodeGeometryDrafts(
+      mergeFlowNodes(baseFlowNodes, flowNodesRef.current),
       resizeDrafts
     ))
   }, [baseFlowNodes, resizeDrafts])
@@ -387,7 +448,7 @@ export function CanvasScene({
 
   return (
     <div
-      className="h-full w-full"
+      className="relative h-full w-full"
       onContextMenuCapture={(event) => {
         const intent = readCapturedContextMenuIntent(event, editingState.status)
 
@@ -508,8 +569,37 @@ export function CanvasScene({
           const flowChanges = filterSelectionChanges(changes, pointerCapabilities.elementsSelectable)
           const storeChanges = filterSelectionChanges(changes, false)
           const selectionChanges = readNodeSelectionChangeResult(changes)
+          const rawNextFlowNodes = applyNodeChanges(flowChanges, flowNodesRef.current)
+          const draggedNodeIds = readDraggedNodeIdsFromChanges(changes)
 
-          setFlowNodes((currentFlowNodes) => applyNodeChanges(flowChanges, currentFlowNodes))
+          if (draggedNodeIds.length > 0) {
+            const draggedNodeId = draggedNodeIds[0]
+            const preview = readDragGuidePreview({
+              draggedNodeId,
+              draggedNodeIds,
+              flowNodes: rawNextFlowNodes,
+              guideSession,
+              viewport,
+              viewportSize
+            })
+
+            if (preview) {
+              dragPreviewRef.current = {
+                commitPosition: preview.commitPosition,
+                nodePositions: preview.nodePositions
+              }
+              setGuideOverlay(preview.overlay)
+              updateFlowNodes(applyDraggedNodePositions(rawNextFlowNodes, preview.nodePositions))
+            } else {
+              dragPreviewRef.current = null
+              setGuideOverlay({
+                lines: []
+              })
+              updateFlowNodes(rawNextFlowNodes)
+            }
+          } else {
+            updateFlowNodes(rawNextFlowNodes)
+          }
 
           if (selectionChanges.length > 0) {
             void dispatchCanvasInputAsync({
@@ -580,6 +670,7 @@ export function CanvasScene({
           })
         }}
         onNodeDragStart={() => {
+          clearGuidePreview()
           void dispatchCanvasInputAsync({
             allowEditableTarget: true,
             intent: {
@@ -590,6 +681,12 @@ export function CanvasScene({
         }}
         onNodeDragStop={(_event, node) => {
           void (async () => {
+            const committedPosition = dragPreviewRef.current?.nodePositions.get(node.id) ??
+              dragPreviewRef.current?.commitPosition ?? {
+              x: Math.round(node.position.x),
+              y: Math.round(node.position.y)
+            }
+
             try {
               await dispatchCanvasInputAsync({
                 allowEditableTarget: true,
@@ -603,11 +700,12 @@ export function CanvasScene({
                 intent: {
                   kind: 'pointer-node-move-commit',
                   nodeId: node.id,
-                  position: node.position
+                  position: committedPosition
                 },
                 preventDefault: false
               })
             } finally {
+              clearGuidePreview()
               syncFlowNodesFromStore({})
             }
           })()
@@ -739,6 +837,11 @@ export function CanvasScene({
           />
         ) : null}
       </ReactFlow>
+      <GuideOverlay
+        overlay={guideOverlay}
+        viewport={viewport}
+        viewportSize={viewportSize}
+      />
     </div>
   )
 }

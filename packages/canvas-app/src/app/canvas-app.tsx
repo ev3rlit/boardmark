@@ -89,6 +89,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const setDropError = useStore(store, (state) => state.setDropError)
   const setTemporaryPanState = useStore(store, (state) => state.setTemporaryPanState)
   const setViewport = useStore(store, (state) => state.setViewport)
+  const setGridSnappingEnabled = useStore(store, (state) => state.setGridSnappingEnabled)
   const clearSelection = useStore(store, (state) => state.clearSelection)
   const commitNodeMove = useStore(store, (state) => state.commitNodeMove)
   const commitNodeResize = useStore(store, (state) => state.commitNodeResize)
@@ -128,6 +129,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const toolMode = useStore(store, (state) => state.toolMode)
   const viewport = useStore(store, (state) => state.viewport)
   const viewportSize = useStore(store, (state) => state.viewportSize)
+  const gridSnappingEnabled = useStore(store, (state) => state.smartGuides.gridSnappingEnabled)
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
@@ -596,6 +598,15 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             <ZoomControls
               canFitCanvas={canFitCanvas}
               dispatchCanvasInput={dispatchCanvasInput}
+              menuItems={[
+                {
+                  checked: gridSnappingEnabled,
+                  id: 'grid-snapping',
+                  kind: 'toggle',
+                  label: 'Grid snap',
+                  onSelect: () => setGridSnappingEnabled(!gridSnappingEnabled)
+                }
+              ]}
               onFitCanvas={fitCanvasViewport}
               store={store}
             />
