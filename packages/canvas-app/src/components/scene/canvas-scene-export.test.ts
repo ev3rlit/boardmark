@@ -2,19 +2,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportCanvasSceneImage } from './canvas-scene-export'
 import type { CanvasEdge, CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
 
-const { toBlobMock } = vi.hoisted(() => ({
-  toBlobMock: vi.fn()
+const { toBlobMock, toPngMock } = vi.hoisted(() => ({
+  toBlobMock: vi.fn(),
+  toPngMock: vi.fn()
+}))
+const {
+  rasterizeSandpackBlockToDataUrlMock,
+  readSandpackBlockPayloadMock
+} = vi.hoisted(() => ({
+  rasterizeSandpackBlockToDataUrlMock: vi.fn(),
+  readSandpackBlockPayloadMock: vi.fn()
 }))
 
 vi.mock('html-to-image', () => ({
-  toBlob: toBlobMock
+  toBlob: toBlobMock,
+  toPng: toPngMock
+}))
+
+vi.mock('@boardmark/ui', () => ({
+  rasterizeSandpackBlockToDataUrl: rasterizeSandpackBlockToDataUrlMock,
+  readSandpackBlockPayload: readSandpackBlockPayloadMock
 }))
 
 describe('canvas scene export', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
     toBlobMock.mockReset()
+    toPngMock.mockReset()
+    rasterizeSandpackBlockToDataUrlMock.mockReset()
+    readSandpackBlockPayloadMock.mockReset()
     toBlobMock.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    toPngMock.mockResolvedValue('data:image/png;base64,sandpack-preview')
+    rasterizeSandpackBlockToDataUrlMock.mockResolvedValue('data:image/png;base64,sandpack-preview')
+    readSandpackBlockPayloadMock.mockReturnValue(null)
     Object.defineProperty(window, 'devicePixelRatio', {
       configurable: true,
       value: 2
@@ -256,6 +276,67 @@ describe('canvas scene export', () => {
       })
     )
   })
+
+  it('replaces sandpack preview iframes with static export images before rasterizing the scene', async () => {
+    const saveImageMock = vi.fn().mockResolvedValue({
+      ok: true as const,
+      value: undefined
+    })
+    const { flowElement, viewport } = createFlowScene({
+      flowRect: { left: 0, top: 0, width: 640, height: 480 },
+      viewport: { x: 0, y: 0, zoom: 1 }
+    })
+    const nodeElement = appendRenderedElement(viewport, {
+      flowRect: { x: 20, y: 20, width: 240, height: 180 },
+      id: 'node-1',
+      kind: 'node',
+      viewport: { x: 0, y: 0, zoom: 1 }
+    })
+
+    appendSandpackBlock(nodeElement)
+    readSandpackBlockPayloadMock.mockReturnValue({
+      meta: '{"template":"react"}',
+      source: '```App.js\\nexport default function App() { return <div /> }\\n```'
+    })
+
+    await exportCanvasSceneImage({
+      format: 'png',
+      imageExportBridge: {
+        saveImage: saveImageMock
+      },
+      rootElement: flowElement,
+      scope: 'selection',
+      state: {
+        edges: [],
+        groupSelectionState: { status: 'idle' },
+        groups: [],
+        nodes: [
+          createNode('node-1', { x: 20, y: 20, w: 240, h: 180 })
+        ],
+        selectedEdgeIds: [],
+        selectedGroupIds: [],
+        selectedNodeIds: ['node-1'],
+        viewport: { x: 0, y: 0, zoom: 1 }
+      }
+    })
+
+    expect(rasterizeSandpackBlockToDataUrlMock).toHaveBeenCalledTimes(1)
+    expect(rasterizeSandpackBlockToDataUrlMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta: '{"template":"react"}',
+        source: '```App.js\\nexport default function App() { return <div /> }\\n```',
+        width: 220
+      })
+    )
+
+    const [cloneRoot] = toBlobMock.mock.calls[0] as [HTMLElement]
+    expect(cloneRoot.querySelector('.sandpack-block iframe')).toBeNull()
+
+    const exportedPreview = cloneRoot.querySelector('[data-boardmark-export-sandpack-image="true"]')
+
+    expect(exportedPreview).toBeInstanceOf(HTMLImageElement)
+    expect((exportedPreview as HTMLImageElement).src).toBe('data:image/png;base64,sandpack-preview')
+  })
 })
 
 function createFlowScene(input: {
@@ -326,6 +407,27 @@ function appendRenderedElement(
   parent.append(element)
 
   return element
+}
+
+function appendSandpackBlock(parent: HTMLElement) {
+  const block = document.createElement('figure')
+  block.className = 'sandpack-block'
+  Object.defineProperty(block, 'clientWidth', {
+    configurable: true,
+    value: 220
+  })
+  Object.defineProperty(block, 'clientHeight', {
+    configurable: true,
+    value: 140
+  })
+  block.getBoundingClientRect = () => createDomRect(0, 0, 220, 140)
+
+  const iframe = document.createElement('iframe')
+  iframe.title = 'Sandpack Preview'
+  block.append(iframe)
+  parent.append(block)
+
+  return block
 }
 
 function createDomRect(left: number, top: number, width: number, height: number) {

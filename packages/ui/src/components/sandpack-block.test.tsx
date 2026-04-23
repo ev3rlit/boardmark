@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SandpackBlock } from './sandpack-block'
+import { readSandpackBlockPayload } from './sandpack-block-registry'
 
 const {
   sandpackMock,
@@ -81,5 +82,28 @@ export default function App() {
 
     expect(screen.getByRole('group', { name: 'Sandpack block render error' })).toBeInTheDocument()
     expect(screen.getByText('Unsupported sandpack source format.')).toBeInTheDocument()
+  })
+
+  it('registers its source payload on the rendered figure for export consumers', () => {
+    const source = JSON.stringify({
+      template: 'react',
+      files: {
+        'App.js': 'export default function App() { return <div>Hello</div> }'
+      }
+    })
+    const { unmount } = render(
+      <SandpackBlock source={source} />
+    )
+
+    const figure = screen.getByTestId('sandpack-provider').closest('.sandpack-block') as HTMLElement | null
+
+    expect(figure).not.toBeNull()
+    expect(readSandpackBlockPayload(figure as HTMLElement)).toEqual({
+      source
+    })
+
+    unmount()
+
+    expect(readSandpackBlockPayload(figure as HTMLElement)).toBeNull()
   })
 })

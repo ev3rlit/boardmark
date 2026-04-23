@@ -181,6 +181,30 @@ describe('MarkdownContent', () => {
     expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
   })
 
+  it('renders html breaks with attributes as visible line breaks', () => {
+    const { container } = render(
+      <MarkdownContent content={'첫 줄<br class="line-break" data-kind="manual">둘째 줄'} />
+    )
+
+    const paragraph = container.querySelector('p')
+
+    expect(paragraph).not.toBeNull()
+    expect(paragraph?.querySelector('br')).not.toBeNull()
+    expect(paragraph?.textContent).toBe('첫 줄\n둘째 줄')
+  })
+
+  it('renders consecutive html breaks as separate visible line breaks', () => {
+    const { container } = render(
+      <MarkdownContent content={'첫 줄<br class="line-break"><br data-kind="manual">셋째 줄'} />
+    )
+
+    const paragraph = container.querySelector('p')
+
+    expect(paragraph).not.toBeNull()
+    expect(paragraph?.querySelectorAll('br')).toHaveLength(2)
+    expect(paragraph?.textContent).toBe('첫 줄\n\n셋째 줄')
+  })
+
   it('renders html breaks as visible line breaks inside list items', () => {
     const { container } = render(
       <MarkdownContent content={'- 첫 줄<br>둘째 줄'} />

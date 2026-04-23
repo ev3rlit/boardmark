@@ -127,9 +127,13 @@ function replaceHtmlBreakNodes(node: { children?: unknown[] }) {
       return [child]
     }
 
-    return isHtmlBreakNode(child.value)
-      ? [{ type: 'break' }]
-      : [child]
+    const breakCount = readHtmlBreakCount(child.value)
+
+    if (breakCount === null) {
+      return [child]
+    }
+
+    return Array.from({ length: breakCount }, () => ({ type: 'break' }))
   })
 }
 
@@ -141,8 +145,28 @@ function isMdastNode(value: unknown): value is {
   return typeof value === 'object' && value !== null && 'type' in value
 }
 
-function isHtmlBreakNode(value: unknown) {
-  return typeof value === 'string' && /^<br\s*\/?>$/i.test(value.trim())
+function readHtmlBreakCount(value: unknown): number | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  let breakCount = 0
+  const remaining = trimmed.replace(/<br\b[^>]*\/?>/gi, () => {
+    breakCount += 1
+    return ''
+  }).trim()
+
+  if (breakCount === 0 || remaining.length > 0) {
+    return null
+  }
+
+  return breakCount
 }
 
 function MarkdownImage({
