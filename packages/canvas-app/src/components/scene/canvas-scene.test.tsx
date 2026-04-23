@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ReactFlowProvider, applyNodeChanges, type Node } from '@xyflow/react'
 import type { CanvasGroup, CanvasNode } from '@boardmark/canvas-domain'
@@ -726,6 +726,53 @@ Boardmark Viewer
     })
 
     expect(store.getState().viewport.zoom).toBe(1.02)
+  })
+
+  it('preserves fenced code block DOM across viewport-only updates', async () => {
+    const store = await createHydratedCanvasStore(`---
+type: canvas
+version: 2
+viewport:
+  x: -180
+  y: -120
+  zoom: 0.92
+---
+
+::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+\`\`\`ts
+const answer = 42
+\`\`\`
+:::`)
+
+    const { container } = render(
+      <ReactFlowProvider>
+        <CanvasScene
+          {...createSceneInputProps(store)}
+          store={store}
+        />
+      </ReactFlowProvider>
+    )
+
+    await waitFor(() => {
+      expect(container.querySelector('.markdown-code-block')).not.toBeNull()
+    })
+
+    const initialCodeBlock = container.querySelector('.markdown-code-block') as HTMLDivElement | null
+
+    expect(initialCodeBlock).not.toBeNull()
+
+    await act(async () => {
+      store.getState().setViewport({
+        x: -120,
+        y: -80,
+        zoom: 0.92
+      })
+      await Promise.resolve()
+    })
+
+    const nextCodeBlock = container.querySelector('.markdown-code-block') as HTMLDivElement | null
+
+    expect(nextCodeBlock).toBe(initialCodeBlock)
   })
 
   it('enters note editing without remounting the flow renderer into a loop', async () => {

@@ -183,11 +183,17 @@ export function CanvasScene({
     [nodes, selectedNodeIds, defaultStyle, resolveImageSource]
   )
   const flowNodesRef = useRef<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
+  const baseFlowNodesRef = useRef<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const [flowNodes, setFlowNodes] = useState<Node<CanvasFlowNodeData>[]>(baseFlowNodes)
   const [guideOverlay, setGuideOverlay] = useState<GuideOverlayModel>({
     lines: []
   })
   const [resizeDrafts, setResizeDrafts] = useState<Record<string, CanvasNodeGeometryDraft>>({})
+  const guideSessionRef = useRef(guideSession)
+  const viewportSnapshotRef = useRef({
+    viewport,
+    viewportSize
+  })
   const flowEdges = useMemo(() => readFlowEdges(edges, selectedEdgeIds), [edges, selectedEdgeIds])
   const selectionToolbarNodeIds = useMemo(
     () => selectedNodeIds.filter((nodeId) => nodes.some((node) => node.id === nodeId)),
@@ -212,6 +218,13 @@ export function CanvasScene({
   )
   const selectionToolbarAutoHeight = selectionToolbarNodeIds.length === 1 &&
     selectionToolbarAnchorNode?.at.h === undefined
+
+  baseFlowNodesRef.current = baseFlowNodes
+  guideSessionRef.current = guideSession
+  viewportSnapshotRef.current = {
+    viewport,
+    viewportSize
+  }
 
   const updateFlowNodes = (nextFlowNodes: Node<CanvasFlowNodeData>[]) => {
     flowNodesRef.current = nextFlowNodes
@@ -241,11 +254,12 @@ export function CanvasScene({
   const resizeCallbacks = useMemo<ResizeCallbacks>(
     () => ({
       onResizePreview(nodeId, geometry) {
+        const { viewport, viewportSize } = viewportSnapshotRef.current
         const preview = readResizeGuidePreview({
-          baseFlowNodes,
+          baseFlowNodes: baseFlowNodesRef.current,
           flowNodes: flowNodesRef.current,
           geometry,
-          guideSession,
+          guideSession: guideSessionRef.current,
           nodeId,
           viewport,
           viewportSize
@@ -293,7 +307,7 @@ export function CanvasScene({
         }
       }
     }),
-    [baseFlowNodes, dispatchCanvasInputAsync, guideSession, viewport, viewportSize]
+    [dispatchCanvasInputAsync]
   )
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
