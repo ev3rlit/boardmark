@@ -148,6 +148,75 @@ describe('smart guides and snapping', () => {
     expect(preview?.nodePositions.get('right-selected')).toEqual({ x: 270, y: 96 })
   })
 
+  it('leaves unsnapped drag preview positions to the flow runtime', () => {
+    const preview = readDragGuidePreview({
+      draggedNodeId: 'floating',
+      draggedNodeIds: ['floating'],
+      flowNodes: [
+        createFlowNode('floating', 131.7, 103.4, 95, 73),
+        createFlowNode('far-away', 480, 320, 120, 120)
+      ],
+      guideSession,
+      viewport: {
+        x: 0,
+        y: 0,
+        zoom: 1
+      },
+      viewportSize: {
+        width: 1200,
+        height: 800
+      }
+    })
+
+    expect(preview).toBeNull()
+  })
+
+  it('keeps a drag snap latched until the pointer clearly leaves the release zone', () => {
+    const initialPreview = readDragGuidePreview({
+      draggedNodeId: 'dragged',
+      draggedNodeIds: ['dragged'],
+      flowNodes: [
+        createFlowNode('dragged', 49, 120, 120, 80)
+      ],
+      guideSession,
+      viewport: {
+        x: 0,
+        y: 0,
+        zoom: 1
+      },
+      viewportSize: {
+        width: 1200,
+        height: 800
+      }
+    })
+
+    expect(initialPreview).not.toBeNull()
+
+    const retainedPreview = readDragGuidePreview({
+      draggedNodeId: 'dragged',
+      draggedNodeIds: ['dragged'],
+      flowNodes: [
+        createFlowNode('dragged', 55.2, 120, 120, 80)
+      ],
+      guideSession,
+      previousSnapState: initialPreview?.snapState,
+      viewport: {
+        x: 0,
+        y: 0,
+        zoom: 1
+      },
+      viewportSize: {
+        width: 1200,
+        height: 800
+      }
+    })
+
+    expect(retainedPreview?.nodePositions.get('dragged')).toEqual({
+      x: 48,
+      y: 120
+    })
+  })
+
   it('keeps resize preview and commit geometry on the same snapped frame', () => {
     const preview = readResizeGuidePreview({
       baseFlowNodes: [

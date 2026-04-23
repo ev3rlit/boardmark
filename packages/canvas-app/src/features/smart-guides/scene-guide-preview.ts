@@ -10,12 +10,18 @@ import type {
   CanvasViewportSize
 } from '@canvas-app/store/canvas-store-types'
 import type {
+  GuideAdjustment,
   GuideAxis,
+  GuideAxisAdjustment,
   GuideAxisBehavior,
   GuideFrame,
   GuideSession
 } from '@canvas-app/features/smart-guides/contracts'
-import { mergeGuideFrames } from '@canvas-app/features/smart-guides/geometry/guide-geometry'
+import {
+  applyGuideAdjustments,
+  mergeGuideFrames,
+  readFrameReference
+} from '@canvas-app/features/smart-guides/geometry/guide-geometry'
 
 export type DragGuidePreview = {
   commitPosition: {
@@ -24,6 +30,7 @@ export type DragGuidePreview = {
   }
   nodePositions: Map<string, { x: number; y: number }>
   overlay: ReturnType<GuideSession['evaluate']>['overlay']
+  snapState: DragGuideSnapState
 }
 
 export type ResizeGuidePreview = {
@@ -31,11 +38,19 @@ export type ResizeGuidePreview = {
   overlay: ReturnType<GuideSession['evaluate']>['overlay']
 }
 
+export type DragGuideSnapState = {
+  adjustment: GuideAdjustment
+  overlay: ReturnType<GuideSession['evaluate']>['overlay']
+}
+
+const DRAG_SNAP_RELEASE_DISTANCE = 10
+
 export function readDragGuidePreview(input: {
   draggedNodeId: string
   draggedNodeIds: string[]
   flowNodes: Node<CanvasFlowNodeData>[]
   guideSession: GuideSession
+  previousSnapState?: DragGuideSnapState | null
   viewport: CanvasViewport
   viewportSize: CanvasViewportSize
 }): DragGuidePreview | null {
@@ -60,14 +75,33 @@ export function readDragGuidePreview(input: {
     xBehavior: 'translate',
     yBehavior: 'translate'
   })
-  const dx = result.adjustedFrame.x - activeFrame.x
-  const dy = result.adjustedFrame.y - activeFrame.y
+  const snapState = readDragGuideSnapState({
+    activeFrame,
+    nextAdjustment: result.adjustment,
+    nextOverlay: result.overlay,
+    previousSnapState: input.previousSnapState ?? null
+  })
+
+  if (!snapState) {
+    return null
+  }
+
+  const adjustedFrame = applyGuideAdjustments({
+    adjustment: snapState.adjustment,
+    frame: activeFrame,
+    xBehavior: 'translate',
+    yBehavior: 'translate'
+  }, {
+    round: false
+  })
+  const dx = adjustedFrame.x - activeFrame.x
+  const dy = adjustedFrame.y - activeFrame.y
   const nodePositions = new Map<string, { x: number; y: number }>(
     draggedFrames.map((frame) => [
       frame.id,
       {
-        x: Math.round(frame.x + dx),
-        y: Math.round(frame.y + dy)
+        x: frame.x + dx,
+        y: frame.y + dy
       }
     ])
   )
@@ -80,7 +114,8 @@ export function readDragGuidePreview(input: {
   return {
     commitPosition,
     nodePositions,
-    overlay: result.overlay
+    overlay: snapState.overlay,
+    snapState
   }
 }
 
@@ -222,4 +257,114 @@ function readResizeAxisBehavior(
   return Math.abs(activeMin - baseMin) >= Math.abs(activeMax - baseMax)
     ? 'resize-from-min'
     : 'resize-from-max'
+}
+
+function readDragGuideSnapState(input: {
+  activeFrame: GuideFrame
+  nextAdjustment: GuideAdjustment | null
+  nextOverlay: ReturnType<GuideSession['evaluate']>['overlay']
+  previousSnapState: DragGuideSnapState | null
+}): DragGuideSnapState | null {
+  const adjustment: GuideAdjustment = {
+    x: input.nextAdjustment?.x ?? readRetainedDragAxisAdjustment(
+      input.activeFrame,
+      input.previousSnapState?.adjustment.x
+    ),
+    y: input.nextAdjustment?.y ?? readRetainedDragAxisAdjustment(
+      input.activeFrame,
+      input.previousSnapState?.adjustment.y
+    )
+  }
+
+  if (!adjustment.x && !adjustment.y) {
+    return null
+  }
+
+  return {
+    adjustment,
+    overlay: {
+      lines: readMergedDragOverlayLines({
+        adjustment,
+        nextAdjustment: input.nextAdjustment,
+        nextOverlay: input.nextOverlay,
+        previousOverlay: input.previousSnapState?.overlay
+      })
+    }
+  }
+}
+
+function readRetainedDragAxisAdjustment(
+  activeFrame: GuideFrame,
+  adjustment: GuideAxisAdjustment | undefined
+) {
+  if (!adjustment) {
+    return undefined
+  }
+
+  const currentReference = readFrameReference(activeFrame, adjustment.axis, adjustment.reference)
+
+  return Math.abs(adjustment.target - currentReference) <= DRAG_SNAP_RELEASE_DISTANCE
+    ? adjustment
+    : undefined
+}
+
+function readMergedDragOverlayLines(input: {
+  adjustment: GuideAdjustment
+  nextAdjustment: GuideAdjustment | null
+  nextOverlay: ReturnType<GuideSession['evaluate']>['overlay']
+  previousOverlay: ReturnType<GuideSession['evaluate']>['overlay'] | undefined
+}) {
+  const lines = [
+    ...readOverlayLinesForAxis(
+      input.adjustment.x,
+      input.nextAdjustment?.x,
+      'x',
+      input.nextOverlay.lines,
+      input.previousOverlay?.lines ?? []
+    ),
+    ...readOverlayLinesForAxis(
+      input.adjustment.y,
+      input.nextAdjustment?.y,
+      'y',
+      input.nextOverlay.lines,
+      input.previousOverlay?.lines ?? []
+    ),
+    ...input.nextOverlay.lines.filter((line) => line.role === 'spacing')
+  ]
+
+  return dedupeOverlayLines(lines)
+}
+
+function readOverlayLinesForAxis(
+  adjustment: GuideAxisAdjustment | undefined,
+  nextAdjustment: GuideAxisAdjustment | undefined,
+  axis: GuideAxis,
+  nextLines: ReturnType<GuideSession['evaluate']>['overlay']['lines'],
+  previousLines: ReturnType<GuideSession['evaluate']>['overlay']['lines']
+) {
+  if (!adjustment) {
+    return []
+  }
+
+  const sourceLines = nextAdjustment ? nextLines : previousLines
+
+  return sourceLines.filter((line) => line.axis === axis)
+}
+
+function dedupeOverlayLines(lines: ReturnType<GuideSession['evaluate']>['overlay']['lines']) {
+  const uniqueLines = new Map<string, typeof lines[number]>()
+
+  for (const line of lines) {
+    uniqueLines.set([
+      line.axis,
+      line.moduleId,
+      line.role,
+      line.x1,
+      line.x2,
+      line.y1,
+      line.y2
+    ].join(':'), line)
+  }
+
+  return [...uniqueLines.values()]
 }

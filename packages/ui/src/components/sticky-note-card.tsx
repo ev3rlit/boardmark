@@ -13,6 +13,7 @@ type StickyNoteCardProps = {
     | 'rose'
     | 'neutral'
   selected?: boolean
+  dragged?: boolean
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -39,6 +40,7 @@ const PAPER_TEXTURE_STYLE: CSSProperties = {
 export function StickyNoteCard({
   color = 'default',
   className,
+  dragged = false,
   selected = false,
   style,
   children
@@ -47,7 +49,10 @@ export function StickyNoteCard({
     <div
       data-note-surface="sticky"
       className={[
-        'relative overflow-hidden rounded-none px-5 py-4 shadow-[0_18px_40px_rgba(43,52,55,0.09)] transition-transform duration-200',
+        'relative overflow-hidden rounded-none px-5 py-4',
+        dragged
+          ? 'transition-none will-change-transform'
+          : 'shadow-[0_18px_40px_rgba(43,52,55,0.09)] transition-transform duration-200',
         'bg-[var(--note-surface)] text-[var(--color-on-surface)]',
         selected ? 'ring-2 ring-[color:color-mix(in_oklab,var(--color-primary)_28%,transparent)]' : '',
         className ?? '',
@@ -55,12 +60,14 @@ export function StickyNoteCard({
       ].join(' ')}
       style={style}
     >
-      <div
-        aria-hidden="true"
-        className={PAPER_TEXTURE_CLASS_NAME}
-        data-note-texture="paper"
-        style={PAPER_TEXTURE_STYLE}
-      />
+      {dragged ? null : (
+        <div
+          aria-hidden="true"
+          className={PAPER_TEXTURE_CLASS_NAME}
+          data-note-texture="paper"
+          style={PAPER_TEXTURE_STYLE}
+        />
+      )}
       <div className="relative z-10">
         {children}
       </div>

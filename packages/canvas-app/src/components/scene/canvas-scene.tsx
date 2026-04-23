@@ -71,6 +71,7 @@ import { GuideOverlay } from '@canvas-app/features/smart-guides/guide-overlay'
 import { createConfiguredGuideSession } from '@canvas-app/features/smart-guides/guide-session'
 import {
   applyDraggedNodePositions,
+  type DragGuideSnapState,
   readDragGuidePreview,
   readDraggedNodeIdsFromChanges,
   readResizeGuidePreview
@@ -167,6 +168,7 @@ export function CanvasScene({
     }
     nodePositions: Map<string, { x: number; y: number }>
   } | null>(null)
+  const dragSnapStateRef = useRef<DragGuideSnapState | null>(null)
   const resizePreviewRef = useRef<Record<string, CanvasNodeGeometryDraft>>({})
 
   const reactFlow = useReactFlow<Node<CanvasFlowNodeData>, Edge<CanvasFlowEdgeData>>()
@@ -233,6 +235,7 @@ export function CanvasScene({
 
   const clearGuidePreview = () => {
     dragPreviewRef.current = null
+    dragSnapStateRef.current = null
     resizePreviewRef.current = {}
     setGuideOverlay({
       lines: []
@@ -593,6 +596,7 @@ export function CanvasScene({
               draggedNodeIds,
               flowNodes: rawNextFlowNodes,
               guideSession,
+              previousSnapState: dragSnapStateRef.current,
               viewport,
               viewportSize
             })
@@ -602,10 +606,12 @@ export function CanvasScene({
                 commitPosition: preview.commitPosition,
                 nodePositions: preview.nodePositions
               }
+              dragSnapStateRef.current = preview.snapState
               setGuideOverlay(preview.overlay)
               updateFlowNodes(applyDraggedNodePositions(rawNextFlowNodes, preview.nodePositions))
             } else {
               dragPreviewRef.current = null
+              dragSnapStateRef.current = null
               setGuideOverlay({
                 lines: []
               })
@@ -886,6 +892,7 @@ export function shouldKeepCanvasWheelEventLocal(event: WheelEvent) {
 function CanvasNoteNode({
   id,
   data,
+  dragging,
   selected,
   store,
   onResizeCommit,
@@ -908,6 +915,7 @@ function CanvasNoteNode({
   const cancelInlineEditing = useStore(store, (state) => state.cancelInlineEditing)
   const isEditing = activeSession !== null
   const noteStroke = resolveCanvasObjectStrokeColor('note', data.style)
+  const isDragging = dragging === true
 
   return (
     <div
@@ -968,12 +976,21 @@ function CanvasNoteNode({
           ? 'flex w-full flex-col'
           : 'flex h-full w-full min-h-0 flex-col overflow-hidden'}
         color="default"
+        dragged={isDragging}
         selected={selected}
         style={{
           background: resolveCanvasObjectBackgroundColor('note', data.style),
-          boxShadow: noteStroke
-            ? `0 18px 40px rgba(43, 52, 55, 0.09), inset 0 0 0 1.5px ${noteStroke}`
-            : '0 18px 40px rgba(43, 52, 55, 0.09)'
+          boxShadow: isDragging
+            ? (
+                noteStroke
+                  ? `0 8px 18px rgba(43, 52, 55, 0.04), inset 0 0 0 1.5px ${noteStroke}`
+                  : '0 8px 18px rgba(43, 52, 55, 0.04)'
+              )
+            : (
+                noteStroke
+                  ? `0 18px 40px rgba(43, 52, 55, 0.09), inset 0 0 0 1.5px ${noteStroke}`
+                  : '0 18px 40px rgba(43, 52, 55, 0.09)'
+              )
         }}
       >
         {activeSession ? (

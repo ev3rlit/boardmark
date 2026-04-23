@@ -61,6 +61,8 @@ export function composeGuideResults(input: {
       frame: input.evaluation.activeFrame,
       xBehavior: input.evaluation.xBehavior,
       yBehavior: input.evaluation.yBehavior
+    }, {
+      round: input.evaluation.interaction !== 'drag'
     }),
     adjustment,
     overlay: {

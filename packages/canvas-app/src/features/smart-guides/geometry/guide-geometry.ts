@@ -142,6 +142,8 @@ export function applyGuideAdjustments(input: {
   frame: GuideFrame
   xBehavior: GuideAxisBehavior
   yBehavior: GuideAxisBehavior
+}, options?: {
+  round?: boolean
 }) {
   let nextFrame = { ...input.frame }
 
@@ -153,7 +155,7 @@ export function applyGuideAdjustments(input: {
     nextFrame = applyGuideAxisAdjustment(nextFrame, input.adjustment.y, input.yBehavior)
   }
 
-  return roundGuideFrame(nextFrame)
+  return options?.round === false ? nextFrame : roundGuideFrame(nextFrame)
 }
 
 function applyGuideAxisAdjustment(
@@ -249,4 +251,3 @@ function roundGuideFrame(frame: GuideFrame): GuideFrame {
     height: Math.max(MIN_FRAME_SIZE, Math.round(frame.height))
   }
 }
-

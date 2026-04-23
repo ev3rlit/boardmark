@@ -28,4 +28,16 @@ describe('StickyNoteCard', () => {
 
     expect(card?.style.minHeight).toBe('144px')
   })
+
+  it('drops the paper texture while dragging to keep the surface lightweight', () => {
+    const { container } = render(
+      <StickyNoteCard dragged>Dragging note</StickyNoteCard>
+    )
+
+    const texture = container.querySelector('[data-note-texture="paper"]')
+    const card = container.querySelector('[data-note-surface="sticky"]')
+
+    expect(texture).toBeNull()
+    expect(card?.className).toContain('will-change-transform')
+  })
 })
