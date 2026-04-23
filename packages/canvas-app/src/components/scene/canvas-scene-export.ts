@@ -2,6 +2,10 @@ import type { CanvasImageExportBridge } from '@canvas-app/document/canvas-image-
 import { saveRasterImageExport, type RasterImageExportFormat, type RasterImageSaveOutcome } from '@canvas-app/services/raster-image-export'
 import { readDocumentSelection, type CanvasSelectionSnapshot } from '@canvas-app/store/canvas-object-selection'
 import type { CanvasViewport } from '@boardmark/canvas-domain'
+import {
+  rasterizeSandpackBlockToDataUrl,
+  readSandpackBlockPayload
+} from '@boardmark/ui'
 
 type HtmlToImageModule = typeof import('html-to-image')
 
@@ -17,6 +21,11 @@ type FlowBounds = {
   width: number
   x: number
   y: number
+}
+
+type SandpackBlockSize = {
+  height: number
+  width: number
 }
 
 const EXPORT_PADDING = 24
@@ -85,6 +94,10 @@ export async function exportCanvasSceneImage(input: {
 
   try {
     const htmlToImage = await loadHtmlToImage()
+    await replaceSandpackBlocks({
+      cloneFlowElement: cloneRoot,
+      sourceFlowElement: flowElement
+    })
     const blob = await htmlToImage.toBlob(cloneRoot, {
       backgroundColor: readSceneBackgroundColor(flowElement),
       cacheBust: true,
@@ -304,4 +317,104 @@ function requirePngBlob(blob: Blob | null, fallbackMessage: string) {
   }
 
   return blob
+}
+
+async function replaceSandpackBlocks(input: {
+  cloneFlowElement: HTMLElement
+  sourceFlowElement: HTMLElement
+}) {
+  const sourceBlocks = [...input.sourceFlowElement.querySelectorAll<HTMLElement>('.sandpack-block')]
+  const cloneBlocks = [...input.cloneFlowElement.querySelectorAll<HTMLElement>('.sandpack-block')]
+  const replaceCount = Math.min(sourceBlocks.length, cloneBlocks.length)
+
+  if (replaceCount === 0) {
+    return
+  }
+
+  await Promise.all(
+    Array.from({ length: replaceCount }, (_, index) =>
+      replaceSandpackBlock({
+        cloneBlock: cloneBlocks[index],
+        sourceBlock: sourceBlocks[index]
+      })
+    )
+  )
+}
+
+async function replaceSandpackBlock(input: {
+  cloneBlock: HTMLElement
+  sourceBlock: HTMLElement
+}) {
+  const payload = readSandpackBlockPayload(input.sourceBlock)
+
+  if (!payload) {
+    return
+  }
+
+  const size = readSandpackBlockSize(input.sourceBlock, input.cloneBlock)
+
+  try {
+    const dataUrl = await rasterizeSandpackBlockToDataUrl({
+      blockElement: input.sourceBlock,
+      meta: payload.meta,
+      source: payload.source,
+      width: size.width
+    })
+    const image = document.createElement('img')
+
+    image.alt = 'Sandpack preview'
+    image.dataset.boardmarkExportSandpackImage = 'true'
+    image.src = dataUrl
+    applySandpackReplacementLayout(image, size)
+    await waitForImageDecode(image)
+    input.cloneBlock.replaceChildren(image)
+  } catch {
+    return
+  }
+}
+
+function readSandpackBlockSize(sourceBlock: HTMLElement, cloneBlock: HTMLElement): SandpackBlockSize {
+  const sourceBounds = sourceBlock.getBoundingClientRect()
+  const cloneBounds = cloneBlock.getBoundingClientRect()
+
+  return {
+    width: Math.max(
+      1,
+      Math.ceil(sourceBounds.width),
+      Math.ceil(cloneBounds.width),
+      Math.ceil(sourceBlock.clientWidth),
+      Math.ceil(cloneBlock.clientWidth)
+    ),
+    height: Math.max(
+      1,
+      Math.ceil(sourceBounds.height),
+      Math.ceil(cloneBounds.height),
+      Math.ceil(sourceBlock.clientHeight),
+      Math.ceil(cloneBlock.clientHeight)
+    )
+  }
+}
+
+function applySandpackReplacementLayout(
+  element: HTMLElement,
+  size: {
+    height: number
+    width: number
+  }
+) {
+  element.style.display = 'block'
+  element.style.width = `${size.width}px`
+  element.style.height = `${size.height}px`
+  element.style.border = '0'
+}
+
+function waitForImageDecode(image: HTMLImageElement) {
+  if (image.complete && image.naturalWidth > 0) {
+    return Promise.resolve()
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('Canvas export could not decode the sandpack preview image.'))
+  })
 }

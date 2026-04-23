@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sandpack, SandpackLayout, SandpackPreview, SandpackProvider } from '@codesandbox/sandpack-react'
 import {
   BOARDMARK_SANDPACK_DEFAULT_OPTIONS,
+  BOARDMARK_SANDPACK_INTERNAL_DEPENDENCIES,
+  BOARDMARK_SANDPACK_SNAPSHOT_HELPER_FILE,
   BOARDMARK_SANDPACK_SECURITY_OPTIONS,
   SANDPACK_DEFAULT_TEMPLATE,
   generateResizeIndex,
+  generateSandpackSnapshotHelper,
   isSupportedTemplate
 } from '../lib/sandpack-config'
 import {
@@ -12,6 +15,10 @@ import {
   parseSandpackSource
 } from './fenced-block/sandpack-source-parser-registry'
 import type { SandpackDocument } from './fenced-block/sandpack-source-types'
+import {
+  registerSandpackBlockPayload,
+  unregisterSandpackBlockPayload
+} from './sandpack-block-registry'
 
 export type SandpackBlockProps = {
   meta?: string
@@ -26,12 +33,28 @@ export function SandpackBlock({ meta, source }: SandpackBlockProps) {
   const normalizedSource = useMemo(() => composeSandpackSourceInput({ source, meta }), [meta, source])
   const state = useMemo(() => parseSandpackBlockState(normalizedSource), [normalizedSource])
   const blockId = useMemo(() => Math.random().toString(36).slice(2), [])
+  const figureRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const element = figureRef.current
+
+    if (!element) {
+      return
+    }
+
+    registerSandpackBlockPayload(element, { meta, source })
+
+    return () => {
+      unregisterSandpackBlockPayload(element)
+    }
+  }, [meta, source])
 
   if (state.status === 'error') {
     return (
       <figure
         className="sandpack-block sandpack-block--error"
         data-state="error"
+        ref={figureRef}
         role="group"
         aria-label="Sandpack block render error"
       >
@@ -50,6 +73,7 @@ export function SandpackBlock({ meta, source }: SandpackBlockProps) {
     <figure
       className="sandpack-block"
       data-state="ready"
+      ref={figureRef}
     >
       {showEditor ? (
         <Sandpack
@@ -121,16 +145,28 @@ function buildSandpackProps(document: SandpackDocument, blockId: string) {
     readOnly?: boolean
   }> = {}
 
-  // 사용자가 index.js를 제공하지 않은 경우 높이 리포터가 포함된 index.js를 자동 주입한다.
-  const hasIndexFile = document.files.some((file) => file.name === 'index.js')
+  const runtimeEntryFile = resolveRuntimeEntryFile(document)
 
-  if (!hasIndexFile) {
-    files['index.js'] = { code: generateResizeIndex(blockId) }
+  files[BOARDMARK_SANDPACK_SNAPSHOT_HELPER_FILE] = {
+    code: generateSandpackSnapshotHelper(),
+    hidden: true,
+    readOnly: true
+  }
+
+  if (!runtimeEntryFile) {
+    files['index.js'] = {
+      code: generateResizeIndex(blockId),
+      hidden: true,
+      readOnly: true
+    }
   }
 
   for (const file of document.files) {
     files[file.name] = {
-      code: file.code,
+      code:
+        runtimeEntryFile === file.name
+          ? prependSnapshotHelperImport(file.code)
+          : file.code,
       ...(file.active ? { active: true } : {}),
       ...(file.hidden ? { hidden: true } : {}),
       ...(document.readOnly || file.readOnly ? { readOnly: true } : {})
@@ -150,9 +186,51 @@ function buildSandpackProps(document: SandpackDocument, blockId: string) {
     template,
     files,
     customSetup: {
-      dependencies: document.dependencies ?? {},
+      dependencies: {
+        ...BOARDMARK_SANDPACK_INTERNAL_DEPENDENCIES,
+        ...(document.dependencies ?? {})
+      },
     },
     options,
     showEditor,
   }
+}
+
+const SANDBOX_ENTRY_FILE_CANDIDATES = [
+  'index.tsx',
+  'index.ts',
+  'index.jsx',
+  'index.js',
+  'main.tsx',
+  'main.ts',
+  'main.jsx',
+  'main.js'
+] as const
+
+function resolveRuntimeEntryFile(document: SandpackDocument) {
+  const activeEntry = document.files.find((file) =>
+    file.active === true && isSupportedEntryFile(file.name)
+  )
+
+  if (activeEntry) {
+    return activeEntry.name
+  }
+
+  return SANDBOX_ENTRY_FILE_CANDIDATES.find((candidate) =>
+    document.files.some((file) => file.name === candidate)
+  ) ?? null
+}
+
+function isSupportedEntryFile(path: string) {
+  return SANDBOX_ENTRY_FILE_CANDIDATES.includes(path as (typeof SANDBOX_ENTRY_FILE_CANDIDATES)[number])
+}
+
+function prependSnapshotHelperImport(source: string) {
+  const helperImport = `import "./${BOARDMARK_SANDPACK_SNAPSHOT_HELPER_FILE}";`
+
+  if (source.includes(helperImport)) {
+    return source
+  }
+
+  return `${helperImport}\n${source}`
 }
