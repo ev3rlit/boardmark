@@ -687,9 +687,6 @@ button {
 }
 
 .markdown-content {
-  --markdown-scale-raw: 1;
-  --markdown-scale-x: 1;
-  --markdown-scale-y: 1;
   --markdown-scale: 1;
   --markdown-body-width: 280px;
   --markdown-body-height: 188px;

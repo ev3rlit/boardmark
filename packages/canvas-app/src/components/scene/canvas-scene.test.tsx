@@ -1144,7 +1144,7 @@ Boardmark Viewer
     expect(previewParagraph?.textContent).toBe('Line 1\nLine 2')
   })
 
-  it('writes note size driven markdown scale variables onto the preview host', async () => {
+  it('writes note layout bounds without size driven markdown scale variables', async () => {
     const store = await createHydratedCanvasStore(`---
 type: canvas
 version: 2
@@ -1174,11 +1174,11 @@ Scaled note
     expect(markdownHost).not.toBeNull()
     expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
     expect(markdownHost?.style.getPropertyValue('--markdown-body-height')).toBe('408px')
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale-raw'))).toBeCloseTo(600 / 280)
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBe(1)
+    expect(markdownHost?.style.getPropertyValue('--markdown-scale-raw')).toBe('')
+    expect(markdownHost?.style.getPropertyValue('--markdown-scale')).toBe('')
   })
 
-  it('uses width-only scaling for auto-height notes and removes the block height ceiling', async () => {
+  it('keeps auto-height notes unconstrained without markdown scale variables', async () => {
     const store = await createHydratedCanvasStore(`---
 type: canvas
 version: 2
@@ -1208,8 +1208,8 @@ Auto height note
     expect(markdownHost).not.toBeNull()
     expect(markdownHost?.style.getPropertyValue('--markdown-body-width')).toBe('600px')
     expect(markdownHost?.style.getPropertyValue('--markdown-block-max-height')).toBe('none')
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale-raw'))).toBeCloseTo(600 / 280)
-    expect(Number(markdownHost?.style.getPropertyValue('--markdown-scale'))).toBe(1)
+    expect(markdownHost?.style.getPropertyValue('--markdown-scale-raw')).toBe('')
+    expect(markdownHost?.style.getPropertyValue('--markdown-scale')).toBe('')
   })
 
   it('rerenders only the edited node selectors while node editing state changes', async () => {
