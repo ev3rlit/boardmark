@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Analytics } from '@vercel/analytics/react'
 import '@boardmark/canvas-app/styles/canvas-app.css'
 import { App } from './App'
 
@@ -12,5 +13,6 @@ if (!container) {
 createRoot(container).render(
   <StrictMode>
     <App />
+    <Analytics />
   </StrictMode>
 )
