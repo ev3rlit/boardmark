@@ -59,3 +59,30 @@ pnpm preview:web:lan
 ```
 
 이 경우 서버는 `0.0.0.0:4173`으로 열리므로 사내망이나 집 내부망에서만 접근되게 라우터/방화벽 범위 안에서 사용하면 된다.
+
+## Vercel Deployment
+
+Boardmark web 앱은 Vercel에서 루트 프로젝트로 배포한다. 루트 `vercel.json`이 `apps/web`만 빌드하고 `apps/web/dist`를 정적 결과물로 서빙한다.
+
+Vercel 프로젝트 설정은 아래 값과 맞춘다.
+
+```text
+Framework Preset: Vite
+Install Command: pnpm install --frozen-lockfile
+Build Command: pnpm build:web
+Output Directory: apps/web/dist
+Root Directory: .
+```
+
+GitHub 저장소를 Vercel에 연결하면 `main`은 production 배포가 되고, 그 외 브랜치는 preview 배포가 된다. 로컬에서 확인할 때는 아래 명령으로 같은 빌드를 재현한다.
+
+```bash
+pnpm install
+pnpm build:web
+```
+
+공개 저장소로 전환하기 전에는 `.env`, `.env.*`, `.vercel` 같은 로컬 설정 파일이 커밋되지 않았는지 확인한다.
+
+## License
+
+MIT
