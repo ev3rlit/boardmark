@@ -1267,14 +1267,14 @@ function createPicker(): CanvasDocumentPicker {
       ok: true,
       value: {
         kind: 'file' as const,
-        path: '/tmp/open.canvas.md'
+        path: '/tmp/open.md'
       }
     }),
     pickSaveLocator: async () => ({
       ok: true,
       value: {
         kind: 'file' as const,
-        path: '/tmp/saved.canvas.md'
+        path: '/tmp/saved.md'
       }
     })
   }
@@ -1336,7 +1336,7 @@ function createRepository(): CanvasDocumentRepositoryGateway {
       ok: true,
       value: {
         locator,
-        name: locator.kind === 'file' ? 'saved.canvas.md' : locator.name,
+        name: locator.kind === 'file' ? 'saved.md' : locator.name,
         source,
         ast: {
           frontmatter: {

@@ -59,7 +59,7 @@
 
 - 사용자는 HTML body를 텍스트 파일로 직접 수정할 수 있어야 한다.
 - AI 에이전트도 구조를 이해하고 생성하기 쉬운 문서 형태여야 한다.
-- 포맷은 `.canvas.md`의 “텍스트 파일이 곧 캔버스” 원칙을 유지해야 한다.
+- 포맷은 `.md`의 “텍스트 파일이 곧 캔버스” 원칙을 유지해야 한다.
 
 ---
 
@@ -95,7 +95,7 @@
 
 ### 5.3 AI 생성 워크플로우
 
-에이전트는 `.canvas.md` 안에 HTML 오브젝트를 생성하고, 사용자는 VS Code에서 body를 직접 다듬는다.
+에이전트는 `.md` 안에 HTML 오브젝트를 생성하고, 사용자는 VS Code에서 body를 직접 다듬는다.
 
 ---
 
@@ -185,9 +185,9 @@ HTML surface가 Boardmark 본체와 통신해야 할 경우, 아래처럼 매우
 
 ### 6.5 저장과 소스 모델
 
-HTML 오브젝트의 body는 기존 `.canvas.md` body와 같은 규칙으로 저장되어야 한다.
+HTML 오브젝트의 body는 기존 `.md` body와 같은 규칙으로 저장되어야 한다.
 
-- source-of-truth는 계속 `.canvas.md`
+- source-of-truth는 계속 `.md`
 - HTML payload도 source patch를 통해 수정
 - 저장 경로는 기존 repository / save service를 그대로 사용
 
@@ -360,7 +360,7 @@ iframe 내부 링크 클릭은 앱 정책에 따라 처리해야 한다.
 즉:
 
 - 사용자가 직접 만든 문서만 열지 않는다.
-- 외부에서 받은 `.canvas.md`도 열 수 있다.
+- 외부에서 받은 `.md`도 열 수 있다.
 - 따라서 HTML payload는 항상 잠재적으로 hostile하다고 가정해야 한다.
 
 ### 9.3 sanitizer의 역할
@@ -424,7 +424,7 @@ HTML 오브젝트는 일반 note와 시각적으로 구분되어야 한다.
 - 기본 권한 정책 정의
 - 최소 parent/child message contract 정의
 - 에러/로딩 UI
-- `.canvas.md` source 저장 경로와 연결
+- `.md` source 저장 경로와 연결
 
 ### 이번 단계에서 제외
 
@@ -444,7 +444,7 @@ HTML 오브젝트는 일반 note와 시각적으로 구분되어야 한다.
 1. 사용자가 `boardmark.html` 오브젝트를 문서에 작성할 수 있다.
 2. HTML/CSS/JS가 Boardmark 본체와 분리된 surface에서 렌더된다.
 3. HTML surface가 실패해도 Boardmark 전체는 계속 동작한다.
-4. dirty/save/open 흐름은 기존 `.canvas.md` 기반 경로를 그대로 사용한다.
+4. dirty/save/open 흐름은 기존 `.md` 기반 경로를 그대로 사용한다.
 5. 외부 문서를 열어도 본체 DOM 직접 주입은 일어나지 않는다.
 
 ---

@@ -14,7 +14,7 @@ describe('canvas document repository', () => {
       locator: {
         kind: 'memory',
         key: 'startup-template',
-        name: 'template.canvas.md'
+        name: 'template.md'
       },
       source: `---
 type: canvas
@@ -33,7 +33,7 @@ Idea
       return
     }
 
-    expect(result.value.name).toBe('template.canvas.md')
+    expect(result.value.name).toBe('template.md')
     expect(result.value.ast.nodes).toHaveLength(1)
     expect(result.value.ast.nodes[0]?.sourceMap.headerLineRange.start.line).toBe(6)
     expect(result.value.ast.nodes[0]?.sourceMap.bodyRange.start.line).toBe(7)
@@ -47,7 +47,7 @@ Idea
       locator: {
         kind: 'memory',
         key: 'broken',
-        name: 'broken.canvas.md'
+        name: 'broken.md'
       },
       source: `---
 type: note
@@ -63,7 +63,7 @@ version: 2
     }
 
     expect(result.error.kind).toBe('parse-failed')
-    expect(result.error.message).toContain('broken.canvas.md')
+    expect(result.error.message).toContain('broken.md')
   })
 
   it('keeps partial parse issues while returning a valid aggregate', () => {
@@ -72,7 +72,7 @@ version: 2
       locator: {
         kind: 'memory',
         key: 'partial',
-        name: 'partial.canvas.md'
+        name: 'partial.md'
       },
       source: `---
 type: canvas
@@ -106,7 +106,7 @@ Broken
 
   it('saves and reads the same document through file-backed access', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'boardmark-repository-'))
-    const path = join(directory, 'roundtrip.canvas.md')
+    const path = join(directory, 'roundtrip.md')
     const repository = createCanvasMarkdownDocumentRepository({
       readFile(filePath) {
         return fromPromise(readFile(filePath, 'utf8'), (error) => ({
@@ -154,7 +154,7 @@ Saved
 
       expect(readResult.value.source).toBe(saveResult.value.source)
       expect(readResult.value.ast.nodes.map((node) => node.id)).toEqual(['saved'])
-      expect(readResult.value.name).toBe('roundtrip.canvas.md')
+      expect(readResult.value.name).toBe('roundtrip.md')
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

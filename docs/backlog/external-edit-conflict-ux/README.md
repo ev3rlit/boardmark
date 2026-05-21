@@ -2,7 +2,7 @@
 
 ## 문제
 
-Boardmark는 같은 `.canvas.md` 파일을 VS Code, AI 에이전트, shell picker 경로에서 함께 다루게 된다.  
+Boardmark는 같은 `.md` 파일을 VS Code, AI 에이전트, shell picker 경로에서 함께 다루게 된다.
 이 구조에서는 외부 변경과 로컬 draft 충돌을 제품 차원에서 다뤄야 한다.
 
 - 사용자가 Boardmark에서 편집 중일 때 VS Code나 AI가 같은 파일을 수정할 수 있다

@@ -1,6 +1,6 @@
 # @boardmark/vscode
 
-VS Code extension scaffold for Boardmark canvas (`*.canvas.md`).
+VS Code extension scaffold for Boardmark canvas (`*.md` with `type: canvas` frontmatter).
 
 > **Status:** Phase 1 scaffold only. Wires up the CustomTextEditor lifecycle and the host ↔ webview message channel; renders raw markdown source as a placeholder. The full `<CanvasApp />` mount lands in the next slice.
 >

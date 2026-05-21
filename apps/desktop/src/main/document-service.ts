@@ -333,7 +333,7 @@ function chooseOpenLocator(
 }
 
 function ensureCanvasExtension(path: string): string {
-  return path.endsWith('.canvas.md') || path.endsWith('.md') ? path : `${path}.md`
+  return path.endsWith('.md') ? path : `${path}.md`
 }
 
 function ensureImageExtension(path: string, mimeType: 'image/jpeg' | 'image/png') {
@@ -375,7 +375,7 @@ function toRepositoryError(
 
 function readAssetDirectoryPath(documentPath: string) {
   const documentDirectory = dirname(documentPath)
-  const documentName = basename(documentPath).replace(/(?:\.canvas)?\.md$/i, '')
+  const documentName = basename(documentPath).replace(/\.md$/i, '')
 
   return join(documentDirectory, `${documentName}.assets`)
 }

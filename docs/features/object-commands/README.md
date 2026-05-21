@@ -593,7 +593,7 @@ flowchart LR
   APPSVC["App Services\nclipboard / availability / history"]
   EDIT["Editing Layer\ncanvas-editing-service\nedit-service"]
   REPO["Repository Layer\ncanvas-repository"]
-  DOC["Document Source\n.canvas.md"]
+  DOC["Document Source\n.md"]
 
   UI --> CMD
   CMD --> STORE
@@ -611,7 +611,7 @@ flowchart LR
 - Command Layer: 실행 가능 여부 판정, store 메서드 라우팅, label/shortcut/disabled 메타데이터 제공
 - Store Layer: selection/context 검증, clipboard와 temporary state 관리, `commitCanvasIntent()` 호출
 - Services Layer: clipboard 직렬화, align/distribute/arrange 가능 여부 계산, history 보조
-- Editing Layer: intent를 `.canvas.md` patch로 변환하고 reparse 결과 반환
+- Editing Layer: intent를 `.md` patch로 변환하고 reparse 결과 반환
 
 ### 15.4 컴포넌트 구조
 

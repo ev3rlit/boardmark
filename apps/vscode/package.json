@@ -1,7 +1,7 @@
 {
   "name": "@boardmark/vscode",
   "displayName": "Boardmark",
-  "description": "Open and edit .canvas.md Boardmark documents directly in VS Code.",
+  "description": "Open and edit Boardmark .md documents directly in VS Code.",
   "private": true,
   "version": "0.0.1",
   "publisher": "boardmark",
@@ -18,7 +18,8 @@
   },
   "activationEvents": [
     "onCustomEditor:boardmark.canvasEditor",
-    "workspaceContains:**/*.canvas.md"
+    "onCommand:boardmark.openAsCanvas",
+    "onCommand:boardmark.openAsText"
   ],
   "contributes": {
     "customEditors": [
@@ -26,9 +27,9 @@
         "viewType": "boardmark.canvasEditor",
         "displayName": "Boardmark Canvas",
         "selector": [
-          { "filenamePattern": "*.canvas.md" }
+          { "filenamePattern": "*.md" }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ],
     "commands": [

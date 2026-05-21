@@ -409,7 +409,7 @@ assetPolicy: document-adjacent
 - 현재 버전의 기본값은 `document-adjacent`다.
 - `document-adjacent` 정책의 자산 디렉터리 이름은 `문서명.assets/`로 고정한다.
 - `assetPolicy`가 생략되면 `document-adjacent`를 적용한다.
-- 예시: `untitled.canvas.md`를 편집 중이면 `untitled.canvas.assets/`가 아니라 `untitled.assets/`에 이미지 저장
+- 예시: `untitled.md`를 편집 중이면 `untitled.md.assets/`가 아니라 `untitled.assets/`에 이미지 저장
 - 문서 내부의 `src`는 항상 자산 디렉터리를 기준으로 한 상대 경로를 사용한다.
 
 예시:
@@ -422,7 +422,7 @@ src: ./untitled.assets/pasted-image-002.png
 ### 7.2 경로 해석 규칙
 
 - `::: image`의 `src`는 URL 또는 로컬 경로를 허용한다.
-- 상대 로컬 경로는 현재 `.canvas.md` 파일 위치를 기준으로 해석한다.
+- 상대 로컬 경로는 현재 `.md` 파일 위치를 기준으로 해석한다.
 - 절대 로컬 경로는 사용자가 입력한 경로 그대로 해석한다.
 - URL은 원격 자원으로 처리한다.
 - 제품이 생성하는 로컬 경로는 상대 경로를 우선한다.

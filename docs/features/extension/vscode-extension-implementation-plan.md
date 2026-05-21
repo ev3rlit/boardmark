@@ -19,7 +19,7 @@ Boardmark의 장기 목표는 사용자가 VS Code 안에서 workspace 파일을
 ### 포함
 
 - VS Code extension scaffold
-- `.canvas.md`용 명령 또는 editor entrypoint
+- `.md`용 명령 또는 editor entrypoint
 - webview panel에서 Boardmark viewer 렌더링
 - extension host ↔ webview message bridge
 - workspace file read / write / watch
@@ -56,12 +56,12 @@ Boardmark의 장기 목표는 사용자가 VS Code 안에서 workspace 파일을
 ### 4.1 Extension Host
 
 - `extension.ts`에서 Boardmark 명령과 webview panel을 등록한다.
-- `.canvas.md` 파일을 열거나 명령 실행 시 Boardmark panel을 표시한다.
+- `.md` 파일을 열거나 명령 실행 시 Boardmark panel을 표시한다.
 - extension host는 workspace 파일 읽기/쓰기/감시를 담당한다.
 - extension host는 webview에 현재 문서 source와 상태를 전달한다.
 
 완료 기준:
-- VS Code에서 `.canvas.md`를 대상으로 Boardmark panel을 띄울 수 있다.
+- VS Code에서 `.md`를 대상으로 Boardmark panel을 띄울 수 있다.
 
 ### 4.2 Webview Viewer
 
@@ -117,7 +117,7 @@ Boardmark의 장기 목표는 사용자가 VS Code 안에서 workspace 파일을
 
 ### 4.6 File Watch
 
-- extension host는 현재 열린 `.canvas.md`와 관련 pack/local file을 감시할 수 있어야 한다.
+- extension host는 현재 열린 `.md`와 관련 pack/local file을 감시할 수 있어야 한다.
 - 외부 변경이 발생하면 host가 파일을 다시 읽고 webview에 갱신을 전달한다.
 - dirty 상태일 때 외부 변경이 오면 충돌 정책을 명시한다.
 
@@ -159,7 +159,7 @@ Boardmark의 장기 목표는 사용자가 VS Code 안에서 workspace 파일을
 
 ## 6. 테스트 계획
 
-- extension host가 `.canvas.md` 파일을 읽어 webview에 전달하는지 확인
+- extension host가 `.md` 파일을 읽어 webview에 전달하는지 확인
 - webview가 전달받은 문자열을 기존 parser/renderer로 렌더링하는지 확인
 - 저장 요청이 host single-writer 경로로만 들어가는지 확인
 - 외부 파일 변경 감지 후 reload 메시지가 전달되는지 확인
@@ -169,7 +169,7 @@ Boardmark의 장기 목표는 사용자가 VS Code 안에서 workspace 파일을
 
 ## 7. 완료 기준
 
-- VS Code 안에서 `.canvas.md`를 Boardmark panel로 열 수 있다.
+- VS Code 안에서 `.md`를 Boardmark panel로 열 수 있다.
 - webview는 기존 viewer core를 재사용한다.
 - 파일 읽기/쓰기/감시는 extension host에서만 수행된다.
 - 저장 정책 분리와 single-writer 원칙이 적용된다.

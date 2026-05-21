@@ -15,7 +15,7 @@ Current objective:
 Implement the Viewer MVP, not the editor.
 
 Product scope for this session:
-- Parse `.canvas.md` and render it as a canvas viewer
+- Parse `.md` and render it as a canvas viewer
 - Support only one node type for MVP: sticky note (`note`)
 - Support standalone `edge` directives with markdown labels
 - Use a DOM node layer + SVG edge overlay canvas architecture
@@ -30,8 +30,8 @@ Product scope for this session:
 Important UX requirements:
 - When the Electron app launches, show a default template canvas immediately
 - Also show entry actions so a new user can try the product right away
-- `New File` creates a new `.canvas.md` from a template, saves it to a chosen path, then loads it
-- `Open File` opens an existing `.canvas.md`
+- `New File` creates a new `.md` from a template, saves it to a chosen path, then loads it
+- `Open File` opens an existing `.md`
 - `Save` saves the current document; if the current document started from the template and has no path yet, first open a save dialog
 - Top-left: file menu with `Open File` and `Save`
 - Bottom-center: floating tool menu with only `Select` and `Pan`
@@ -74,7 +74,7 @@ Suggested implementation order:
    - `CanvasAST`
    - `CanvasParseIssue`
 3. Implement parser with partial-failure behavior
-4. Add template `.canvas.md` fixture for startup and new-file creation
+4. Add template `.md` fixture for startup and new-file creation
 5. Implement Electron document-entry flow:
    - startup template load
    - new file

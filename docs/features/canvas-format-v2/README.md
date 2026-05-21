@@ -2,7 +2,7 @@
 
 ## 1. 목적
 
-이 문서는 `.canvas.md` 포맷과 `canvas-parser` 재설계 방향을 정리한다.
+이 문서는 `.md` 포맷과 `canvas-parser` 재설계 방향을 정리한다.
 
 이번 문서에서 확정하는 핵심 결정은 아래와 같다.
 
@@ -290,7 +290,7 @@ viewport: { x: -180, y: -120, zoom: 0.92 }
 
 # Boardmark Viewer
 
-Open a `.canvas.md` file or start from this bundled example board.
+Open a `.md` file or start from this bundled example board.
 
 :::
 ```
@@ -561,7 +561,7 @@ flowchart TB
     D["canvas-domain"]
     P["canvas-parser"]
     Repo["canvas-repository"]
-    F["default-template.canvas.md"]
+    F["default-template.md"]
   end
 
   subgraph Runtime["Runtime Layer"]
@@ -637,7 +637,7 @@ flowchart LR
   end
 
   subgraph Assets["Artifacts"]
-    FIX["fixtures/default-template.canvas.md"]
+    FIX["fixtures/default-template.md"]
   end
 
   IDX --> PARSER
@@ -763,7 +763,7 @@ body 규칙:
 
 **변경 파일:**
 
-- `fixtures/default-template.canvas.md`
+- `fixtures/default-template.md`
 - `packages/canvas-parser/src/index.test.ts`
 - `packages/canvas-renderer/src/index.test.ts`
 - `packages/canvas-app/src/**/*.test.ts*`

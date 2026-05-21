@@ -363,7 +363,7 @@ function createPicker(): CanvasDocumentPicker {
       ok: true as const,
       value: {
         kind: 'file' as const,
-        path: '/tmp/test.canvas.md'
+        path: '/tmp/test.md'
       }
     }))
   }

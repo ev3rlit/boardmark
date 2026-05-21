@@ -429,7 +429,7 @@ scripts/
 
 **스크립트 동작**
 
-1. `.canvas.md` 파일에서 ` ```sandpack ` fenced block 탐색
+1. `.md` 파일에서 ` ```sandpack ` fenced block 탐색
 2. JSON body를 파싱해 `template`, `dependencies`, `layout`, `files` 추출
 3. nested fenced 포맷으로 변환 후 원본 파일 교체
 4. 변환 실패한 block은 원본 유지 + 경고 출력

@@ -31,9 +31,9 @@ VS Code extension의 본질은 **VS Code가 이미 제공하는 기능을 다시
 |---|---|
 | **CustomTextEditorProvider** ✅ | TextDocument 직접 바인딩, undo/redo/dirty/save 무료, 텍스트 ↔ 캔버스 동시 뷰 가능 |
 | WebviewPanel + 직접 fs | VS Code 문서 라이프사이클을 재구현해야 함. 기각 |
-| CustomEditor(binary) | `.canvas.md`는 텍스트 — 부적합 |
+| CustomEditor(binary) | `.md`는 텍스트 — 부적합 |
 
-`package.json`의 `contributes.customEditors`로 `*.canvas.md`에 등록, `workspaceContains:**/*.canvas.md` activation event로 자동 활성화합니다.
+`package.json`의 `contributes.customEditors`로 `*.md`에 등록, `workspaceContains:**/*.md` activation event로 자동 활성화합니다.
 
 ---
 
@@ -58,7 +58,7 @@ apps/vscode/
 ## 4. 데이터 흐름
 
 ```
-[TextDocument (.canvas.md)]               ← VS Code가 소유
+[TextDocument (.md)]               ← VS Code가 소유
         │
         │ workspace.onDidChangeTextDocument
         ▼
@@ -164,7 +164,7 @@ MVP로 끝까지 뚫고 사용성 피드백 본 뒤 Phase 2 결정.
 ## 10. 열린 질문 (코드 작업 전 결정 필요)
 
 1. **다중 webview**: 같은 파일을 두 탭에 열면 N개 webview가 같은 TextDocument를 공유. sync fan-out 전략 정해야 함.
-2. **Untitled / dirty 문서**: 저장 안 된 `.canvas.md`도 캔버스로 열 수 있는지.
+2. **Untitled / dirty 문서**: 저장 안 된 `.md`도 캔버스로 열 수 있는지.
 3. **이미지 자산 경로**: webview는 `vscode-resource:` 스킴 필요. `MarkdownContent`의 경로 처리 점검 필요.
 4. **VS Code undo와 canvas-app 내부 undo 통합**: MVP는 분리, Phase 2에서 통합 검토 (비용 큼).
 5. **`BoardmarkDocumentBridge` 인터페이스 위치**: 현재 `canvas-repository`가 소유. web/desktop/vscode 셋이 모두 의존 가능한 가장 낮은 레이어로 끌어올릴지 결정 필요. 끌어올린다면 별도 PR로 선행.

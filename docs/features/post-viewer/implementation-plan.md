@@ -4,13 +4,13 @@
 
 이 문서는 `docs/canvas-md-prd.md`의 원래 MVP 범위에서, 이미 구현된 viewer MVP를 제외하고 아직 남아 있는 항목만 정리한다.
 
-현재 기준으로 Boardmark는 Electron 기반 단일 viewer foundation과 `.canvas.md` 파서, 템플릿 문서 진입, note/edge 렌더링, pan/zoom, 기본 UI chrome까지 갖추고 있다.
+현재 기준으로 Boardmark는 Electron 기반 단일 viewer foundation과 `.md` 파서, 템플릿 문서 진입, note/edge 렌더링, pan/zoom, 기본 UI chrome까지 갖추고 있다.
 
 현재 제품 우선순위는 VS Code extension-first지만, 구현 순서는 web에서 계속 실행하고 검증할 수 있도록 web viewer와 pack system을 먼저 마무리하는 것으로 둔다.
 
 남은 MVP의 핵심은 다음 두 가지다.
 
-- 웹과 데스크톱에서 같은 `.canvas.md`를 같은 계약으로 렌더링하는 것
+- 웹과 데스크톱에서 같은 `.md`를 같은 계약으로 렌더링하는 것
 - frontmatter의 `style`, `components`, `preset`을 실제 런타임 동작으로 연결하는 것
 - 여러 pack을 배열로 조합하고, namespace 기반으로 안전하게 소비하는 것
 - style pack을 semantic token foundation collection용 JSON Schema로 고정하는 것
@@ -72,13 +72,13 @@
 
 ### 4.1 웹 viewer
 
-- `apps/web` 또는 동등한 웹 엔트리를 추가해 `.canvas.md` 문자열을 viewer로 렌더링한다.
+- `apps/web` 또는 동등한 웹 엔트리를 추가해 `.md` 문자열을 viewer로 렌더링한다.
 - 웹과 데스크톱은 같은 parser, 같은 renderer adapter, 같은 UI 컴포넌트를 공유한다.
 - 데스크톱 전용 문서 열기/저장 액션은 web shell에서 제외하거나 no-op wrapper로 분리한다.
-- 웹에서는 번들된 샘플 `.canvas.md` 또는 query/file input 기반 진입 중 하나로 최소 viewer 확인 경로를 제공한다.
+- 웹에서는 번들된 샘플 `.md` 또는 query/file input 기반 진입 중 하나로 최소 viewer 확인 경로를 제공한다.
 
 완료 기준:
-- 같은 샘플 `.canvas.md`를 web/desktop에서 열었을 때 note, edge, markdown 렌더 결과가 눈에 띄게 다르지 않다.
+- 같은 샘플 `.md`를 web/desktop에서 열었을 때 note, edge, markdown 렌더 결과가 눈에 띄게 다르지 않다.
 
 ### 4.2 Style Pack 로딩
 
@@ -109,7 +109,7 @@
 - `color.state.*`
 
 완료 기준:
-- `.canvas.md`의 style source 하나 또는 여러 개를 바꾸면 런타임 색상/폰트/간격 토큰이 바뀐다.
+- `.md`의 style source 하나 또는 여러 개를 바꾸면 런타임 색상/폰트/간격 토큰이 바뀐다.
 - 로컬 파일 기반 style pack도 같은 병합 규칙으로 적용된다.
 - style pack이 schema에 맞지 않으면 적용하지 않고 fallback으로 안전하게 열린다.
 - 하나의 style pack 안에서 foundation variant를 바꿔도 theme가 바뀐다.
@@ -258,7 +258,7 @@
 
 ### Vitest
 
-- web viewer shell이 sample `.canvas.md`를 렌더링하는지 확인
+- web viewer shell이 sample `.md`를 렌더링하는지 확인
 - desktop / web이 같은 AST를 같은 node/edge adapter로 소비하는지 확인
 - style pack schema 검증 성공 / 실패
 - style pack 단일 로드 / 배열 병합 / 실패 / fallback
@@ -315,7 +315,7 @@
 
 ## 8. 완료 기준
 
-- 웹과 데스크톱에서 같은 `.canvas.md`가 viewer로 열린다.
+- 웹과 데스크톱에서 같은 `.md`가 viewer로 열린다.
 - `style`, `components`, `preset` frontmatter가 string과 배열 모두에서 실제 런타임 동작으로 연결된다.
 - `defaultStyle`, `defaultComponent`는 optional global default로만 동작한다.
 - remote/local source와 built-in default pack이 같은 계약으로 동작한다.

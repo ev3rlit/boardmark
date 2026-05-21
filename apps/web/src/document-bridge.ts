@@ -746,7 +746,7 @@ export function createBrowserDocumentBridge(
 function createHiddenFileInput(rootDocument: Document) {
   const input = rootDocument.createElement('input')
   input.type = 'file'
-  input.accept = '.canvas.md,.md,text/markdown'
+  input.accept = '.md,text/markdown'
   input.hidden = true
   rootDocument.body.appendChild(input)
   return input
@@ -804,7 +804,7 @@ function canvasFilePickerType(): FilePickerAcceptType {
   return {
     description: 'Canvas Markdown',
     accept: {
-      'text/markdown': ['.canvas.md', '.md']
+      'text/markdown': ['.md']
     }
   }
 }
@@ -1015,7 +1015,7 @@ async function ensureHandlePermission({
 }
 
 function readAssetDirectoryName(documentName: string) {
-  return `${documentName.replace(/(?:\.canvas)?\.md$/i, '')}.assets`
+  return `${documentName.replace(/\.md$/i, '')}.assets`
 }
 
 async function readNextAvailableAssetFileName(

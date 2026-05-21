@@ -118,9 +118,9 @@ describe('viewer store', () => {
     await store.getState().openDocument()
 
     expect(persistenceBridge.openDocument).toHaveBeenCalled()
-    expect(store.getState().document?.name).toBe('open.canvas.md')
+    expect(store.getState().document?.name).toBe('open.md')
     expect(store.getState().documentState?.isPersisted).toBe(true)
-    expect(store.getState().documentState?.fileHandle?.name).toBe('open.canvas.md')
+    expect(store.getState().documentState?.fileHandle?.name).toBe('open.md')
     expect(store.getState().isDirty).toBe(false)
     expect(store.getState().parseIssues).toHaveLength(1)
   })
@@ -139,7 +139,7 @@ describe('viewer store', () => {
 
     expect(persistenceBridge.saveDocumentAs).toHaveBeenCalled()
     expect(store.getState().documentState?.isPersisted).toBe(true)
-    expect(store.getState().documentState?.fileHandle?.name).toBe('saved.canvas.md')
+    expect(store.getState().documentState?.fileHandle?.name).toBe('saved.md')
     expect(store.getState().persistedSnapshotSource).toBe(templateSource)
     expect(store.getState().isDirty).toBe(false)
     expect(store.getState().saveState.status).toBe('saved')
@@ -187,7 +187,7 @@ describe('viewer store', () => {
     expect(repository.save).toHaveBeenCalledWith({
       locator: {
         kind: 'file',
-        path: '/tmp/saved.canvas.md'
+        path: '/tmp/saved.md'
       },
       source: templateSource,
       isTemplate: false
@@ -196,7 +196,7 @@ describe('viewer store', () => {
     await store.getState().openDocument()
     expect(repository.read).toHaveBeenCalledWith({
       kind: 'file',
-      path: '/tmp/open.canvas.md'
+      path: '/tmp/open.md'
     })
   })
 
@@ -672,16 +672,16 @@ Shape body
 
     await store.getState().hydrateTemplate()
     await store.getState().openDroppedDocument({
-      name: 'dropped.canvas.md',
+      name: 'dropped.md',
       source: openedSource
     })
 
-    expect(store.getState().document?.name).toBe('dropped.canvas.md')
+    expect(store.getState().document?.name).toBe('dropped.md')
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
     expect(store.getState().dropState).toEqual({
       status: 'opened',
-      name: 'dropped.canvas.md'
+      name: 'dropped.md'
     })
   })
 
@@ -1571,7 +1571,7 @@ Rectangle
         '[boardmark] Canvas persistence bridge failed to save the current source.',
         expect.objectContaining({
           code: 'cancelled',
-          locator: 'browser-file-0/open.canvas.md'
+          locator: 'browser-file-0/open.md'
         })
       )
     } finally {
@@ -1611,14 +1611,14 @@ function createPicker(): CanvasDocumentPicker {
       ok: true as const,
       value: {
         kind: 'file' as const,
-        path: '/tmp/open.canvas.md'
+        path: '/tmp/open.md'
       }
     })),
     pickSaveLocator: vi.fn(async () => ({
       ok: true as const,
       value: {
         kind: 'file' as const,
-        path: '/tmp/saved.canvas.md'
+        path: '/tmp/saved.md'
       }
     }))
   }
@@ -1635,9 +1635,9 @@ function createPersistenceBridge(options?: {
       value: {
         locator: {
           kind: 'file' as const,
-          path: 'browser-file-0/open.canvas.md'
+          path: 'browser-file-0/open.md'
         },
-        fileHandle: createFileHandle('open.canvas.md'),
+        fileHandle: createFileHandle('open.md'),
         source: openedSource
       }
     })),
@@ -1647,7 +1647,7 @@ function createPersistenceBridge(options?: {
         value: {
           locator: {
             kind: 'file' as const,
-            path: 'browser-file-0/open.canvas.md'
+            path: 'browser-file-0/open.md'
           },
           fileHandle: input.fileHandle,
           source: input.source
@@ -1661,9 +1661,9 @@ function createPersistenceBridge(options?: {
           value: {
             locator: {
               kind: 'file' as const,
-              path: 'browser-file-1/saved.canvas.md'
+              path: 'browser-file-1/saved.md'
             },
-            fileHandle: createFileHandle('saved.canvas.md'),
+            fileHandle: createFileHandle('saved.md'),
             source: input.source
           }
         }
@@ -1683,7 +1683,7 @@ function createRepository(options?: { failOnSource?: string }): CanvasDocumentRe
           ok: false as const,
           error: {
             kind: 'parse-failed' as const,
-            message: 'Canvas repository could not parse "broken.canvas.md": invalid geometry'
+            message: 'Canvas repository could not parse "broken.md": invalid geometry'
           }
         }
       }

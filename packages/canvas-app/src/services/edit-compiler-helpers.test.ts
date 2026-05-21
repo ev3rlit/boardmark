@@ -134,7 +134,7 @@ function readRecord(inputSource: string) {
     locator: {
       kind: 'memory',
       key: 'helper-test',
-      name: 'helper.canvas.md'
+      name: 'helper.md'
     },
     source: inputSource,
     isTemplate: false

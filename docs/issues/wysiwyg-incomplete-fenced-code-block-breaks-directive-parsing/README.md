@@ -6,7 +6,7 @@
 
 canvas parser는 이 상태에서 note body의 나머지 영역, 즉 note를 닫는 `:::`까지도 아직 fence 내부로 간주합니다. 그 결과 바깥 directive가 닫히지 않은 것처럼 보이게 되고, repository reparse는 아래와 같은 에러로 실패합니다.
 
-`Canvas repository could not parse "...canvas.md": Directive "note" starting on line X is missing a closing ":::" line.`
+`Canvas repository could not parse "...md": Directive "note" starting on line X is missing a closing ":::" line.`
 
 즉 이 문제의 1차 원인은 `replace-object-body` range 자체가 잘못됐기보다는, 아직 문법적으로 완성되지 않은 fenced markdown이 canonical repository parse 경계까지 흘러들어가는 데 있습니다.
 
@@ -35,7 +35,7 @@ canvas parser는 이 상태에서 note body의 나머지 영역, 즉 note를 닫
 `createCanvasMarkdownDocumentRepository()`를 이용해 로컬 재현을 해보면:
 
 - note body 안에 incomplete fenced block이 있는 경우:
-  - 결과: `Canvas repository could not parse "incomplete.canvas.md": Directive "note" starting on line 6 is missing a closing ":::" line.`
+  - 결과: `Canvas repository could not parse "incomplete.md": Directive "note" starting on line 6 is missing a closing ":::" line.`
 - 같은 내용에서 fenced block을 정상적으로 닫은 경우:
   - 결과: `ok`
 

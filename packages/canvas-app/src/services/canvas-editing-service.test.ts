@@ -332,7 +332,7 @@ function createRepository(options?: { failOnSource?: string }): CanvasDocumentRe
           ok: false as const,
           error: {
             kind: 'parse-failed' as const,
-            message: 'Canvas repository could not parse "broken.canvas.md": invalid geometry'
+            message: 'Canvas repository could not parse "broken.md": invalid geometry'
           }
         }
       }
@@ -367,7 +367,7 @@ function readRecord(inputSource: string): CanvasDocumentRecord {
     locator: {
       kind: 'memory',
       key: 'editing-test',
-      name: 'editing.canvas.md'
+      name: 'editing.md'
     },
     source: inputSource,
     isTemplate: false

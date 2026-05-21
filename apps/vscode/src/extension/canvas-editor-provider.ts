@@ -8,7 +8,7 @@ import { renderWebviewHtml } from './webview-html'
 import { TextDocumentBridge } from './text-document-bridge'
 
 /**
- * CustomTextEditorProvider for `.canvas.md`.
+ * CustomTextEditorProvider for `.md`.
  *
  * Responsibilities held here:
  *  - Wire VS Code's TextDocument lifecycle to a single webview panel.

@@ -31,14 +31,14 @@ Boardmark에 노트와 캔버스 vault 전체를 가로지르는 **navigation la
 - 사용자는 한 노트에서 다른 노트로 명시적 링크를 걸 수 있고, 그 링크의 역방향(어떤 노트가 나를 참조하는지)을 자동으로 볼 수 있어야 한다.
 - 사용자는 vault 전체를 대상으로 텍스트 검색을 수행하고, 결과에서 해당 노트와 노드로 즉시 점프할 수 있어야 한다.
 - 사용자는 노트와 노드에 태그를 부여하고, 태그 패싯으로 vault를 분류·필터링하며 흐름을 재구성할 수 있어야 한다.
-- 이 기능은 `.canvas.md`와 관련 파일이 source of truth라는 vision 원칙을 깨지 않고, runtime에서 파생된 index 위에서 동작해야 한다.
+- 이 기능은 `.md`와 관련 파일이 source of truth라는 vision 원칙을 깨지 않고, runtime에서 파생된 index 위에서 동작해야 한다.
 
 ### 1.3 Success Criteria
 
 - 사용자는 한 노트를 열었을 때 그 노트를 참조하는 다른 노트 목록을 1 step 안에 확인할 수 있다.
 - 사용자는 vault 어디에서나 키워드를 입력해 노트·노드 단위 결과로 점프할 수 있다.
 - 사용자는 임의의 태그를 골라 그 태그가 붙은 노트와 노드만 추려 볼 수 있다.
-- 백링크·검색·태그 기능 도입으로 `.canvas.md` 파일 포맷의 기존 contract는 깨지지 않으며, 추가되는 메타데이터는 명시 contract로 정의된다.
+- 백링크·검색·태그 기능 도입으로 `.md` 파일 포맷의 기존 contract는 깨지지 않으며, 추가되는 메타데이터는 명시 contract로 정의된다.
 - 사용자는 vault navigation surface와 canvas navigation surface를 혼동 없이 구분할 수 있다.
 
 ---
@@ -103,8 +103,8 @@ v1 vault navigation은 아래 세 축으로 구성한다.
 
 v1 백링크 추적 대상은 아래로 제한한다.
 
-- 표준 markdown 링크: `[label](path/to/note.md)` 또는 `[label](path/to/board.canvas.md)`
-- 노드 단위 deep link: `[label](path/to/board.canvas.md#node-id)`
+- 표준 markdown 링크: `[label](path/to/note.md)` 또는 `[label](path/to/board.md)`
+- 노드 단위 deep link: `[label](path/to/board.md#node-id)`
 - vault 내부 상대 경로만 추적한다. 외부 URL은 백링크 대상에서 제외한다.
 
 `[[wiki-link]]` 형태의 위키 스타일 링크는 v1 contract에 포함하지 않는다. 표준 markdown 링크만으로 시작하는 이유는, vision의 "파일이 source of truth"와 "다른 도구에서도 그대로 읽힌다"는 원칙을 깨지 않기 위함이다.
@@ -138,8 +138,8 @@ v1 vault 검색 대상은 아래로 제한한다.
 
 - 노트 파일명과 frontmatter 텍스트
 - `.md` 노트 본문 텍스트
-- `.canvas.md` 노드의 body text와 첫 heading
-- `.canvas.md` edge label
+- `.md` 노드의 body text와 첫 heading
+- `.md` edge label
 
 v1 검색 제외:
 
@@ -272,7 +272,7 @@ v1은 backlinks·search·tag facet을 한 panel 안의 mode tab으로 묶는다.
 
 ### 7.1 File Contract Safety
 
-- 백링크·검색·태그 기능은 기존 `.canvas.md` 포맷의 의미를 변경하지 않는다.
+- 백링크·검색·태그 기능은 기존 `.md` 포맷의 의미를 변경하지 않는다.
 - frontmatter `tags`와 canvas object header의 `tags`는 추가 필드이며, 부재 시에도 기존 동작은 그대로여야 한다.
 - 백링크 자체는 파일에 저장하지 않는다. 사용자가 본문에 작성한 markdown 링크에서 derive해야 한다.
 - 태그 정규화 규칙은 명시되어야 하며, 알 수 없는 형태의 태그는 무시 또는 명시 경고로 처리한다.
@@ -300,14 +300,14 @@ v1은 backlinks·search·tag facet을 한 panel 안의 mode tab으로 묶는다.
 ## 8. Acceptance Criteria
 
 - 사용자는 한 노트를 열었을 때 해당 노트로 향하는 vault 내부 markdown 링크 목록을 backlinks panel에서 확인할 수 있다.
-- 노드 deep link(`...canvas.md#node-id`)도 backlink 결과에 포함되며, 점프 시 해당 노드가 selection으로 반영된다.
+- 노드 deep link(`...md#node-id`)도 backlink 결과에 포함되며, 점프 시 해당 노드가 selection으로 반영된다.
 - 사용자는 vault search query를 입력해 노트 본문, 캔버스 노드 body, edge label을 가로지르는 결과를 받을 수 있다.
 - 사용자는 frontmatter 또는 canvas object header에 `tags`를 정의할 수 있고, 태그 패싯에 그 값이 누적되어 표시된다.
 - 다중 태그 선택은 AND 의미로 동작한다.
 - 검색·백링크·태그 결과 항목 선택 시 selection과 viewport(또는 활성 문서)가 함께 갱신된다.
 - 한 파일의 parse 오류가 vault 전체 index를 무력화시키지 않는다.
 - vault navigation surface는 canvas navigation surface와 별도 entry point·shortcut을 가진다.
-- v1 도입으로 `.canvas.md` 기존 필드의 의미는 변경되지 않으며, 추가되는 `tags` 필드는 부재 시 기존 동작과 동일하다.
+- v1 도입으로 `.md` 기존 필드의 의미는 변경되지 않으며, 추가되는 `tags` 필드는 부재 시 기존 동작과 동일하다.
 
 ---
 
