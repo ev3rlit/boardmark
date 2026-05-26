@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 
@@ -8,6 +9,7 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 // Target: Node (VS Code extension host runtime).
 // `vscode` is provided at runtime by VS Code and must remain external.
 export default defineConfig({
+  plugins: [tsconfigPaths()],
   build: {
     target: 'node18',
     ssr: true,

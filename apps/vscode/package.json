@@ -1,7 +1,7 @@
 {
   "name": "@boardmark/vscode",
   "displayName": "Boardmark",
-  "description": "Open and edit .canvas.md Boardmark documents directly in VS Code.",
+  "description": "Open Boardmark markdown documents in the shared canvas editor.",
   "private": true,
   "version": "0.0.1",
   "publisher": "boardmark",
@@ -9,16 +9,19 @@
     "vscode": "^1.85.0"
   },
   "categories": ["Visualization", "Other"],
-  "main": "./dist/extension/index.cjs",
+  "main": "./dist/extension/index.js",
   "scripts": {
     "build:webview": "vite build --config vite.config.webview.ts",
     "build:extension": "vite build --config vite.config.extension.ts",
     "build": "pnpm run build:webview && pnpm run build:extension",
+    "watch:webview": "vite build --watch --config vite.config.webview.ts",
+    "watch:extension": "vite build --watch --config vite.config.extension.ts",
+    "watch": "node scripts/watch.mjs",
     "package": "vsce package --no-dependencies"
   },
   "activationEvents": [
-    "onCustomEditor:boardmark.canvasEditor",
-    "workspaceContains:**/*.canvas.md"
+    "onCommand:boardmark.openAsCanvas",
+    "onCustomEditor:boardmark.canvasEditor"
   ],
   "contributes": {
     "customEditors": [
@@ -26,9 +29,9 @@
         "viewType": "boardmark.canvasEditor",
         "displayName": "Boardmark Canvas",
         "selector": [
-          { "filenamePattern": "*.canvas.md" }
+          { "filenamePattern": "*.md" }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ],
     "commands": [

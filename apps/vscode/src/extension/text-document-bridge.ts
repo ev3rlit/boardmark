@@ -6,7 +6,7 @@ import type * as vscode from 'vscode'
  * Edit-loop strategy (see docs/architecture/vscode-extension/README.md §5):
  *  - `currentRevision` increments on every TextDocument change we observe.
  *  - When a webview edit arrives, we compare its `revision` to ours.
- *  - If the webview is at the latest revision, we apply the edit and bump.
+ *  - If the webview is at the latest revision, we apply the edit.
  *  - If it is behind, we drop the edit; the next sync will re-hydrate it.
  *
  * This keeps the TextDocument as the single source of truth and prevents
@@ -29,14 +29,10 @@ export class TextDocumentBridge {
 
   /**
    * Returns true if the webview's reported revision matches ours, meaning the
-   * edit is based on the latest source we sent. Bumps and returns true so the
-   * caller can apply the edit. Returns false otherwise (edit is stale).
+   * edit is based on the latest source we sent. The revision only changes when
+   * VS Code reports a TextDocument change.
    */
-  public acceptWebviewEdit(webviewRevision: number): boolean {
-    if (webviewRevision !== this.revision) {
-      return false
-    }
-    this.bumpRevision()
-    return true
+  public canAcceptWebviewEdit(webviewRevision: number): boolean {
+    return webviewRevision === this.revision
   }
 }

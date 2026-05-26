@@ -30,7 +30,16 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
-      input: resolve(currentDirectory, 'src/webview/index.html')
+      input: resolve(currentDirectory, 'src/webview/index.html'),
+      output: {
+        assetFileNames(assetInfo) {
+          return assetInfo.name === 'index.css'
+            ? 'assets/index.css'
+            : 'assets/[name]-[hash][extname]'
+        },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/index.js'
+      }
     }
   }
 })

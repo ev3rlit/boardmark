@@ -16,6 +16,7 @@ export type CanvasDocumentPersistenceSaveInput = {
   locator: CanvasDocumentLocator
   fileHandle: FileSystemFileHandle | null
   assetDirectoryHandle?: FileSystemDirectoryHandle | null
+  mode?: 'explicit' | 'debounced' | 'batched'
   source: string
 }
 

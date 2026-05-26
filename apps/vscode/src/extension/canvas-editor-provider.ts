@@ -4,11 +4,12 @@ import {
   type HostToWebviewMessage,
   type WebviewToHostMessage
 } from '../shared/protocol'
+import { validateBoardmarkDocument } from './boardmark-document-validation'
 import { renderWebviewHtml } from './webview-html'
 import { TextDocumentBridge } from './text-document-bridge'
 
 /**
- * CustomTextEditorProvider for `.canvas.md`.
+ * CustomTextEditorProvider for Boardmark markdown documents.
  *
  * Responsibilities held here:
  *  - Wire VS Code's TextDocument lifecycle to a single webview panel.
@@ -56,11 +57,31 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       void panel.webview.postMessage(message)
     }
 
+    const respond = (id: string, result: { ok: true; value?: unknown } | { ok: false; error: string }) => {
+      post(
+        result.ok
+          ? { type: 'response', id, ok: true, value: result.value }
+          : { type: 'response', id, ok: false, error: result.error }
+      )
+    }
+
     const sendSync = () => {
+      const source = document.getText()
+      const validation = validateBoardmarkDocument(source, document.uri.toString())
+
+      if (validation.status === 'invalid') {
+        post({
+          type: 'document/error',
+          message: validation.message,
+          uri: document.uri.toString()
+        })
+        return
+      }
+
       post({
         type: 'document/sync',
         revision: bridge.currentRevision,
-        source: document.getText(),
+        source,
         uri: document.uri.toString()
       })
     }
@@ -85,7 +106,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       if (!isWebviewToHostMessage(raw)) {
         return
       }
-      await this.handleWebviewMessage(raw, document, bridge, sendSync)
+      await this.handleWebviewMessage(raw, document, bridge, sendSync, respond)
     })
 
     panel.onDidDispose(() => {
@@ -99,7 +120,8 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     message: WebviewToHostMessage,
     document: vscode.TextDocument,
     bridge: TextDocumentBridge,
-    sendSync: () => void
+    sendSync: () => void,
+    respond: (id: string, result: { ok: true; value?: unknown } | { ok: false; error: string }) => void
   ): Promise<void> {
     switch (message.type) {
       case 'document/ready': {
@@ -107,17 +129,77 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
         return
       }
       case 'document/edit': {
-        if (!bridge.acceptWebviewEdit(message.revision)) {
-          // Stale revision — webview is behind. It will re-hydrate from the next sync.
+        if (!bridge.canAcceptWebviewEdit(message.revision)) {
+          // Stale revision: the webview is behind. Push the latest source back.
+          respond(message.id, {
+            ok: false,
+            error: 'The canvas edit was based on a stale TextDocument revision.'
+          })
+          sendSync()
           return
         }
+
+        const validation = validateBoardmarkDocument(message.nextSource, document.uri.toString())
+
+        if (validation.status === 'invalid') {
+          respond(message.id, {
+            ok: false,
+            error: validation.message
+          })
+          sendSync()
+          return
+        }
+
+        if (message.nextSource === document.getText()) {
+          respond(message.id, {
+            ok: true,
+            value: {
+              source: message.nextSource
+            }
+          })
+          return
+        }
+
         const edit = new vscode.WorkspaceEdit()
         const fullRange = new vscode.Range(
           document.positionAt(0),
           document.positionAt(document.getText().length)
         )
         edit.replace(document.uri, fullRange, message.nextSource)
-        await vscode.workspace.applyEdit(edit)
+        const applied = await vscode.workspace.applyEdit(edit)
+
+        if (!applied) {
+          respond(message.id, {
+            ok: false,
+            error: 'VS Code rejected the WorkspaceEdit for the current Boardmark document.'
+          })
+          sendSync()
+          return
+        }
+
+        respond(message.id, {
+          ok: true,
+          value: {
+            source: message.nextSource
+          }
+        })
+        return
+      }
+      case 'document/save': {
+        const saved = await document.save()
+        respond(
+          message.id,
+          saved
+            ? { ok: true }
+            : { ok: false, error: 'VS Code did not save the current Boardmark document.' }
+        )
+        return
+      }
+      case 'request': {
+        respond(message.id, {
+          ok: false,
+          error: `VS Code bridge method "${message.method}" is not implemented yet.`
+        })
         return
       }
       case 'command/run': {

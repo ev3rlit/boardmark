@@ -10,7 +10,7 @@ type RenderInput = {
  *
  * Constraints:
  *  - VS Code webviews enforce a strict CSP. We allow only:
- *      script:  the extension's own bundle
+ *      script:  the extension's own bundle and its dynamic import chunks
  *      style:   inline styles (Tiptap / xyflow rely on them)
  *  - All asset URIs must be passed through `webview.asWebviewUri` so the
  *    `vscode-resource:` scheme is applied.
@@ -32,7 +32,7 @@ export function renderWebviewHtml({ webview, extensionUri }: RenderInput): strin
     `img-src ${webview.cspSource} https: data:`,
     `font-src ${webview.cspSource}`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src 'nonce-${nonce}'`
+    `script-src ${webview.cspSource} 'nonce-${nonce}'`
   ].join('; ')
 
   return /* html */ `<!doctype html>

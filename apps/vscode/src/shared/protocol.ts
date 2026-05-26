@@ -11,8 +11,17 @@
  *  - Webview ignores host syncs whose revision matches an edit it just sent.
  */
 export type DocumentRevision = number
+export type RequestId = string
 
 export type ThemeKind = 'light' | 'dark' | 'high-contrast'
+
+export type HostRequestMethod =
+  | 'document/pick-open'
+  | 'image/import'
+  | 'image/resolve'
+  | 'image/open'
+  | 'image/reveal'
+  | 'image-export/save'
 
 // ---------- Host → Webview ----------
 
@@ -24,8 +33,25 @@ export type HostToWebviewMessage =
       readonly uri: string
     }
   | {
+      readonly type: 'document/error'
+      readonly message: string
+      readonly uri: string
+    }
+  | {
       readonly type: 'document/saved'
       readonly revision: DocumentRevision
+    }
+  | {
+      readonly type: 'response'
+      readonly id: RequestId
+      readonly ok: true
+      readonly value?: unknown
+    }
+  | {
+      readonly type: 'response'
+      readonly id: RequestId
+      readonly ok: false
+      readonly error: string
     }
   | {
       readonly type: 'theme/changed'
@@ -40,8 +66,19 @@ export type WebviewToHostMessage =
     }
   | {
       readonly type: 'document/edit'
+      readonly id: RequestId
       readonly revision: DocumentRevision
       readonly nextSource: string
+    }
+  | {
+      readonly type: 'document/save'
+      readonly id: RequestId
+    }
+  | {
+      readonly type: 'request'
+      readonly id: RequestId
+      readonly method: HostRequestMethod
+      readonly payload?: unknown
     }
   | {
       readonly type: 'command/run'
@@ -65,7 +102,15 @@ export function isWebviewToHostMessage(value: unknown): value is WebviewToHostMe
     case 'document/ready':
       return true
     case 'document/edit':
-      return typeof value.revision === 'number' && typeof value.nextSource === 'string'
+      return (
+        typeof value.id === 'string' &&
+        typeof value.revision === 'number' &&
+        typeof value.nextSource === 'string'
+      )
+    case 'document/save':
+      return typeof value.id === 'string'
+    case 'request':
+      return typeof value.id === 'string' && isHostRequestMethod(value.method)
     case 'command/run':
       return typeof value.id === 'string'
     case 'log':
@@ -86,8 +131,16 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
         typeof value.source === 'string' &&
         typeof value.uri === 'string'
       )
+    case 'document/error':
+      return typeof value.message === 'string' && typeof value.uri === 'string'
     case 'document/saved':
       return typeof value.revision === 'number'
+    case 'response':
+      if (typeof value.id !== 'string' || typeof value.ok !== 'boolean') {
+        return false
+      }
+
+      return value.ok ? true : typeof value.error === 'string'
     case 'theme/changed':
       return value.kind === 'light' || value.kind === 'dark' || value.kind === 'high-contrast'
     default:
@@ -97,4 +150,15 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function isHostRequestMethod(value: unknown): value is HostRequestMethod {
+  return (
+    value === 'document/pick-open' ||
+    value === 'image/import' ||
+    value === 'image/resolve' ||
+    value === 'image/open' ||
+    value === 'image/reveal' ||
+    value === 'image-export/save'
+  )
 }

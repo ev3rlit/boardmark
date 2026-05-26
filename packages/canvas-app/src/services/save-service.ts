@@ -383,7 +383,8 @@ async function runSave({
   documentPicker,
   documentRepository,
   documentPersistenceBridge,
-  documentState
+  documentState,
+  mode
 }: {
   document: CanvasDocumentRecord
   documentPicker: CanvasDocumentPicker
@@ -406,12 +407,14 @@ async function runSave({
           defaultName: document.name,
           locator: documentState.locator,
           fileHandle: documentState.fileHandle,
+          mode,
           source: documentState.currentSource
         })
       : await documentPersistenceBridge.saveDocumentAs({
           assetDirectoryHandle: documentState.assetDirectoryHandle,
           defaultName: document.name,
           locator: documentState.locator,
+          mode,
           source: documentState.currentSource
         })
 

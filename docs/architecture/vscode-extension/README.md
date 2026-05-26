@@ -2,10 +2,12 @@
 
 | 항목 | 내용 |
 |------|------|
-| 상태 | 🟡 Draft (대화 기반 정리, 코드 결정 전) |
+| 상태 | Deprecated draft |
 | 작성일 | 2026-04-17 |
 | 관련 문서 | [`docs/backlog/multi-target-distribution/README.md`](../../backlog/multi-target-distribution/README.md) §7 · [`docs/features/extension/vscode-extension-implementation-plan.md`](../../features/extension/vscode-extension-implementation-plan.md) · [`docs/backlog/external-edit-conflict-ux/README.md`](../../backlog/external-edit-conflict-ux/README.md) |
 | 관련 패키지 | `apps/vscode/` (scaffold), `packages/canvas-app`, `packages/canvas-repository` |
+
+> 이 문서는 `.canvas.md` 전용 viewer MVP를 전제로 한 과거 초안이다. 현재 VS Code extension 설계 기준은 [`docs/architecture/vscode-extension-host-integration/README.md`](../vscode-extension-host-integration/README.md)를 따른다.
 
 이 문서는 VS Code extension의 **아키텍처 방향성**만 다룹니다. 기능 범위/배포는 위 백로그 문서를, 단계별 implementation plan은 features 문서를 참조합니다.
 

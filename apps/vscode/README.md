@@ -1,10 +1,10 @@
 # @boardmark/vscode
 
-VS Code extension scaffold for Boardmark canvas (`*.canvas.md`).
+VS Code extension package for opening Boardmark markdown documents in the shared canvas editor.
 
-> **Status:** Phase 1 scaffold only. Wires up the CustomTextEditor lifecycle and the host ↔ webview message channel; renders raw markdown source as a placeholder. The full `<CanvasApp />` mount lands in the next slice.
+> **Status:** The package still contains the older scaffold. The current target architecture is tracked in [`docs/architecture/vscode-extension-host-integration/README.md`](../../docs/architecture/vscode-extension-host-integration/README.md).
 >
-> See [`docs/architecture/vscode-extension/README.md`](../../docs/architecture/vscode-extension/README.md) for the design rationale, phase plan, and open questions.
+> The extension should no longer be designed as a `.canvas.md`-only viewer MVP. It should integrate VS Code `TextDocument` sessions with the existing `CanvasApp` editor shell.
 
 ## Layout
 
@@ -36,16 +36,35 @@ pnpm --filter @boardmark/vscode build
 
 Both bundles use Vite. The extension bundle is built in SSR mode with `vscode` marked external; the webview bundle is built as a regular browser bundle and loaded by `webview-html.ts` via `webview.asWebviewUri`.
 
-## Pending before this scaffold runs
+## Development Loop
 
-These were intentionally left out to keep the scaffold surgical:
+For repeated Extension Development Host testing, keep the Vite build watchers running:
 
-1. **`pnpm install`** — `@types/vscode`, `@vscode/vsce`, and `vite` aren't pulled until the workspace install runs. The TypeScript "Cannot find module 'vscode'" diagnostics resolve after install.
-2. **Asset filename hashing** — `webview-html.ts` currently assumes `assets/index.js` and `assets/index.css`. Vite emits hashed filenames; replace the hardcoded paths with a manifest read-out before the first real run.
-3. **Bridge wiring** — `host-bridge.ts` only handles `document/sync`. The four bridges that `createCanvasStore` consumes (`documentPicker`, `documentPersistenceBridge`, `imageAssetBridge`, `documentRepository`) need request/response message round-trips with correlation ids. This is Phase 2.
-4. **`canvas-repository`'s `BoardmarkDocumentBridge` interface location** — see open question #5 in the architecture doc. May need to move to a lower layer before three hosts (web/desktop/vscode) all depend on it.
+```bash
+pnpm --filter @boardmark/vscode watch
+```
 
-## Local install for manual testing (after Phase 2 lands)
+Then open or reload the Extension Development Host:
+
+```bash
+"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+  --extensionDevelopmentPath="$(pwd)/apps/vscode" \
+  /tmp/boardmark-vscode-smoke/smoke.md
+```
+
+After each source edit, wait for the watcher to rebuild, then run `Developer: Reload Window` in the Extension Development Host. The custom editor loads from `dist/`, so this is faster than manually running a full build every time, but it is not browser-style HMR.
+
+## Known Gaps
+
+The current scaffold does not yet match the current product architecture:
+
+1. **Document targeting** — `package.json` still describes and activates only `*.canvas.md`.
+2. **Canvas mount** — `webview/main.tsx` still renders a raw markdown placeholder instead of `<CanvasApp />`.
+3. **Bridge wiring** — `host-bridge.ts` only handles `document/sync`; it does not implement the bridge contracts consumed by `createCanvasStore`.
+4. **Asset filename hashing** — `webview-html.ts` still assumes fixed `assets/index.js` and `assets/index.css` names.
+5. **VS Code lifecycle integration** — canvas edits are not yet routed through `WorkspaceEdit` and VS Code save/dirty handling.
+
+## Local Install For Manual Testing
 
 ```bash
 pnpm --filter @boardmark/vscode build

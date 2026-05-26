@@ -1,4 +1,5 @@
-import { createHighlighter, createOnigurumaEngine } from 'shiki'
+import { createHighlighter } from 'shiki'
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import { SHIKI_LANGUAGE_IDS } from './language-registry'
 import { SHIKI_THEME_IDS } from './theme-registry'
 
@@ -8,7 +9,7 @@ let highlighterPromise: Promise<CodeHighlighter> | null = null
 
 export function getCodeHighlighter(): Promise<CodeHighlighter> {
   highlighterPromise ??= createHighlighter({
-    engine: createOnigurumaEngine(() => import('shiki/wasm')),
+    engine: createJavaScriptRegexEngine(),
     langs: SHIKI_LANGUAGE_IDS,
     themes: SHIKI_THEME_IDS
   })
