@@ -195,10 +195,6 @@ CanvasApp bridge 메서드는 promise 기반이다. postMessage 위에는 correl
 - `image-export/save`
 - `document/pick-open`은 protocol에 예약되어 있지만 현재 VS Code shell에서는 `canOpen: false`라 호출하지 않는다.
 
-### 5.3 Host event 메시지
-
-- host -> webview: `theme/changed`
-
 모든 inbound message는 `shared/protocol.ts`에서 검증한다. webview는 신뢰 경계 밖이며, request payload의 구체 검증은 해당 host request handler에서 다시 수행한다.
 
 ---
@@ -285,7 +281,6 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 - URI 단위 `DocumentSession` registry, revision fan-out, stale edit reject
 - image resolve/import/open/reveal bridge
 - canvas/fenced-block image export save bridge
-- VS Code light/dark/high-contrast theme event 반영
 - `apps/vscode/fixtures/smoke.md`, `.vscode/launch.json`, `.vscode/tasks.json` 기반 dev host smoke
 
 의도적으로 남긴 제약:
@@ -304,7 +299,6 @@ VS Code extension에 둘 수 있는 코드는 아래에 한정한다.
 - VS Code command, custom editor, activation, package metadata
 - `TextDocument`, `WorkspaceEdit`, `workspace.fs`, `window.showSaveDialog`, `webview.asWebviewUri`
 - webview postMessage protocol adapter
-- VS Code theme token을 CSS variable로 연결하는 host shell 코드
 - dev host launch/smoke ergonomics
 
 아래는 extension에 복제하지 않는다.

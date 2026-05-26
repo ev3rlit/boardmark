@@ -86,15 +86,4 @@ describe('VS Code webview protocol guards', () => {
     })).toBe(true)
   })
 
-  it('accepts VS Code theme change events', () => {
-    expect(isHostToWebviewMessage({
-      type: 'theme/changed',
-      kind: 'dark'
-    })).toBe(true)
-
-    expect(isHostToWebviewMessage({
-      type: 'theme/changed',
-      kind: 'dim'
-    })).toBe(false)
-  })
 })

@@ -13,8 +13,6 @@
 export type DocumentRevision = number
 export type RequestId = string
 
-export type ThemeKind = 'light' | 'dark' | 'high-contrast'
-
 export type HostRequestMethod =
   | 'document/pick-open'
   | 'image/import'
@@ -52,10 +50,6 @@ export type HostToWebviewMessage =
       readonly id: RequestId
       readonly ok: false
       readonly error: string
-    }
-  | {
-      readonly type: 'theme/changed'
-      readonly kind: ThemeKind
     }
 
 // ---------- Webview → Host ----------
@@ -141,8 +135,6 @@ export function isHostToWebviewMessage(value: unknown): value is HostToWebviewMe
       }
 
       return value.ok ? true : typeof value.error === 'string'
-    case 'theme/changed':
-      return value.kind === 'light' || value.kind === 'dark' || value.kind === 'high-contrast'
     default:
       return false
   }

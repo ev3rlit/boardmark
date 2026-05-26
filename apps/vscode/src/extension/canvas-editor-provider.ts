@@ -1,7 +1,6 @@
 import * as vscode from 'vscode'
 import {
   isWebviewToHostMessage,
-  type ThemeKind,
   type HostToWebviewMessage,
   type WebviewToHostMessage
 } from '../shared/protocol'
@@ -69,35 +68,19 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       )
     }
 
-    const sendTheme = () => {
-      post({
-        type: 'theme/changed',
-        kind: readThemeKind(vscode.window.activeColorTheme.kind)
-      })
-    }
-
-    const themeSubscription = vscode.window.onDidChangeActiveColorTheme((theme) => {
-      post({
-        type: 'theme/changed',
-        kind: readThemeKind(theme.kind)
-      })
-    })
     const sessionConnection = session.attach(post)
 
     const messageSubscription = panel.webview.onDidReceiveMessage(async (raw: unknown) => {
       if (!isWebviewToHostMessage(raw)) {
         return
       }
-      await this.handleWebviewMessage(raw, session, panel.webview, sessionConnection, sendTheme, respond)
+      await this.handleWebviewMessage(raw, session, panel.webview, sessionConnection, respond)
     })
 
     panel.onDidDispose(() => {
       messageSubscription.dispose()
-      themeSubscription.dispose()
       session.detach(sessionConnection)
     })
-
-    sendTheme()
   }
 
   private acquireSession(document: vscode.TextDocument): DocumentSession {
@@ -122,12 +105,10 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     session: DocumentSession,
     webview: vscode.Webview,
     connection: DocumentSessionConnection,
-    sendTheme: () => void,
     respond: (id: string, result: { ok: true; value?: unknown } | { ok: false; error: string }) => void
   ): Promise<void> {
     switch (message.type) {
       case 'document/ready': {
-        sendTheme()
         session.sendSync(connection)
         return
       }
@@ -228,18 +209,6 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       }
     }
   }
-}
-
-function readThemeKind(kind: vscode.ColorThemeKind): ThemeKind {
-  if (kind === vscode.ColorThemeKind.Dark) {
-    return 'dark'
-  }
-
-  if (kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight) {
-    return 'high-contrast'
-  }
-
-  return 'light'
 }
 
 type DocumentSessionConnection = {

@@ -2,7 +2,7 @@
 
 VS Code extension package for opening Boardmark markdown documents in the shared canvas editor.
 
-> **Status:** The package now mounts the shared `CanvasApp` in a `CustomTextEditorProvider`. VS Code `TextDocument` remains the source of truth; canvas edits go through `WorkspaceEdit`, save goes through `TextDocument.save()`, and host-only image/theme/session wiring lives under `src/extension` and `src/webview`.
+> **Status:** The package now mounts the shared `CanvasApp` in a `CustomTextEditorProvider`. VS Code `TextDocument` remains the source of truth; canvas edits go through `WorkspaceEdit`, save goes through `TextDocument.save()`, and host-only image/session wiring lives under `src/extension` and `src/webview`.
 
 ## Layout
 
@@ -68,7 +68,6 @@ You can also use the checked-in launch config:
 - Open the same markdown file in text and canvas editors, edit raw markdown, and confirm all canvas panels re-sync.
 - Paste or drop an image and confirm it is written to `<document-name>.assets/` with a document-relative markdown `src`.
 - Export a canvas image or fenced block image and confirm the VS Code save dialog writes the selected PNG/JPEG target.
-- Switch VS Code light/dark/high-contrast themes and confirm the webview updates without reloading.
 
 ## Known Gaps
 

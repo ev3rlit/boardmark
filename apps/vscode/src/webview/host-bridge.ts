@@ -314,10 +314,6 @@ export function createHostBridge(): HostBridge {
         pending.reject(new Error(message.error))
         return
       }
-      case 'theme/changed': {
-        applyVsCodeTheme(message.kind)
-        return
-      }
     }
   }
 
@@ -659,30 +655,6 @@ function readImageExportPayload(value: unknown):
       status: record.status
     }
   }
-}
-
-function applyVsCodeTheme(kind: 'dark' | 'high-contrast' | 'light') {
-  const root = document.documentElement
-  const body = document.body
-
-  root.dataset.boardmarkVscodeTheme = kind
-  body.classList.toggle('boardmark-vscode-dark', kind === 'dark')
-  body.classList.toggle('boardmark-vscode-high-contrast', kind === 'high-contrast')
-  body.classList.toggle('boardmark-vscode-light', kind === 'light')
-
-  root.style.setProperty('color-scheme', kind === 'light' ? 'light' : 'dark')
-  root.style.setProperty('--color-surface-lowest', 'var(--vscode-editor-background)')
-  root.style.setProperty('--color-surface', 'var(--vscode-editor-background)')
-  root.style.setProperty('--color-surface-low', 'var(--vscode-sideBar-background)')
-  root.style.setProperty('--color-surface-container', 'var(--vscode-panel-background)')
-  root.style.setProperty('--color-surface-high', 'var(--vscode-input-background)')
-  root.style.setProperty('--color-surface-highest', 'var(--vscode-editorWidget-background)')
-  root.style.setProperty('--color-on-surface', 'var(--vscode-editor-foreground)')
-  root.style.setProperty('--color-on-surface-variant', 'var(--vscode-descriptionForeground)')
-  root.style.setProperty('--color-outline-ghost', 'var(--vscode-widget-border)')
-  root.style.setProperty('--color-primary', 'var(--vscode-focusBorder)')
-  root.style.setProperty('--color-primary-dim', 'var(--vscode-button-hoverBackground)')
-  root.style.setProperty('--color-primary-container', 'var(--vscode-button-secondaryBackground)')
 }
 
 function readErrorMessage(error: unknown, fallback: string) {
