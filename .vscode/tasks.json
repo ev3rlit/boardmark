@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "pnpm: build - apps/vscode",
+      "type": "shell",
+      "command": "pnpm --filter @boardmark/vscode build",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: watch - apps/vscode",
+      "type": "shell",
+      "command": "pnpm --filter @boardmark/vscode watch",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

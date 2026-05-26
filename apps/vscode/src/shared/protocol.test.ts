@@ -61,4 +61,40 @@ describe('VS Code webview protocol guards', () => {
       method: 'image/export'
     })).toBe(false)
   })
+
+  it('accepts implemented image import and export bridge requests', () => {
+    expect(isWebviewToHostMessage({
+      type: 'request',
+      id: 'image-import-1',
+      method: 'image/import',
+      payload: {
+        bytes: [137, 80, 78, 71],
+        documentUri: 'file:///workspace/board.md',
+        fileName: 'pasted.png'
+      }
+    })).toBe(true)
+
+    expect(isWebviewToHostMessage({
+      type: 'request',
+      id: 'image-export-1',
+      method: 'image-export/save',
+      payload: {
+        bytes: [137, 80, 78, 71],
+        fileName: 'board.png',
+        mimeType: 'image/png'
+      }
+    })).toBe(true)
+  })
+
+  it('accepts VS Code theme change events', () => {
+    expect(isHostToWebviewMessage({
+      type: 'theme/changed',
+      kind: 'dark'
+    })).toBe(true)
+
+    expect(isHostToWebviewMessage({
+      type: 'theme/changed',
+      kind: 'dim'
+    })).toBe(false)
+  })
 })

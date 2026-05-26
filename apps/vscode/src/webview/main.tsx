@@ -16,14 +16,16 @@ import {
 } from './host-bridge'
 
 const bridge = createHostBridge()
-const fencedBlockImageActions = createFencedBlockImageActions()
+const fencedBlockImageActions = createFencedBlockImageActions({
+  imageExportBridge: bridge.documentBridge.imageExports
+})
 
 const vscodeCapabilities = {
   canOpen: false,
   canSave: true,
   canPersist: true,
   canDropDocumentImport: false,
-  canDropImageInsertion: false,
+  canDropImageInsertion: true,
   supportsMultiSelect: true,
   newDocumentMode: 'reset-template'
 } as const
@@ -120,6 +122,7 @@ function CanvasShell() {
           <CanvasApp
             store={storeState.store}
             capabilities={vscodeCapabilities}
+            imageExportBridge={bridge.documentBridge.imageExports}
           />
         </MarkdownContentImageActionsProvider>
       )

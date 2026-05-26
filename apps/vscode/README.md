@@ -2,9 +2,7 @@
 
 VS Code extension package for opening Boardmark markdown documents in the shared canvas editor.
 
-> **Status:** The package still contains the older scaffold. The current target architecture is tracked in [`docs/architecture/vscode-extension-host-integration/README.md`](../../docs/architecture/vscode-extension-host-integration/README.md).
->
-> The extension should no longer be designed as a `.canvas.md`-only viewer MVP. It should integrate VS Code `TextDocument` sessions with the existing `CanvasApp` editor shell.
+> **Status:** The package now mounts the shared `CanvasApp` in a `CustomTextEditorProvider`. VS Code `TextDocument` remains the source of truth; canvas edits go through `WorkspaceEdit`, save goes through `TextDocument.save()`, and host-only image/theme/session wiring lives under `src/extension` and `src/webview`.
 
 ## Layout
 
@@ -13,12 +11,14 @@ src/
   extension/   # Node — VS Code extension host
     index.ts                    # activate() / deactivate()
     canvas-editor-provider.ts   # CustomTextEditorProvider
-    text-document-bridge.ts     # revision tracking (edit-loop guard)
+    text-document-bridge.ts     # per-session revision tracking
+    markdown-image-source.ts    # markdown image path policy
+    vscode-image-requests.ts    # VS Code fs/dialog/image host requests
     webview-html.ts             # CSP + bundle loader
   webview/     # Browser — canvas-app shell host
     index.html
-    main.tsx                    # placeholder mount (Phase 1)
-    host-bridge.ts              # postMessage proxy
+    main.tsx                    # CanvasApp mount
+    host-bridge.ts              # postMessage proxy + CanvasApp bridge adapters
     vscode-api.ts               # acquireVsCodeApi() wrapper
   shared/      # Shared by both — message protocol only
     protocol.ts                 # discriminated unions + type guards
@@ -30,7 +30,7 @@ src/
 
 ```bash
 pnpm --filter @boardmark/vscode build
-# → dist/extension/index.cjs   (CJS, externals: vscode)
+# → dist/extension/index.js    (CJS, externals: vscode)
 # → dist/webview/               (browser bundle for the webview)
 ```
 
@@ -49,20 +49,35 @@ Then open or reload the Extension Development Host:
 ```bash
 "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
   --extensionDevelopmentPath="$(pwd)/apps/vscode" \
-  /tmp/boardmark-vscode-smoke/smoke.md
+  "$(pwd)/apps/vscode/fixtures/smoke.md"
 ```
 
 After each source edit, wait for the watcher to rebuild, then run `Developer: Reload Window` in the Extension Development Host. The custom editor loads from `dist/`, so this is faster than manually running a full build every time, but it is not browser-style HMR.
 
+You can also use the checked-in launch config:
+
+1. Open this repo in VS Code.
+2. Run `pnpm --filter @boardmark/vscode watch` or use the `pnpm: watch - apps/vscode` task.
+3. Start `Boardmark VS Code Extension` from Run and Debug.
+
+## Manual Smoke Checklist
+
+- Run `Boardmark: Open as Canvas` on `apps/vscode/fixtures/smoke.md`.
+- Edit a note in the canvas and confirm the text editor becomes dirty.
+- Save from VS Code or the canvas shortcut and confirm the file writes through `TextDocument.save()`.
+- Open the same markdown file in text and canvas editors, edit raw markdown, and confirm all canvas panels re-sync.
+- Paste or drop an image and confirm it is written to `<document-name>.assets/` with a document-relative markdown `src`.
+- Export a canvas image or fenced block image and confirm the VS Code save dialog writes the selected PNG/JPEG target.
+- Switch VS Code light/dark/high-contrast themes and confirm the webview updates without reloading.
+
 ## Known Gaps
 
-The current scaffold does not yet match the current product architecture:
+The current host integration intentionally leaves these outside the extension adapter:
 
-1. **Document targeting** — `package.json` still describes and activates only `*.canvas.md`.
-2. **Canvas mount** — `webview/main.tsx` still renders a raw markdown placeholder instead of `<CanvasApp />`.
-3. **Bridge wiring** — `host-bridge.ts` only handles `document/sync`; it does not implement the bridge contracts consumed by `createCanvasStore`.
-4. **Asset filename hashing** — `webview-html.ts` still assumes fixed `assets/index.js` and `assets/index.css` names.
-5. **VS Code lifecycle integration** — canvas edits are not yet routed through `WorkspaceEdit` and VS Code save/dirty handling.
+1. **Marketplace polish** — icon, gallery metadata, and publish workflow are not final.
+2. **Remote/non-file documents** — image import currently requires a file-backed `TextDocument`.
+3. **Automated extension-host E2E** — manual Extension Development Host smoke remains the verification path for VS Code UI behavior.
+4. **Bundle size tuning** — webview code splitting is still future work; current build emits large chunks from renderer dependencies.
 
 ## Local Install For Manual Testing
 

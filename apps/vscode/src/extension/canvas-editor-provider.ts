@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import {
   isWebviewToHostMessage,
+  type ThemeKind,
   type HostToWebviewMessage,
   type WebviewToHostMessage
 } from '../shared/protocol'
@@ -13,7 +14,7 @@ import { handleImageHostRequest, readLocalResourceRoots } from './vscode-image-r
  * CustomTextEditorProvider for Boardmark markdown documents.
  *
  * Responsibilities held here:
- *  - Wire VS Code's TextDocument lifecycle to a single webview panel.
+ *  - Wire VS Code's TextDocument lifecycle to URI-scoped webview sessions.
  *  - Push `document/sync` whenever the underlying TextDocument changes.
  *  - Apply webview `document/edit` messages back as a WorkspaceEdit.
  *
@@ -36,6 +37,8 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     })
   }
 
+  private readonly sessions = new Map<string, DocumentSession>()
+
   private constructor(private readonly context: vscode.ExtensionContext) {}
 
   public async resolveCustomTextEditor(
@@ -43,7 +46,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     panel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): Promise<void> {
-    const bridge = new TextDocumentBridge(document)
+    const session = this.acquireSession(document)
 
     panel.webview.options = {
       enableScripts: true,
@@ -66,81 +69,80 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       )
     }
 
-    const sendSync = () => {
-      const source = document.getText()
-      const validation = validateBoardmarkDocument(source, document.uri.toString())
-
-      if (validation.status === 'invalid') {
-        post({
-          type: 'document/error',
-          message: validation.message,
-          uri: document.uri.toString()
-        })
-        return
-      }
-
+    const sendTheme = () => {
       post({
-        type: 'document/sync',
-        revision: bridge.currentRevision,
-        source,
-        uri: document.uri.toString()
+        type: 'theme/changed',
+        kind: readThemeKind(vscode.window.activeColorTheme.kind)
       })
     }
 
-    const documentChangeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
-      if (event.document.uri.toString() !== document.uri.toString()) {
-        return
-      }
-      // Bump revision unconditionally; webview filters echoes by revision.
-      bridge.bumpRevision()
-      sendSync()
+    const themeSubscription = vscode.window.onDidChangeActiveColorTheme((theme) => {
+      post({
+        type: 'theme/changed',
+        kind: readThemeKind(theme.kind)
+      })
     })
-
-    const saveSubscription = vscode.workspace.onDidSaveTextDocument((saved) => {
-      if (saved.uri.toString() !== document.uri.toString()) {
-        return
-      }
-      post({ type: 'document/saved', revision: bridge.currentRevision })
-    })
+    const sessionConnection = session.attach(post)
 
     const messageSubscription = panel.webview.onDidReceiveMessage(async (raw: unknown) => {
       if (!isWebviewToHostMessage(raw)) {
         return
       }
-      await this.handleWebviewMessage(raw, document, bridge, panel.webview, sendSync, respond)
+      await this.handleWebviewMessage(raw, session, panel.webview, sessionConnection, sendTheme, respond)
     })
 
     panel.onDidDispose(() => {
-      documentChangeSubscription.dispose()
-      saveSubscription.dispose()
       messageSubscription.dispose()
+      themeSubscription.dispose()
+      session.detach(sessionConnection)
     })
+
+    sendTheme()
+  }
+
+  private acquireSession(document: vscode.TextDocument): DocumentSession {
+    const key = document.uri.toString()
+    const existing = this.sessions.get(key)
+
+    if (existing) {
+      existing.updateDocument(document)
+      return existing
+    }
+
+    const session = new DocumentSession(document, () => {
+      this.sessions.delete(key)
+    })
+    this.sessions.set(key, session)
+
+    return session
   }
 
   private async handleWebviewMessage(
     message: WebviewToHostMessage,
-    document: vscode.TextDocument,
-    bridge: TextDocumentBridge,
+    session: DocumentSession,
     webview: vscode.Webview,
-    sendSync: () => void,
+    connection: DocumentSessionConnection,
+    sendTheme: () => void,
     respond: (id: string, result: { ok: true; value?: unknown } | { ok: false; error: string }) => void
   ): Promise<void> {
     switch (message.type) {
       case 'document/ready': {
-        sendSync()
+        sendTheme()
+        session.sendSync(connection)
         return
       }
       case 'document/edit': {
-        if (!bridge.canAcceptWebviewEdit(message.revision)) {
+        if (!session.canAcceptWebviewEdit(message.revision)) {
           // Stale revision: the webview is behind. Push the latest source back.
           respond(message.id, {
             ok: false,
             error: 'The canvas edit was based on a stale TextDocument revision.'
           })
-          sendSync()
+          session.sendSync(connection)
           return
         }
 
+        const document = session.document
         const validation = validateBoardmarkDocument(message.nextSource, document.uri.toString())
 
         if (validation.status === 'invalid') {
@@ -148,7 +150,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
             ok: false,
             error: validation.message
           })
-          sendSync()
+          session.sendSync(connection)
           return
         }
 
@@ -175,7 +177,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
             ok: false,
             error: 'VS Code rejected the WorkspaceEdit for the current Boardmark document.'
           })
-          sendSync()
+          session.sendSync(connection)
           return
         }
 
@@ -188,7 +190,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
         return
       }
       case 'document/save': {
-        const saved = await document.save()
+        const saved = await session.document.save()
         respond(
           message.id,
           saved
@@ -199,7 +201,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       }
       case 'request': {
         const imageResult = await handleImageHostRequest({
-          document,
+          document: session.document,
           method: message.method,
           payload: message.payload,
           webview
@@ -224,6 +226,119 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
         // Forward to a Boardmark output channel in a later phase.
         return
       }
+    }
+  }
+}
+
+function readThemeKind(kind: vscode.ColorThemeKind): ThemeKind {
+  if (kind === vscode.ColorThemeKind.Dark) {
+    return 'dark'
+  }
+
+  if (kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight) {
+    return 'high-contrast'
+  }
+
+  return 'light'
+}
+
+type DocumentSessionConnection = {
+  readonly post: (message: HostToWebviewMessage) => void
+}
+
+class DocumentSession {
+  private readonly bridge: TextDocumentBridge
+  private readonly connections = new Set<DocumentSessionConnection>()
+  private readonly changeSubscription: vscode.Disposable
+  private readonly saveSubscription: vscode.Disposable
+  private currentDocument: vscode.TextDocument
+
+  public constructor(
+    document: vscode.TextDocument,
+    private readonly onEmpty: () => void
+  ) {
+    this.currentDocument = document
+    this.bridge = new TextDocumentBridge(document)
+    this.changeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
+      if (event.document.uri.toString() !== this.currentDocument.uri.toString()) {
+        return
+      }
+
+      this.currentDocument = event.document
+      this.bridge.bumpRevision()
+      this.sendSync()
+    })
+    this.saveSubscription = vscode.workspace.onDidSaveTextDocument((saved) => {
+      if (saved.uri.toString() !== this.currentDocument.uri.toString()) {
+        return
+      }
+
+      this.post({
+        type: 'document/saved',
+        revision: this.bridge.currentRevision
+      })
+    })
+  }
+
+  public get document(): vscode.TextDocument {
+    return this.currentDocument
+  }
+
+  public updateDocument(document: vscode.TextDocument): void {
+    this.currentDocument = document
+  }
+
+  public attach(post: (message: HostToWebviewMessage) => void): DocumentSessionConnection {
+    const connection = { post }
+    this.connections.add(connection)
+    return connection
+  }
+
+  public detach(connection: DocumentSessionConnection): void {
+    this.connections.delete(connection)
+
+    if (this.connections.size > 0) {
+      return
+    }
+
+    this.changeSubscription.dispose()
+    this.saveSubscription.dispose()
+    this.onEmpty()
+  }
+
+  public canAcceptWebviewEdit(revision: number): boolean {
+    return this.bridge.canAcceptWebviewEdit(revision)
+  }
+
+  public sendSync(connection?: DocumentSessionConnection): void {
+    const source = this.currentDocument.getText()
+    const validation = validateBoardmarkDocument(source, this.currentDocument.uri.toString())
+
+    if (validation.status === 'invalid') {
+      this.post({
+        type: 'document/error',
+        message: validation.message,
+        uri: this.currentDocument.uri.toString()
+      }, connection)
+      return
+    }
+
+    this.post({
+      type: 'document/sync',
+      revision: this.bridge.currentRevision,
+      source,
+      uri: this.currentDocument.uri.toString()
+    }, connection)
+  }
+
+  private post(message: HostToWebviewMessage, connection?: DocumentSessionConnection): void {
+    if (connection) {
+      connection.post(message)
+      return
+    }
+
+    for (const target of this.connections) {
+      target.post(message)
     }
   }
 }

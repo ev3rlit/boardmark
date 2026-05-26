@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export type MarkdownImageSourceResolution =
@@ -82,6 +82,19 @@ export function resolveMarkdownImageSource(input: {
       fragment: parts.fragment
     }
   }
+}
+
+export function readMarkdownAssetDirectoryName(documentPathOrName: string): string {
+  const documentName = basename(documentPathOrName).replace(/(?:\.canvas)?\.md$/i, '')
+  return `${documentName}.assets`
+}
+
+export function toDocumentRelativeMarkdownPath(input: {
+  readonly documentFsPath: string
+  readonly targetFsPath: string
+}): string {
+  const relativePath = relative(dirname(input.documentFsPath), input.targetFsPath).replace(/\\/g, '/')
+  return relativePath.startsWith('.') ? relativePath : `./${relativePath}`
 }
 
 function resolveFileUrlImageSource(

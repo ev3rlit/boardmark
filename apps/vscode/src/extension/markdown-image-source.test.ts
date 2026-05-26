@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveMarkdownImageSource } from './markdown-image-source'
+import {
+  readMarkdownAssetDirectoryName,
+  resolveMarkdownImageSource,
+  toDocumentRelativeMarkdownPath
+} from './markdown-image-source'
 
 describe('resolveMarkdownImageSource', () => {
   it('keeps remote and embedded sources unchanged', () => {
@@ -83,5 +87,17 @@ describe('resolveMarkdownImageSource', () => {
     if (!result.ok) {
       expect(result.error.message).toContain('workspace')
     }
+  })
+
+  it('uses md-first asset directory names with legacy canvas md compatibility', () => {
+    expect(readMarkdownAssetDirectoryName('/workspace/docs/board.md')).toBe('board.assets')
+    expect(readMarkdownAssetDirectoryName('/workspace/docs/legacy.canvas.md')).toBe('legacy.assets')
+  })
+
+  it('returns document-relative markdown paths for imported assets', () => {
+    expect(toDocumentRelativeMarkdownPath({
+      documentFsPath: '/workspace/docs/board.md',
+      targetFsPath: '/workspace/docs/board.assets/pasted.png'
+    })).toBe('./board.assets/pasted.png')
   })
 })

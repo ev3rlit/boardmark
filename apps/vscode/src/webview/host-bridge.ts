@@ -13,7 +13,8 @@ import type {
   CanvasDocumentPersistencePayload,
   CanvasDocumentPersistenceSaveInput,
   CanvasImageAssetBridge,
-  CanvasImageAssetError
+  CanvasImageExportBridge,
+  CanvasImageExportError
 } from '@boardmark/canvas-app'
 import {
   isHostToWebviewMessage,
@@ -38,6 +39,7 @@ export type DocumentErrorSnapshot = {
 
 export type VsCodeDocumentBridge = BoardmarkDocumentBridge & {
   readonly imageAssets: CanvasImageAssetBridge
+  readonly imageExports: CanvasImageExportBridge
   readonly persistence: CanvasDocumentPersistenceBridge
 }
 
@@ -254,7 +256,8 @@ export function createHostBridge(): HostBridge {
         }
       }
     },
-    imageAssets: createVsCodeImageAssetBridge(requestHost, () => current)
+    imageAssets: createVsCodeImageAssetBridge(requestHost, () => current),
+    imageExports: createVsCodeImageExportBridge(requestHost)
   }
 
   const applyHostMessage = (message: HostToWebviewMessage) => {
@@ -312,6 +315,7 @@ export function createHostBridge(): HostBridge {
         return
       }
       case 'theme/changed': {
+        applyVsCodeTheme(message.kind)
         return
       }
     }
@@ -411,17 +415,43 @@ function createVsCodeImageAssetBridge(
   requestHost: (message: HostRequestInput) => Promise<unknown>,
   readCurrent: () => DocumentSnapshot | null
 ): CanvasImageAssetBridge {
-  const unsupported = (action: string): AsyncResult<never, CanvasImageAssetError> => ({
-    ok: false,
-    error: {
-      code: 'unsupported',
-      message: `VS Code image bridge does not support ${action} yet.`
-    }
-  })
-
   return {
-    async importImageAsset() {
-      return unsupported('image import')
+    async importImageAsset({ bytes, document, fileName }) {
+      try {
+        const value = await requestHost({
+          type: 'request',
+          method: 'image/import',
+          payload: {
+            bytes: Array.from(bytes),
+            documentUri: readDocumentUri(document) ?? readCurrent()?.uri,
+            fileName
+          }
+        })
+        const payload = readImageImportPayload(value)
+
+        if (!payload.ok) {
+          return {
+            ok: false,
+            error: {
+              code: 'import-failed',
+              message: payload.error
+            }
+          }
+        }
+
+        return {
+          ok: true,
+          value: payload.value
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'import-failed',
+            message: readErrorMessage(error, 'VS Code could not import the image asset.')
+          }
+        }
+      }
     },
     async resolveImageSource({ document, src }) {
       try {
@@ -503,6 +533,57 @@ function createVsCodeImageAssetBridge(
   }
 }
 
+function createVsCodeImageExportBridge(
+  requestHost: (message: HostRequestInput) => Promise<unknown>
+): CanvasImageExportBridge {
+  return {
+    async saveImage({ bytes, fileName, mimeType }) {
+      try {
+        const value = await requestHost({
+          type: 'request',
+          method: 'image-export/save',
+          payload: {
+            bytes: Array.from(bytes),
+            fileName,
+            mimeType
+          }
+        })
+        const payload = readImageExportPayload(value)
+
+        if (!payload.ok) {
+          return {
+            ok: false,
+            error: payload.error
+          }
+        }
+
+        if (payload.value.status === 'cancelled') {
+          return {
+            ok: false,
+            error: {
+              code: 'cancelled',
+              message: 'Image export was cancelled.'
+            }
+          }
+        }
+
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'save-failed',
+            message: readErrorMessage(error, 'VS Code could not save the exported image.')
+          }
+        }
+      }
+    }
+  }
+}
+
 function readDocumentUri(document: CanvasDocumentRecord | null | undefined): string | undefined {
   return document?.locator.kind === 'file' ? document.locator.path : undefined
 }
@@ -539,6 +620,69 @@ function readImageResolvePayload(value: unknown):
       src: record.src
     }
   }
+}
+
+function readImageImportPayload(value: unknown):
+  | { ok: true; value: { src: string } }
+  | { ok: false; error: string } {
+  return readImageResolvePayload(value)
+}
+
+function readImageExportPayload(value: unknown):
+  | { ok: true; value: { status: 'cancelled' | 'saved' } }
+  | { ok: false; error: CanvasImageExportError } {
+  if (typeof value !== 'object' || value === null || !('status' in value)) {
+    return {
+      ok: false,
+      error: {
+        code: 'save-failed',
+        message: 'VS Code image export response must include a status.'
+      }
+    }
+  }
+
+  const record = value as Record<string, unknown>
+
+  if (record.status !== 'cancelled' && record.status !== 'saved') {
+    return {
+      ok: false,
+      error: {
+        code: 'save-failed',
+        message: 'VS Code image export response status must be saved or cancelled.'
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      status: record.status
+    }
+  }
+}
+
+function applyVsCodeTheme(kind: 'dark' | 'high-contrast' | 'light') {
+  const root = document.documentElement
+  const body = document.body
+
+  root.dataset.boardmarkVscodeTheme = kind
+  body.classList.toggle('boardmark-vscode-dark', kind === 'dark')
+  body.classList.toggle('boardmark-vscode-high-contrast', kind === 'high-contrast')
+  body.classList.toggle('boardmark-vscode-light', kind === 'light')
+
+  root.style.setProperty('color-scheme', kind === 'light' ? 'light' : 'dark')
+  root.style.setProperty('--color-surface-lowest', 'var(--vscode-editor-background)')
+  root.style.setProperty('--color-surface', 'var(--vscode-editor-background)')
+  root.style.setProperty('--color-surface-low', 'var(--vscode-sideBar-background)')
+  root.style.setProperty('--color-surface-container', 'var(--vscode-panel-background)')
+  root.style.setProperty('--color-surface-high', 'var(--vscode-input-background)')
+  root.style.setProperty('--color-surface-highest', 'var(--vscode-editorWidget-background)')
+  root.style.setProperty('--color-on-surface', 'var(--vscode-editor-foreground)')
+  root.style.setProperty('--color-on-surface-variant', 'var(--vscode-descriptionForeground)')
+  root.style.setProperty('--color-outline-ghost', 'var(--vscode-widget-border)')
+  root.style.setProperty('--color-primary', 'var(--vscode-focusBorder)')
+  root.style.setProperty('--color-primary-dim', 'var(--vscode-button-hoverBackground)')
+  root.style.setProperty('--color-primary-container', 'var(--vscode-button-secondaryBackground)')
 }
 
 function readErrorMessage(error: unknown, fallback: string) {

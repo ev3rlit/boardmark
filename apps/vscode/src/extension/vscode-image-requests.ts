@@ -1,7 +1,11 @@
-import { dirname } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import * as vscode from 'vscode'
 import type { HostRequestMethod } from '../shared/protocol'
-import { resolveMarkdownImageSource } from './markdown-image-source'
+import {
+  readMarkdownAssetDirectoryName,
+  resolveMarkdownImageSource,
+  toDocumentRelativeMarkdownPath
+} from './markdown-image-source'
 
 export type HostRequestResult =
   | { readonly ok: true; readonly value?: unknown }
@@ -13,11 +17,15 @@ export async function handleImageHostRequest(input: {
   readonly payload: unknown
   readonly webview: vscode.Webview
 }): Promise<HostRequestResult | null> {
-  if (
-    input.method !== 'image/resolve' &&
-    input.method !== 'image/open' &&
-    input.method !== 'image/reveal'
-  ) {
+  if (input.method === 'image/import') {
+    return importImageAsset(input)
+  }
+
+  if (input.method === 'image-export/save') {
+    return saveExportedImage(input)
+  }
+
+  if (input.method !== 'image/resolve' && input.method !== 'image/open' && input.method !== 'image/reveal') {
     return null
   }
 
@@ -156,6 +164,273 @@ function readImageSourcePayload(payload: unknown):
       src: record.src,
       documentUri: typeof record.documentUri === 'string' ? record.documentUri : undefined
     }
+  }
+}
+
+async function importImageAsset(input: {
+  readonly document: vscode.TextDocument
+  readonly payload: unknown
+}): Promise<HostRequestResult> {
+  if (input.document.uri.scheme !== 'file') {
+    return {
+      ok: false,
+      error: 'Image import requires a file-backed VS Code TextDocument.'
+    }
+  }
+
+  const payloadResult = readImageImportPayload(input.payload)
+
+  if (!payloadResult.ok) {
+    return payloadResult
+  }
+
+  if (payloadResult.value.documentUri && payloadResult.value.documentUri !== input.document.uri.toString()) {
+    return {
+      ok: false,
+      error: 'Image import document URI does not match the attached VS Code TextDocument.'
+    }
+  }
+
+  const assetDirectory = vscode.Uri.file(
+    join(dirname(input.document.uri.fsPath), readMarkdownAssetDirectoryName(input.document.uri.fsPath))
+  )
+  const targetUri = await readNextAvailableUri(assetDirectory, payloadResult.value.fileName)
+
+  try {
+    await vscode.workspace.fs.createDirectory(assetDirectory)
+    await vscode.workspace.fs.writeFile(targetUri, Uint8Array.from(payloadResult.value.bytes))
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'VS Code could not import the image asset.'
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      src: toDocumentRelativeMarkdownPath({
+        documentFsPath: input.document.uri.fsPath,
+        targetFsPath: targetUri.fsPath
+      })
+    }
+  }
+}
+
+async function saveExportedImage(input: {
+  readonly document: vscode.TextDocument
+  readonly payload: unknown
+}): Promise<HostRequestResult> {
+  const payloadResult = readImageExportPayload(input.payload)
+
+  if (!payloadResult.ok) {
+    return payloadResult
+  }
+
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: readDefaultExportUri(input.document, payloadResult.value.fileName),
+    filters: readImageExportFilters(payloadResult.value.mimeType),
+    saveLabel: 'Export Image'
+  })
+
+  if (!target) {
+    return {
+      ok: true,
+      value: {
+        status: 'cancelled'
+      }
+    }
+  }
+
+  try {
+    await vscode.workspace.fs.writeFile(target, Uint8Array.from(payloadResult.value.bytes))
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'VS Code could not save the exported image.'
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      status: 'saved'
+    }
+  }
+}
+
+function readImageImportPayload(payload: unknown):
+  | {
+      readonly ok: true
+      readonly value: {
+        readonly bytes: readonly number[]
+        readonly documentUri?: string
+        readonly fileName: string
+      }
+    }
+  | HostRequestResult {
+  if (typeof payload !== 'object' || payload === null) {
+    return {
+      ok: false,
+      error: 'Image import payload must be an object.'
+    }
+  }
+
+  const record = payload as Record<string, unknown>
+  const bytesResult = readByteArray(record.bytes, 'Image import payload bytes must be an array of bytes.')
+
+  if (!bytesResult.ok) {
+    return bytesResult
+  }
+
+  if (typeof record.fileName !== 'string') {
+    return {
+      ok: false,
+      error: 'Image import payload fileName must be a string.'
+    }
+  }
+
+  if ('documentUri' in record && typeof record.documentUri !== 'string') {
+    return {
+      ok: false,
+      error: 'Image import payload documentUri must be a string.'
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      bytes: bytesResult.value,
+      documentUri: typeof record.documentUri === 'string' ? record.documentUri : undefined,
+      fileName: readSafeFileName(record.fileName, 'image')
+    }
+  }
+}
+
+function readImageExportPayload(payload: unknown):
+  | {
+      readonly ok: true
+      readonly value: {
+        readonly bytes: readonly number[]
+        readonly fileName: string
+        readonly mimeType: 'image/jpeg' | 'image/png'
+      }
+    }
+  | HostRequestResult {
+  if (typeof payload !== 'object' || payload === null) {
+    return {
+      ok: false,
+      error: 'Image export payload must be an object.'
+    }
+  }
+
+  const record = payload as Record<string, unknown>
+  const bytesResult = readByteArray(record.bytes, 'Image export payload bytes must be an array of bytes.')
+
+  if (!bytesResult.ok) {
+    return bytesResult
+  }
+
+  if (typeof record.fileName !== 'string') {
+    return {
+      ok: false,
+      error: 'Image export payload fileName must be a string.'
+    }
+  }
+
+  if (record.mimeType !== 'image/jpeg' && record.mimeType !== 'image/png') {
+    return {
+      ok: false,
+      error: 'Image export payload mimeType must be image/jpeg or image/png.'
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      bytes: bytesResult.value,
+      fileName: readSafeFileName(record.fileName, 'boardmark-export'),
+      mimeType: record.mimeType
+    }
+  }
+}
+
+function readByteArray(value: unknown, error: string):
+  | { readonly ok: true; readonly value: readonly number[] }
+  | { readonly ok: false; readonly error: string } {
+  if (!Array.isArray(value)) {
+    return {
+      ok: false,
+      error
+    }
+  }
+
+  if (!value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)) {
+    return {
+      ok: false,
+      error
+    }
+  }
+
+  return {
+    ok: true,
+    value
+  }
+}
+
+function readSafeFileName(fileName: string, fallbackBaseName: string): string {
+  const trimmed = basename(fileName.trim())
+
+  if (trimmed.length > 0 && trimmed !== '.' && trimmed !== '..') {
+    return trimmed
+  }
+
+  return fallbackBaseName
+}
+
+async function readNextAvailableUri(directory: vscode.Uri, fileName: string): Promise<vscode.Uri> {
+  const extension = extname(fileName)
+  const baseName = basename(fileName, extension)
+  let index = 0
+
+  while (true) {
+    const candidate = vscode.Uri.joinPath(
+      directory,
+      `${baseName}${index === 0 ? '' : `-${index}`}${extension}`
+    )
+
+    try {
+      await vscode.workspace.fs.stat(candidate)
+      index += 1
+    } catch {
+      return candidate
+    }
+  }
+}
+
+function readDefaultExportUri(document: vscode.TextDocument, fileName: string): vscode.Uri | undefined {
+  if (document.uri.scheme === 'file') {
+    return vscode.Uri.file(join(dirname(document.uri.fsPath), fileName))
+  }
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+
+  if (workspaceFolder) {
+    return vscode.Uri.joinPath(workspaceFolder.uri, fileName)
+  }
+
+  return undefined
+}
+
+function readImageExportFilters(mimeType: 'image/jpeg' | 'image/png'): Record<string, string[]> {
+  if (mimeType === 'image/jpeg') {
+    return {
+      JPEG: ['jpg', 'jpeg']
+    }
+  }
+
+  return {
+    PNG: ['png']
   }
 }
 

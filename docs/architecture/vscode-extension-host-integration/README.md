@@ -163,17 +163,18 @@ bridge 구현은 `apps/web/src/document-bridge.ts`나 `apps/desktop/src/preload/
 
 ## 5. 메시지 프로토콜
 
-현재 `apps/vscode/src/shared/protocol.ts`의 `document/sync`, `document/edit`, `document/saved`는 방향은 맞지만 현재 앱 수준에는 부족하다.
+`apps/vscode/src/shared/protocol.ts`가 extension host와 webview 사이의 유일한 메시지 계약이다.
 
-필요한 메시지는 세 층으로 나눈다.
+메시지는 세 층으로 나눈다.
 
 ### 5.1 문서 세션 메시지
 
-- host -> webview: `document/session`
 - host -> webview: `document/sync`
+- host -> webview: `document/error`
 - host -> webview: `document/saved`
 - webview -> host: `document/edit`
 - webview -> host: `document/save`
+- webview -> host: `document/ready`
 
 `document/edit`은 commit된 next source를 보낸다. host는 stale revision이면 적용하지 않고 최신 sync를 다시 보낸다.
 
@@ -187,18 +188,18 @@ CanvasApp bridge 메서드는 promise 기반이다. postMessage 위에는 correl
 
 대상 메서드:
 
-- image import / resolve / open / reveal
-- image export save
-- save-as target selection
-- optional document open picker
+- `image/import`
+- `image/resolve`
+- `image/open`
+- `image/reveal`
+- `image-export/save`
+- `document/pick-open`은 protocol에 예약되어 있지만 현재 VS Code shell에서는 `canOpen: false`라 호출하지 않는다.
 
 ### 5.3 Host event 메시지
 
 - host -> webview: `theme/changed`
-- host -> webview: `document/external-change`
-- host -> webview: `workspace/folder-changed`
 
-모든 inbound message는 `shared/protocol.ts`에서 검증한다. webview는 신뢰 경계 밖이다.
+모든 inbound message는 `shared/protocol.ts`에서 검증한다. webview는 신뢰 경계 밖이며, request payload의 구체 검증은 해당 host request handler에서 다시 수행한다.
 
 ---
 
@@ -211,7 +212,12 @@ revision은 per document session monotonic counter다.
 - host는 stale revision edit을 거절하고 최신 source를 다시 보낸다.
 - webview는 최신 source를 repository로 다시 정규화한다.
 
-dirty draft와 외부 raw edit이 동시에 존재하는 상황은 `canvas-app`의 conflict state로 올린다. VS Code host는 conflict를 삼키거나 성공처럼 처리하지 않는다.
+dirty draft와 외부 raw edit이 동시에 존재하는 상황은 `canvas-app`의 external-change 구독과 conflict state가 담당한다. VS Code host의 책임은 더 좁다.
+
+- stale revision edit은 실패 response로 거절한다.
+- 거절 직후 최신 `document/sync`를 다시 보낸다.
+- `WorkspaceEdit` 실패와 save 실패는 성공처럼 보이지 않게 response error로 돌려준다.
+- raw markdown parse 실패는 `document/error`로 표시한다.
 
 ---
 
@@ -219,11 +225,11 @@ dirty draft와 외부 raw edit이 동시에 존재하는 상황은 `canvas-app`�
 
 같은 URI를 여러 canvas editor 또는 text editor로 열 수 있다.
 
-VS Code extension host에는 URI 단위 session registry가 필요하다.
+VS Code extension host는 URI 단위 session registry를 가진다.
 
 ```mermaid
 flowchart TD
-  Registry["DocumentSessionRegistry"]
+  Registry["CanvasEditorProvider.sessions"]
   Session["DocumentSession<br>uri, revision, textDocument"]
   PanelA["Webview panel A"]
   PanelB["Webview panel B"]
@@ -241,6 +247,7 @@ flowchart TD
 - 모든 panel은 같은 session source를 fan-out 받는다.
 - 한 panel의 edit도 `WorkspaceEdit`을 거쳐 session 전체에 다시 sync된다.
 - panel-local selection/viewport는 각 webview가 소유한다.
+- 마지막 panel이 dispose되면 session의 `TextDocument` change/save subscription도 정리한다.
 
 ---
 
@@ -257,104 +264,56 @@ VS Code image asset bridge는 아래를 담당한다.
 
 asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으로 둘 수 있다. 단, `.canvas.md` 제거 규칙이 primary가 되어서는 안 된다. `.md` 문서를 기준으로 동작해야 한다.
 
----
+현재 정책:
 
-## 9. 현재 코드와의 차이
-
-`apps/vscode`는 아직 과거 scaffold 상태다.
-
-수정이 필요한 지점:
-
-- `apps/vscode/package.json`
-  - description, activation event, selector가 `.canvas.md` 전용이다.
-- `apps/vscode/README.md`
-  - Phase 1 placeholder 설명이 현재 제품 단계와 맞지 않는다.
-- `apps/vscode/src/webview/main.tsx`
-  - raw markdown `<pre>` placeholder만 렌더한다.
-- `apps/vscode/src/webview/host-bridge.ts`
-  - `CanvasApp` store bridge가 아니라 단순 source snapshot bridge다.
-- `apps/vscode/src/extension/canvas-editor-provider.ts`
-  - 전체 source replace만 다루며, 현재 `canvas-app` save/edit 계약과 아직 연결되지 않았다.
-- `apps/vscode/src/extension/webview-html.ts`
-  - Vite manifest 기반 asset resolution이 실제로 구현되어야 한다.
-
-이 차이는 구현 버그라기보다 문서와 코드가 서로 다른 시점에 멈춘 결과다.
+- 표시용 resolve는 document-relative, workspace-root-leading-slash, file URI, remote/data/blob source를 구분한다.
+- paste/drop import는 file-backed `TextDocument`에서만 지원한다.
+- import 대상은 `<document-basename>.assets/`이며 결과 `src`는 문서 상대 markdown path다.
+- 같은 이름이 있으면 `name-1.ext`, `name-2.ext`처럼 충돌을 피한다.
+- export save는 VS Code save dialog로 대상을 고르고 `workspace.fs.writeFile`로 쓴다.
+- export cancel은 `CanvasImageExportError`의 `cancelled`로, write 실패는 `save-failed`로 돌아간다.
 
 ---
 
-## 10. 구현 순서
+## 9. 현재 구현 상태
 
-### Step 1. 진입점 정리
+완료된 host integration:
 
-- `.canvas.md` 중심 문구 제거
-- `Open as Canvas` 명령을 `.md` Boardmark frontmatter 문서 기준으로 정리
-- custom editor가 일반 markdown 기본 editor를 가로채지 않게 조정
+- 명시적 `Boardmark: Open as Canvas` command와 markdown frontmatter validation
+- shared `CanvasApp` mount와 `createCanvasStore` bridge 연결
+- `TextDocument` sync, `WorkspaceEdit` edit, `TextDocument.save()` save
+- URI 단위 `DocumentSession` registry, revision fan-out, stale edit reject
+- image resolve/import/open/reveal bridge
+- canvas/fenced-block image export save bridge
+- VS Code light/dark/high-contrast theme event 반영
+- `apps/vscode/fixtures/smoke.md`, `.vscode/launch.json`, `.vscode/tasks.json` 기반 dev host smoke
 
-### Step 2. Webview에서 CanvasApp mount
+의도적으로 남긴 제약:
 
-- `CanvasApp`과 `createCanvasStore`를 webview entry에 mount
-- VS Code 전용 bridge skeleton을 만든다.
-- capabilities는 VS Code host에 맞게 주입한다.
+- remote/non-file `TextDocument`의 image import는 아직 지원하지 않는다.
+- marketplace icon/gallery/publish workflow는 아직 정리하지 않았다.
+- automated Extension Development Host E2E는 없다. VS Code UI 동작은 수동 smoke로 검증한다.
+- webview bundle chunk size tuning은 별도 성능 작업이다.
 
-초기 권장 capabilities:
+---
 
-```ts
-{
-  canOpen: false,
-  canSave: true,
-  canPersist: true,
-  canDropDocumentImport: false,
-  canDropImageInsertion: true,
-  supportsMultiSelect: true,
-  newDocumentMode: 'reset-template'
-}
-```
+## 10. Extension 전용 책임 경계
 
-### Step 3. TextDocument sync 연결
+VS Code extension에 둘 수 있는 코드는 아래에 한정한다.
 
-- host `TextDocument` -> webview `document/sync`
-- webview source -> repository `readSource`
-- parsed record -> store hydrate
-- parse failure는 `invalidState`나 load error로 표시
+- VS Code command, custom editor, activation, package metadata
+- `TextDocument`, `WorkspaceEdit`, `workspace.fs`, `window.showSaveDialog`, `webview.asWebviewUri`
+- webview postMessage protocol adapter
+- VS Code theme token을 CSS variable로 연결하는 host shell 코드
+- dev host launch/smoke ergonomics
 
-### Step 4. Canvas edit -> WorkspaceEdit
+아래는 extension에 복제하지 않는다.
 
-- canvas commit이 만든 next source를 host로 보낸다.
-- host는 revision을 확인한다.
-- host는 `WorkspaceEdit`으로 현재 `TextDocument` 전체 또는 대상 range를 갱신한다.
-- VS Code dirty/save lifecycle을 따른다.
-
-초기 구현은 whole document replace여도 된다. 현재 `canvas-app`은 source patch 기반이므로, extension-host boundary에서만 전체 replace를 선택하는 것은 허용된다.
-
-### Step 5. Asset/export bridge
-
-- image resolve/import/open/reveal 구현
-- fenced block image export save 구현
-- `webview.asWebviewUri` 변환을 host에서 수행
-
-#### 2026-05-26 slice: 이미지 resolve/open/reveal
-
-우선순위는 상대 이미지 표시를 가장 앞에 둔다. 이유는 이 작업이 VS Code host integration 고유 책임이 크고, shared `CanvasApp`은 이미 `imageAssetBridge` 계약과 이미지 렌더링 호출 경로를 제공하기 때문이다.
-
-이번 slice의 포함 범위:
-
-- markdown 상대 이미지 경로를 문서 디렉터리 기준으로 resolve한다.
-- `/assets/example.png`처럼 leading slash를 가진 경로는 workspace folder 기준으로 resolve한다.
-- webview 표시 URI는 extension host에서 `webview.asWebviewUri`로 변환한다.
-- 선택 이미지 `open` / `reveal`은 VS Code command/env API로 위임한다.
-- webview `request` 응답 payload는 문자열 `src`를 명시적으로 검증한다.
-
-이번 slice의 제외 범위:
-
-- paste/drop image import는 문서 기준 asset directory 정책이 필요하므로 다음 slice로 둔다.
-- fenced block/image export 저장은 VS Code save dialog와 workspace fs 정책을 별도 slice로 둔다.
-- 다중 editor session registry와 conflict UX는 이미지 bridge와 독립된 lifecycle slice로 둔다.
-
-### Step 6. 다중 panel/session 정리
-
-- URI 단위 session registry
-- panel fan-out
-- dispose 시 session cleanup
+- canvas editing semantics
+- markdown parser/renderer
+- WYSIWYG, selection, undo/redo, history
+- fenced block rasterization/export rendering
+- image node insertion logic
 
 ---
 
@@ -375,11 +334,14 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 코드 검증:
 
 - `pnpm --filter @boardmark/vscode build`
-- `pnpm vitest run apps/vscode/src/extension/markdown-image-source.test.ts`
-- `pnpm typecheck`
-- VS Code extension host 단위 테스트
-- webview bridge 단위 테스트
+- `pnpm vitest run apps/vscode/src/extension/boardmark-document-validation.test.ts apps/vscode/src/shared/protocol.test.ts apps/vscode/src/extension/markdown-image-source.test.ts`
 - 수동 `.vsix` 설치 smoke
+- Extension Development Host smoke:
+  - `pnpm --filter @boardmark/vscode watch`
+  - `Boardmark VS Code Extension` launch config 실행 또는 `code --extensionDevelopmentPath="$(pwd)/apps/vscode" "$(pwd)/apps/vscode/fixtures/smoke.md"`
+  - `Developer: Reload Window`
+  - `Boardmark: Open as Canvas`
+  - 상대 이미지 표시, export save dialog, paste/drop import, text/canvas 동시 open revision reject 확인
 
 ---
 
@@ -394,5 +356,6 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 - live collaboration
 - incremental parse fast path
 - `.canvas.md` 완전 제거 시점
+- remote workspace image import 정책
 
 이 문서의 범위는 현재 `canvas-app`을 VS Code의 파일 lifecycle에 정확히 연결하는 것이다.
