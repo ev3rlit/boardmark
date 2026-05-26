@@ -1,7 +1,7 @@
 {
   "name": "@boardmark/vscode",
   "displayName": "Boardmark",
-  "description": "Open Boardmark markdown documents in the shared canvas editor.",
+  "description": "Open and edit Boardmark .md documents directly in VS Code.",
   "private": true,
   "version": "0.0.1",
   "publisher": "boardmark",
@@ -20,8 +20,9 @@
     "package": "vsce package --no-dependencies"
   },
   "activationEvents": [
+    "onCustomEditor:boardmark.canvasEditor",
     "onCommand:boardmark.openAsCanvas",
-    "onCustomEditor:boardmark.canvasEditor"
+    "onCommand:boardmark.openAsText"
   ],
   "contributes": {
     "customEditors": [

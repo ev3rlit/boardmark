@@ -317,7 +317,7 @@ WYSIWYG core는 아래 수준의 공용 contract 위에서 동작해야 한다.
 
 ### 8.4 Backward Compatibility
 
-- 기존 `.canvas.md` 문서는 변경 없이 계속 열려야 한다.
+- 기존 `.md` 문서는 변경 없이 계속 열려야 한다.
 - WYSIWYG 미적용 object나 unsupported markdown subset은 기존 fallback 편집 경로를 유지할 수 있다.
 - v1 도입이 raw markdown 편집 가능성 자체를 없애면 안 된다.
 

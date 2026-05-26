@@ -7,7 +7,7 @@ export async function readDroppedFileText(file: File) {
 }
 
 export function isCanvasMarkdownFile(file: File) {
-  return /\.canvas\.md$|\.md$/i.test(file.name)
+  return /\.md$/i.test(file.name)
 }
 
 export function readClipboardImageFile(event: ClipboardEvent) {

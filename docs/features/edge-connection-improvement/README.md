@@ -98,7 +98,7 @@
 
 이 결정으로 얻는 이점은 다음과 같다.
 
-- 기존 `.canvas.md` 문법을 깨지 않는다.
+- 기존 `.md` 문법을 깨지 않는다.
 - parser / repository / patch 경계에 새 필드 도입이 필요 없다.
 - edge endpoint patch는 계속 `from`, `to` 수정만으로 닫힌다.
 
@@ -238,5 +238,5 @@
 
 - 기본 렌더링에서 좌/우 handle이 드러나지 않는다.
 - edge는 고정된 우측 source / 좌측 target이 아니라 object 상대 위치에 따라 자연스러운 외곽 접점에서 연결된다.
-- `.canvas.md` 문법 변경 없이 기존 edge create/reconnect patch pipeline이 유지된다.
+- `.md` 문법 변경 없이 기존 edge create/reconnect patch pipeline이 유지된다.
 - 관련 회귀 테스트가 추가돼 note, shape, image 혼합 캔버스에서도 연결 품질이 안정적으로 유지된다.

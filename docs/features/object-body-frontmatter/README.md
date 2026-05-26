@@ -35,7 +35,7 @@ Boardmark는 마크다운 파일이 곧 캔버스 데이터인 제품이므로, 
 
 - 사용자는 오브젝트 body 안에 `meta` 구조를 직접 작성하고 Git diff로 검토할 수 있다.
 - parser는 body frontmatter의 `meta`를 object-level metadata로 분리해 제공한다.
-- metadata가 없는 기존 `.canvas.md` 문서는 결과가 바뀌지 않는다.
+- metadata가 없는 기존 `.md` 문서는 결과가 바뀌지 않는다.
 - 사용자는 캔버스에서 오브젝트 하나를 선택한 뒤 `Info` 액션으로 metadata를 확인할 수 있다.
 - 잘못된 YAML이 있더라도 다른 오브젝트는 계속 렌더된다.
 

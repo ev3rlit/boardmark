@@ -14,7 +14,7 @@
 
 ### 1.1 Problem Statement
 
-Boardmark는 캔버스 편집기이지만, 실제 데이터의 진실은 `.canvas.md` source에 있다.
+Boardmark는 캔버스 편집기이지만, 실제 데이터의 진실은 `.md` source에 있다.
 
 현재 사용자는 note, shape, edge를 캔버스에서 선택할 수 있고 selection toolbar로 일부 quick action을 실행할 수 있다. 하지만 아래 질문에는 즉시 답할 수 없다.
 
@@ -43,7 +43,7 @@ Boardmark는 캔버스 편집기이지만, 실제 데이터의 진실은 `.canva
 - 사용자는 selection toolbar에서 `Inspect`를 눌러 현재 선택 오브젝트의 source 위치를 확인할 수 있다.
 - 사용자는 최소한 object id, object kind, source line range, header/body range를 볼 수 있다.
 - 사용자는 source 범위를 복사하거나 source editor로 점프할 수 있다.
-- inspect surface는 `.canvas.md`를 수정하지 않고 runtime-only로 동작한다.
+- inspect surface는 `.md`를 수정하지 않고 runtime-only로 동작한다.
 
 ---
 
@@ -204,7 +204,7 @@ inspect surface는 아래와 같은 요약을 제공해야 한다.
 
 예시:
 
-- desktop: `.canvas.md` editor로 이동 후 range selection
+- desktop: `.md` editor로 이동 후 range selection
 - web: source panel 또는 read-only source drawer로 이동
 
 v1에서 host별 구현 차이가 있어도 inspect contract 자체는 동일해야 한다.

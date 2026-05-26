@@ -17,7 +17,7 @@ describe('browser document bridge', () => {
   })
 
   it('opens persisted files through the File System Access API', async () => {
-    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    const openHandle = createFileHandle('opened.md', uploadedSource)
     window.showOpenFilePicker = vi.fn(async () => [openHandle])
 
     const bridge = createBrowserDocumentBridge({
@@ -33,27 +33,27 @@ describe('browser document bridge', () => {
       return
     }
 
-    expect(result.value.fileHandle?.name).toBe('opened.canvas.md')
+    expect(result.value.fileHandle?.name).toBe('opened.md')
     expect(result.value.source).toBe(uploadedSource)
     expect(result.value.locator).toEqual({
       kind: 'file',
-      path: 'browser-file-0/opened.canvas.md'
+      path: 'browser-file-0/opened.md'
     })
   })
 
   it('creates a new persisted target through showSaveFilePicker and repository.save', async () => {
-    const saveHandle = createFileHandle('saved.canvas.md', '')
+    const saveHandle = createFileHandle('saved.md', '')
     window.showSaveFilePicker = vi.fn(async () => saveHandle)
 
     const bridge = createBrowserDocumentBridge({
       readFileText: async () => uploadedSource
     })
     const saveAsResult = await bridge.persistence.saveDocumentAs({
-      defaultName: 'saved.canvas.md',
+      defaultName: 'saved.md',
       locator: {
         kind: 'memory',
         key: 'draft',
-        name: 'saved.canvas.md'
+        name: 'saved.md'
       },
       source: uploadedSource
     })
@@ -101,7 +101,7 @@ describe('browser document bridge', () => {
   })
 
   it('overwrites an existing file handle without opening a new picker', async () => {
-    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    const openHandle = createFileHandle('opened.md', uploadedSource)
     window.showOpenFilePicker = vi.fn(async () => [openHandle])
 
     const bridge = createBrowserDocumentBridge({
@@ -115,7 +115,7 @@ describe('browser document bridge', () => {
 
     const nextSource = `${uploadedSource}\n\nUpdated`
     const saveResult = await bridge.persistence.saveDocument({
-      defaultName: 'opened.canvas.md',
+      defaultName: 'opened.md',
       locator: openResult.value.locator,
       fileHandle: openResult.value.fileHandle,
       source: nextSource
@@ -129,7 +129,7 @@ describe('browser document bridge', () => {
 
   it('checks external file changes on window focus', async () => {
     let nextSource = uploadedSource
-    const openHandle = createFileHandle('opened.canvas.md', () => nextSource)
+    const openHandle = createFileHandle('opened.md', () => nextSource)
     window.showOpenFilePicker = vi.fn(async () => [openHandle])
 
     const bridge = createBrowserDocumentBridge({
@@ -161,7 +161,7 @@ describe('browser document bridge', () => {
 
   it('logs external file refresh failures instead of ignoring them silently', async () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const openHandle = createFileHandle('opened.canvas.md', uploadedSource)
+    const openHandle = createFileHandle('opened.md', uploadedSource)
     window.showOpenFilePicker = vi.fn(async () => [openHandle])
 
     let shouldFail = false
@@ -194,7 +194,7 @@ describe('browser document bridge', () => {
     expect(consoleWarn).toHaveBeenCalledWith(
       '[boardmark] Browser bridge could not refresh an opened file after window focus.',
       expect.objectContaining({
-        locator: 'browser-file-0/opened.canvas.md',
+        locator: 'browser-file-0/opened.md',
         message: 'Read failed on focus.'
       })
     )

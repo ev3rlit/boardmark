@@ -384,7 +384,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
 
   const { getInputProps, getRootProps } = useDropzone({
     accept: {
-      'text/markdown': ['.canvas.md', '.md'],
+      'text/markdown': ['.md'],
       'image/*': []
     },
     disabled: !capabilities.canDropDocumentImport && !capabilities.canDropImageInsertion,
@@ -573,7 +573,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             data-testid="drop-overlay"
           >
             <div className="absolute inset-x-8 top-24 rounded-[1.4rem] bg-[color:color-mix(in_oklab,var(--color-surface-lowest)_92%,white)] px-6 py-5 text-sm text-[var(--color-on-surface)] shadow-[0_20px_40px_rgba(43,52,55,0.08)]">
-              Drop a `.canvas.md` file to replace the board, or drop an image to insert it.
+              Drop a `.md` file to replace the board, or drop an image to insert it.
             </div>
           </div>
         ) : null}

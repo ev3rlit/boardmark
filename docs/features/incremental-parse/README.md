@@ -4,7 +4,7 @@
 
 이 문서는 `docs/features/bi-editing/README.md`에서 분리된 후속 최적화 작업이다.
 
-bi-editing 단계에서는 매 edit commit마다 전체 `.canvas.md` source를 다시 parse해서 `CanvasDocumentRecord`를 만든다.
+bi-editing 단계에서는 매 edit commit마다 전체 `.md` source를 다시 parse해서 `CanvasDocumentRecord`를 만든다.
 이 full reparse 경로는 정확성과 구현 단순성 면에서 올바른 첫 선택이다.
 
 그러나 문서 규모가 커지거나 geometry edit가 빈번해지면, remark/unified 기반 full parse 비용이 사용자 체감 지연을 만들 수 있다.

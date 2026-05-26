@@ -2,7 +2,7 @@
 
 ## 1. 목적
 
-이번 MVP의 목표는 `.canvas.md` 파일을 읽고 파싱한 뒤, 캔버스 viewer로 안정적으로 렌더링하는 것이다.
+이번 MVP의 목표는 `.md` 파일을 읽고 파싱한 뒤, 캔버스 viewer로 안정적으로 렌더링하는 것이다.
 
 이번 단계에서는 편집 기능이 아니라 읽기와 렌더링에 집중한다. 구현 범위는 최소 기능의 viewer이며, 노드 타입은 `sticky note` 하나만 지원한다.
 
@@ -12,8 +12,8 @@
 
 - Electron 앱 실행 시 기본 템플릿 캔버스를 즉시 표시
 - 시작 화면에서 `새 파일 만들기`와 `파일 열기` 액션 제공
-- `새 파일 만들기` 시 템플릿 기반 `.canvas.md` 파일 생성 후 바로 로드
-- 기존 `.canvas.md` 파일 열기
+- `새 파일 만들기` 시 템플릿 기반 `.md` 파일 생성 후 바로 로드
+- 기존 `.md` 파일 열기
 - 파일 문자열을 `unified + remark-parse + remark-directive`로 파싱
 - frontmatter를 읽어 viewport 초기값 적용
 - `note` directive를 `CanvasNode`로 변환
@@ -56,15 +56,15 @@
 
 - Electron 기반 viewer 앱
 - 시작 화면과 기본 템플릿 캔버스
-- `.canvas.md` 파서 모듈
+- `.md` 파서 모듈
 - `CanvasAST`, `CanvasNode`, `CanvasEdge`, `CanvasParseIssue` 타입
 - `neverthrow` 기반 parse/file result 계약
 - sticky note 노드 컴포넌트
 - edge SVG 렌더러
 - viewport pan / zoom 상태 관리
 - canvas overlay UI 컴포넌트
-- 신규 생성용 템플릿 `.canvas.md` 파일
-- 샘플 `.canvas.md` 파일
+- 신규 생성용 템플릿 `.md` 파일
+- 샘플 `.md` 파일
 - 단위 테스트
 
 ## 5. 기능 정의
@@ -73,8 +73,8 @@
 
 - 앱 실행 시 renderer는 번들된 기본 템플릿을 즉시 로드해 캔버스를 보여준다.
 - 시작 UI에는 `새 파일 만들기`와 `파일 열기` 액션이 항상 보인다.
-- `새 파일 만들기`는 save dialog를 열고 템플릿 `.canvas.md`를 새 경로에 저장한 뒤 바로 로드한다.
-- `파일 열기`는 기존 `.canvas.md`를 선택해 로드한다.
+- `새 파일 만들기`는 save dialog를 열고 템플릿 `.md`를 새 경로에 저장한 뒤 바로 로드한다.
+- `파일 열기`는 기존 `.md`를 선택해 로드한다.
 - `저장`은 현재 문서를 경로에 저장한다. 템플릿 상태로 시작한 경우 첫 저장 시 save dialog를 연다.
 - preload/IPC를 통해 renderer에 파일 생성/열기 결과를 전달한다.
 - renderer는 전달받은 문자열을 파싱하고 결과를 store에 반영한다.
@@ -158,7 +158,7 @@ packages/
 - 치명적 에러와 부분 실패를 구분하는 규칙 정리
 
 완료 기준:
-- 샘플 `.canvas.md`가 부분 실패가 있어도 `CanvasAST`와 issue 목록으로 안정적으로 변환된다.
+- 샘플 `.md`가 부분 실패가 있어도 `CanvasAST`와 issue 목록으로 안정적으로 변환된다.
 
 ### Phase 3. 앱 시작 흐름과 문서 진입
 
@@ -263,8 +263,8 @@ packages/
 ## 10. 완료 기준
 
 - 앱 실행 직후 템플릿 기반 캔버스가 표시된다.
-- `새 파일 만들기`로 템플릿 `.canvas.md`를 생성하고 바로 열 수 있다.
-- 기존 `.canvas.md` 파일 하나를 열 수 있다.
+- `새 파일 만들기`로 템플릿 `.md`를 생성하고 바로 열 수 있다.
+- 기존 `.md` 파일 하나를 열 수 있다.
 - 좌측 상단에 `파일 열기` / `저장` 메뉴가 보인다.
 - 하단 중앙에 `선택` / `Pan` floating tool menu가 보인다.
 - 우측 하단에 zoom control이 보인다.

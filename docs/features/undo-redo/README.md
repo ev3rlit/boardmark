@@ -6,7 +6,7 @@
 
 이번 단계의 목표는 web/desktop 공용 `@boardmark/canvas-app`에서 사용자가 방금 수행한 문서 편집을 안정적으로 되돌리고 다시 적용할 수 있게 만드는 것이다.
 
-핵심은 “모든 UI 상태를 되감는 것”이 아니라, 현재 source-of-truth 구조를 유지한 채 **성공적으로 커밋된 `.canvas.md` 변경**만 history로 관리하는 것이다.
+핵심은 “모든 UI 상태를 되감는 것”이 아니라, 현재 source-of-truth 구조를 유지한 채 **성공적으로 커밋된 `.md` 변경**만 history로 관리하는 것이다.
 
 ---
 

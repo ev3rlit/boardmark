@@ -36,8 +36,8 @@ web shell의 역할은 새 제품을 하나 더 만드는 것이 아니다.
 web shell이 완료되면 아래가 가능해야 한다.
 
 - `apps/web`에서 Boardmark viewer를 브라우저로 실행할 수 있다.
-- 실행 직후 bundled sample `.canvas.md`가 바로 열린다.
-- 브라우저에서 `.canvas.md` 파일을 선택해 로컬 파일 내용을 viewer로 로드할 수 있다.
+- 실행 직후 bundled sample `.md`가 바로 열린다.
+- 브라우저에서 `.md` 파일을 선택해 로컬 파일 내용을 viewer로 로드할 수 있다.
 - web과 desktop은 같은 repository contract와 같은 viewer composition을 사용한다.
 - 같은 markdown source를 주면 web과 desktop의 note / edge / markdown 렌더 결과가 실질적으로 같다.
 
@@ -170,7 +170,7 @@ web shell에서 필요한 locator는 아래 두 가지면 충분하다.
 - `New File`
   - sample board로 reset
 - `Open File`
-  - browser file picker로 `.canvas.md` 선택
+  - browser file picker로 `.md` 선택
 - `Save`
   - 이번 단계에서는 노출하지 않음
 
@@ -232,7 +232,7 @@ web shell의 top-left file menu는 desktop와 동일한 위치를 유지한다.
 
 완료 기준:
 
-- `.canvas.md` 파일을 선택하면 board가 교체된다.
+- `.md` 파일을 선택하면 board가 교체된다.
 - invalid document면 parse error가 shell state로 드러난다.
 
 ### Phase 4. Capability-aware Shell UI
@@ -300,6 +300,6 @@ web shell 작업이 끝나면 아래를 만족해야 한다.
 
 - `apps/web`가 존재한다.
 - web shell은 startup sample을 즉시 렌더한다.
-- local `.canvas.md` upload를 viewer로 확인할 수 있다.
+- local `.md` upload를 viewer로 확인할 수 있다.
 - desktop와 web은 같은 repository contract와 같은 shared viewer shell을 사용한다.
 - shell/store는 markdown parser를 직접 호출하지 않는다.

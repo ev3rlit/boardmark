@@ -118,7 +118,7 @@ After
 
 describe('canvas document edit service compiler', () => {
   it('compiles nudge-objects into header edits without structural impact', () => {
-    const record = readRecord(source, 'nudge.canvas.md')
+    const record = readRecord(source, 'nudge.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(source, record, {
       kind: 'nudge-objects',
@@ -160,7 +160,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('compiles multi-node color edits into canonical style header patches', () => {
-    const record = readRecord(source, 'color.canvas.md')
+    const record = readRecord(source, 'color.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(source, record, {
       kind: 'set-node-style-color',
@@ -186,7 +186,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('compiles arrange-objects into z-only header edits', () => {
-    const record = readRecord(source, 'arrange.canvas.md')
+    const record = readRecord(source, 'arrange.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(source, record, {
       kind: 'arrange-objects',
@@ -217,7 +217,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('patches only selected objects when bring-forward has enough z gap', () => {
-    const record = readRecord(sparseBringForwardSource, 'relative-gap.canvas.md')
+    const record = readRecord(sparseBringForwardSource, 'relative-gap.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(sparseBringForwardSource, record, {
       kind: 'arrange-objects',
@@ -244,7 +244,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('limits local renumbering to the boundary window when the immediate gap is exhausted', () => {
-    const record = readRecord(localRenumberSource, 'relative-local.canvas.md')
+    const record = readRecord(localRenumberSource, 'relative-local.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(localRenumberSource, record, {
       kind: 'arrange-objects',
@@ -269,7 +269,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('preserves contiguous selection order inside a one-slot bring-forward move', () => {
-    const record = readRecord(contiguousSelectionSource, 'relative-block.canvas.md')
+    const record = readRecord(contiguousSelectionSource, 'relative-block.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(contiguousSelectionSource, record, {
       kind: 'arrange-objects',
@@ -295,7 +295,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('keeps one-slot semantics for mixed top-level kinds and still emits header-line edits only', () => {
-    const record = readRecord(mixedOrderingSource, 'mixed-order.canvas.md')
+    const record = readRecord(mixedOrderingSource, 'mixed-order.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(mixedOrderingSource, record, {
       kind: 'arrange-objects',
@@ -323,7 +323,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('compiles set-objects-locked into header edits for explicit targets', () => {
-    const record = readRecord(source, 'lock.canvas.md')
+    const record = readRecord(source, 'lock.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(source, record, {
       kind: 'set-objects-locked',
@@ -360,7 +360,7 @@ describe('canvas document edit service compiler', () => {
   })
 
   it('compiles delete-objects into structural object removals including implicit edges', () => {
-    const record = readRecord(source, 'delete.canvas.md')
+    const record = readRecord(source, 'delete.md')
     const editService = createCanvasDocumentEditService()
     const result = editService.compileTransaction(source, record, {
       kind: 'delete-objects',

@@ -11,7 +11,7 @@
 
 핵심 원칙은 같다.
 
-- 문서 truth는 계속 `.canvas.md`다.
+- 문서 truth는 계속 `.md`다.
 - parser 직접 호출 대신 repository 경계를 유지한다.
 - 호스트 차이는 shell capability와 bridge로만 표현한다.
 - 공용 canvas/editor core는 최대한 `packages/*`에 유지한다.
@@ -93,7 +93,7 @@
 
 ### P0. 공용 검증
 
-- 같은 sample `.canvas.md`를 web / desktop / future webview host에서 렌더 비교할 수 있는 테스트 fixture를 고정한다.
+- 같은 sample `.md`를 web / desktop / future webview host에서 렌더 비교할 수 있는 테스트 fixture를 고정한다.
 - host bridge contract test를 추가한다.
 
 완료 기준:
@@ -189,7 +189,7 @@
 
 ### 목표
 
-`.canvas.md`를 VS Code 안에서 바로 여는 extension을 만든다.
+`.md`를 VS Code 안에서 바로 여는 extension을 만든다.
 
 ### 해야 할 일
 
@@ -199,7 +199,7 @@
 - host ↔ webview message bridge를 만든다.
 - 파일 읽기/쓰기/감시는 extension host가 전담한다.
 - 현재 `packages/*` 공용 코어를 webview bundle에서 재사용한다.
-- `.canvas.md` open command 또는 custom editor 진입점을 결정한다.
+- `.md` open command 또는 custom editor 진입점을 결정한다.
 - packaging/publish 경로를 추가한다.
   - `vsce package`
   - Marketplace publish
@@ -217,7 +217,7 @@
 
 완료 기준:
 
-- VS Code에서 `.canvas.md`를 Boardmark panel로 열 수 있다.
+- VS Code에서 `.md`를 Boardmark panel로 열 수 있다.
 - 외부 raw markdown 수정과 Boardmark panel이 같은 파일 세션 위에서 동작한다.
 
 ---
@@ -226,7 +226,7 @@
 
 ### 목표
 
-Obsidian vault 안의 `.canvas.md` 또는 `.md` 기반 Boardmark 문서를 Obsidian 내부 view로 연다.
+Obsidian vault 안의 `.md` 또는 `.md` 기반 Boardmark 문서를 Obsidian 내부 view로 연다.
 
 ### 해야 할 일
 

@@ -74,7 +74,7 @@ graph TD
 
 ```mermaid
 graph TD
-    MD["Markdown file (.canvas.md)"]
+    MD["Markdown file (.md)"]
     PARSE["canvas-parser<br>parseCanvasDocument()"]
     AST["CanvasAST<br>(nodes, edges, frontmatter)"]
     STORE_NODE["canvas-app Store<br>Zustand"]

@@ -31,7 +31,7 @@
 - source-of-truth를 계속 plain text markdown로 유지한다.
 - note body, edge label, built-in note renderer가 모두 공용 `MarkdownContent`를 쓰고 있어 도입 지점이 좁다.
 - 시스템 설계, 제품 플로우, 운영 다이어그램 같은 고빈도 문서 시나리오를 바로 개선한다.
-- 별도 노드 타입을 추가하지 않아도 기존 `.canvas.md` 안에서 즉시 가치를 낸다.
+- 별도 노드 타입을 추가하지 않아도 기존 `.md` 안에서 즉시 가치를 낸다.
 
 ### 1.3 Product Goal
 
@@ -220,7 +220,7 @@ flowchart TD
 
 ### 6.6 Save / Compatibility Contract
 
-- 기존 `.canvas.md` 문서는 migration 없이 그대로 유효해야 한다.
+- 기존 `.md` 문서는 migration 없이 그대로 유효해야 한다.
 - Mermaid 지원은 source schema version 증가 없이 도입 가능해야 한다.
 - Mermaid가 없는 markdown 문서는 렌더링 결과가 바뀌지 않아야 한다.
 

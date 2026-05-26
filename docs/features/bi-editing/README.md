@@ -5,7 +5,7 @@
 이 문서는 `docs/features/browser-persistence-shell/README.md` 다음 단계인 양방향 편집을, PRD와 구현 계획을 한 파일에 함께 정리한 초안이다.
 
 여기서 양방향 편집의 핵심은 편집 UI 기술이 아니다.  
-핵심은 **canvas UI 조작을 어떻게 `.canvas.md` source patch로 바꾸고, 그 결과를 다시 repository를 통해 AST로 정규화할 것인가**다.
+핵심은 **canvas UI 조작을 어떻게 `.md` source patch로 바꾸고, 그 결과를 다시 repository를 통해 AST로 정규화할 것인가**다.
 
 이 단계의 목표는 아래 세 가지다.
 
@@ -28,7 +28,7 @@
 - note body를 수정할 수 있어야 한다.
 - edge label body를 수정할 수 있어야 한다.
 - content 변경은 AST-only 메모리 수정으로 끝나면 안 된다.
-- content 변경 결과는 항상 다음 `.canvas.md` source snapshot을 만들어야 한다.
+- content 변경 결과는 항상 다음 `.md` source snapshot을 만들어야 한다.
 - 그 source는 다시 `CanvasDocumentRepository`를 통해 `CanvasDocumentRecord`로 정규화되어야 한다.
 
 ### 2.2 Canvas Object Geometry Editing
@@ -68,7 +68,7 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 핵심 요구사항:
 
 - Boardmark는 raw source panel을 따로 제공하지 않는다.
-- VS Code에서 `.canvas.md`를 수정하면 Boardmark는 이를 외부 source 변경으로 받아들여야 한다.
+- VS Code에서 `.md`를 수정하면 Boardmark는 이를 외부 source 변경으로 받아들여야 한다.
 - Boardmark의 local draft와 VS Code raw edit는 같은 file session / save pipeline 위에서 충돌 관리되어야 한다.
 
 ### 2.5 Save / Conflict Integration
@@ -112,7 +112,7 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 
 ## 4. 구현 원칙
 
-### 4.1 Source of Truth는 계속 `.canvas.md`다
+### 4.1 Source of Truth는 계속 `.md`다
 
 - 최종 truth는 runtime UI state나 AST가 아니라 source 문자열이다.
 - AST는 source에서 파생되는 validated view다.
@@ -123,7 +123,7 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 이 단계의 최상위 패턴은 **Canonical Source + Projection**으로 고정한다.
 
 - canonical state
-  - `.canvas.md` source string
+  - `.md` source string
 - projection
   - `CanvasDocumentRecord`
   - `CanvasStore`
@@ -239,7 +239,7 @@ raw markdown 편집은 VS Code 쪽 editing surface가 맡는다.
 
 ### 5.3 External Raw Edit 흐름
 
-사용자가 VS Code에서 raw `.canvas.md`를 수정하면:
+사용자가 VS Code에서 raw `.md`를 수정하면:
 
 1. Boardmark는 이를 외부 source 변경으로 감지한다.
 2. local draft가 clean이면 즉시 reload 한다.
@@ -771,7 +771,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 
 ## 10. 수용 기준
 
-- canvas UI 조작 결과가 실제 `.canvas.md` source patch로 반영된다.
+- canvas UI 조작 결과가 실제 `.md` source patch로 반영된다.
 - content block 수정은 directive body fragment patch로 반영된다.
 - 위치와 크기 수정은 directive opening line attribute patch로 반영된다.
 - create/delete는 object range insert/remove patch로 반영된다.
@@ -792,7 +792,7 @@ bridge interface에 `onExternalChange` callback 또는 `checkExternalChange` pol
 5. External Reconcile + Save Integration
 
 즉 첫 핵심은 편집 UI가 아니라,  
-**canvas 조작을 어떤 source map과 patch 전략으로 `.canvas.md`에 반영할 것인지**를 먼저 고정하는 것이다.
+**canvas 조작을 어떤 source map과 patch 전략으로 `.md`에 반영할 것인지**를 먼저 고정하는 것이다.
 
 ---
 

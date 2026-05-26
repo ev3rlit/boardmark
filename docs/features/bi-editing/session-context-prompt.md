@@ -6,7 +6,7 @@
 
 ## 구현 대상
 
-`docs/features/bi-editing/README.md` — canvas UI 조작을 `.canvas.md` source patch로 반영하는 양방향 편집 파이프라인.
+`docs/features/bi-editing/README.md` — canvas UI 조작을 `.md` source patch로 반영하는 양방향 편집 파이프라인.
 
 구현 순서는 Phase 1 → 2 → 3 → 4 → 5이며, 이 세션에서는 **Phase 1: Object Source Map Foundation**부터 시작한다.
 
@@ -19,7 +19,7 @@
 | 패키지 | 경로 | 역할 |
 |--------|------|------|
 | `@boardmark/canvas-domain` | `packages/canvas-domain/src/index.ts` | 도메인 타입 정의 (CanvasNode, CanvasEdge, CanvasAST, CanvasSourceRange 등) |
-| `@boardmark/canvas-parser` | `packages/canvas-parser/src/index.ts` | `.canvas.md` source → AST 파싱. remark/unified + remark-directive 기반 |
+| `@boardmark/canvas-parser` | `packages/canvas-parser/src/index.ts` | `.md` source → AST 파싱. remark/unified + remark-directive 기반 |
 | `@boardmark/canvas-repository` | `packages/canvas-repository/src/index.ts` | 정규화 경계. source → parse → CanvasDocumentRecord 생성 |
 | `@boardmark/canvas-renderer` | `packages/canvas-renderer/src/index.ts` | ReactFlow 기반 canvas 렌더링 |
 | `@boardmark/canvas-app` | `packages/canvas-app/src/index.ts` | CanvasStore(Zustand), SaveService, DocumentSession, CanvasApp 컴포넌트 |
@@ -30,7 +30,7 @@
 ### 핵심 데이터 흐름 (읽기)
 
 ```
-.canvas.md source
+.md source
   → parseCanvasDocument(source)          # canvas-parser
   → buildRecord(parseResult)             # canvas-repository
   → CanvasDocumentRecord                 # { locator, name, source, ast, issues }
@@ -156,7 +156,7 @@ type CanvasDirectiveSourceMap = {
 
 ## 핵심 설계 원칙 (PRD에서 발췌)
 
-1. **Source of Truth = `.canvas.md` source string**. AST는 파생 view.
+1. **Source of Truth = `.md` source string**. AST는 파생 view.
 2. **Repository 경계 유지**. store/edit service가 parser를 직접 호출하지 않는다.
 3. **Object-local patch 우선**. 작은 편집 때문에 문서 전체를 다시 stringify하지 않는다.
 4. **attributeRanges는 optional**. 첫 버전은 opening line 전체 재구성 방식. 개별 attribute range 추출은 이후 최적화.

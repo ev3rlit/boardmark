@@ -48,9 +48,9 @@ describe('Web App', () => {
     expect(store.getState().isDirty).toBe(true)
   })
 
-  it('opens a local .canvas.md file through the browser persistence bridge', async () => {
+  it('opens a local .md file through the browser persistence bridge', async () => {
     const user = userEvent.setup()
-    window.showOpenFilePicker = async () => [createFileHandle('uploaded.canvas.md', openedSource)]
+    window.showOpenFilePicker = async () => [createFileHandle('uploaded.md', openedSource)]
     const store = createWebStore(async () => openedSource)
 
     render(<App store={store} />)
@@ -60,14 +60,14 @@ describe('Web App', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
     await user.click(screen.getByRole('button', { name: "Don't save" }))
 
-    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.canvas.md'))
+    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.md'))
     expect(store.getState().documentState?.isPersisted).toBe(true)
-    expect(store.getState().document?.name).toBe('uploaded.canvas.md')
+    expect(store.getState().document?.name).toBe('uploaded.md')
   })
 
   it('shows a custom unsaved-changes dialog before opening another file', async () => {
     const user = userEvent.setup()
-    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.md', openedSource)])
     window.showOpenFilePicker = showOpenFilePicker
     const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
@@ -86,7 +86,7 @@ describe('Web App', () => {
 
   it('discards the current draft when opening another file without saving', async () => {
     const user = userEvent.setup()
-    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.md', openedSource)])
     window.showOpenFilePicker = showOpenFilePicker
     const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
@@ -97,15 +97,15 @@ describe('Web App', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Open file' }))
     await user.click(screen.getByRole('button', { name: "Don't save" }))
 
-    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.canvas.md'))
+    await waitFor(() => expect(store.getState().document?.name).toBe('uploaded.md'))
     expect(showOpenFilePicker).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(store.getState().document?.name).toBe('uploaded.canvas.md')
+    expect(store.getState().document?.name).toBe('uploaded.md')
   })
 
   it('keeps the current draft when unsaved-changes dialog is cancelled', async () => {
     const user = userEvent.setup()
-    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.canvas.md', openedSource)])
+    const showOpenFilePicker = vi.fn(async () => [createFileHandle('uploaded.md', openedSource)])
     window.showOpenFilePicker = showOpenFilePicker
     const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
@@ -124,7 +124,7 @@ describe('Web App', () => {
 
   it('surfaces parse failures from broken uploads', async () => {
     const user = userEvent.setup()
-    window.showOpenFilePicker = async () => [createFileHandle('broken.canvas.md', brokenSource)]
+    window.showOpenFilePicker = async () => [createFileHandle('broken.md', brokenSource)]
     const store = createWebStore(async () => brokenSource)
 
     render(<App store={store} />)
@@ -141,7 +141,7 @@ describe('Web App', () => {
 
   it('saves the startup draft through showSaveFilePicker', async () => {
     const user = userEvent.setup()
-    window.showSaveFilePicker = async () => createFileHandle('saved.canvas.md', '')
+    window.showSaveFilePicker = async () => createFileHandle('saved.md', '')
     const store = createWebStore(async () => EMPTY_CANVAS_SOURCE)
 
     render(<App store={store} />)
@@ -174,7 +174,7 @@ version: 2
 Dropped Board
 :::`
       ],
-      'dropped.canvas.md',
+      'dropped.md',
       { type: 'text/markdown' }
     )
 
@@ -200,8 +200,8 @@ Dropped Board
       })
     })
 
-    await waitFor(() => expect(store.getState().document?.name).toBe('dropped.canvas.md'))
-    expect(store.getState().document?.name).toBe('dropped.canvas.md')
+    await waitFor(() => expect(store.getState().document?.name).toBe('dropped.md'))
+    expect(store.getState().document?.name).toBe('dropped.md')
     expect(store.getState().documentState?.isPersisted).toBe(false)
     expect(store.getState().isDirty).toBe(true)
   })

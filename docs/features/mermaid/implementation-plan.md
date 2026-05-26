@@ -52,7 +52,7 @@
 
 - source schema를 건드리지 않는다.
 - source patch, object source map, bi-editing 계약을 건드리지 않는다.
-- 기존 `.canvas.md`와 완전 호환된다.
+- 기존 `.md`와 완전 호환된다.
 
 ### 3.2 Shared Boundary 유지
 
@@ -219,7 +219,7 @@ export async function renderMermaidDiagram(source: string, id: string): Promise<
 
 - `markdown-content.test.tsx` 확장
 - `mermaid-diagram.test.tsx` 추가
-- 필요 시 example `.canvas.md`에 Mermaid fixture 추가
+- 필요 시 example `.md`에 Mermaid fixture 추가
 - web / desktop 수동 검증 체크리스트 수행
 
 완료 기준:

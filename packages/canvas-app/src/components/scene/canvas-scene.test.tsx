@@ -977,7 +977,7 @@ Boardmark Viewer
       locator: {
         kind: 'memory',
         key: 'selection-toolbar-reconcile',
-        name: 'selection-toolbar-reconcile.canvas.md'
+        name: 'selection-toolbar-reconcile.md'
       },
       source: source.replace('Boardmark Viewer', 'Boardmark Viewer updated')
     })
@@ -1885,7 +1885,7 @@ function createPicker(): CanvasDocumentPicker {
       ok: true as const,
       value: {
         kind: 'file' as const,
-        path: '/tmp/test.canvas.md'
+        path: '/tmp/test.md'
       }
     }))
   }
