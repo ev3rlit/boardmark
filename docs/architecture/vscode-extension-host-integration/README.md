@@ -332,6 +332,24 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 - fenced block image export save 구현
 - `webview.asWebviewUri` 변환을 host에서 수행
 
+#### 2026-05-26 slice: 이미지 resolve/open/reveal
+
+우선순위는 상대 이미지 표시를 가장 앞에 둔다. 이유는 이 작업이 VS Code host integration 고유 책임이 크고, shared `CanvasApp`은 이미 `imageAssetBridge` 계약과 이미지 렌더링 호출 경로를 제공하기 때문이다.
+
+이번 slice의 포함 범위:
+
+- markdown 상대 이미지 경로를 문서 디렉터리 기준으로 resolve한다.
+- `/assets/example.png`처럼 leading slash를 가진 경로는 workspace folder 기준으로 resolve한다.
+- webview 표시 URI는 extension host에서 `webview.asWebviewUri`로 변환한다.
+- 선택 이미지 `open` / `reveal`은 VS Code command/env API로 위임한다.
+- webview `request` 응답 payload는 문자열 `src`를 명시적으로 검증한다.
+
+이번 slice의 제외 범위:
+
+- paste/drop image import는 문서 기준 asset directory 정책이 필요하므로 다음 slice로 둔다.
+- fenced block/image export 저장은 VS Code save dialog와 workspace fs 정책을 별도 slice로 둔다.
+- 다중 editor session registry와 conflict UX는 이미지 bridge와 독립된 lifecycle slice로 둔다.
+
 ### Step 6. 다중 panel/session 정리
 
 - URI 단위 session registry
@@ -352,10 +370,12 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 - undo/redo가 VS Code text lifecycle과 충돌하지 않는다.
 - 같은 문서를 text editor와 canvas editor로 동시에 열어도 revision loop가 생기지 않는다.
 - relative image가 webview에서 표시된다.
+- image source가 workspace/document boundary 밖으로 벗어나면 성공처럼 처리하지 않고 resolve error를 표시한다.
 
 코드 검증:
 
 - `pnpm --filter @boardmark/vscode build`
+- `pnpm vitest run apps/vscode/src/extension/markdown-image-source.test.ts`
 - `pnpm typecheck`
 - VS Code extension host 단위 테스트
 - webview bridge 단위 테스트

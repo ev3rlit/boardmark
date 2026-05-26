@@ -254,7 +254,7 @@ export function createHostBridge(): HostBridge {
         }
       }
     },
-    imageAssets: createUnsupportedImageAssetBridge()
+    imageAssets: createVsCodeImageAssetBridge(requestHost, () => current)
   }
 
   const applyHostMessage = (message: HostToWebviewMessage) => {
@@ -407,7 +407,10 @@ function repositoryError(
   }
 }
 
-function createUnsupportedImageAssetBridge(): CanvasImageAssetBridge {
+function createVsCodeImageAssetBridge(
+  requestHost: (message: HostRequestInput) => Promise<unknown>,
+  readCurrent: () => DocumentSnapshot | null
+): CanvasImageAssetBridge {
   const unsupported = (action: string): AsyncResult<never, CanvasImageAssetError> => ({
     ok: false,
     error: {
@@ -420,14 +423,120 @@ function createUnsupportedImageAssetBridge(): CanvasImageAssetBridge {
     async importImageAsset() {
       return unsupported('image import')
     },
-    async resolveImageSource() {
-      return unsupported('relative image resolution')
+    async resolveImageSource({ document, src }) {
+      try {
+        const value = await requestHost({
+          type: 'request',
+          method: 'image/resolve',
+          payload: createImageSourceRequestPayload(src, readDocumentUri(document) ?? readCurrent()?.uri)
+        })
+        const payload = readImageResolvePayload(value)
+
+        if (!payload.ok) {
+          return {
+            ok: false,
+            error: {
+              code: 'resolve-failed',
+              message: payload.error
+            }
+          }
+        }
+
+        return {
+          ok: true,
+          value: payload.value
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'resolve-failed',
+            message: readErrorMessage(error, 'VS Code could not resolve the image source.')
+          }
+        }
+      }
     },
-    async openSource() {
-      return unsupported('opening image sources')
+    async openSource({ document, src }) {
+      try {
+        await requestHost({
+          type: 'request',
+          method: 'image/open',
+          payload: createImageSourceRequestPayload(src, readDocumentUri(document) ?? readCurrent()?.uri)
+        })
+
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'open-failed',
+            message: readErrorMessage(error, 'VS Code could not open the image source.')
+          }
+        }
+      }
     },
-    async revealSource() {
-      return unsupported('revealing image sources')
+    async revealSource({ document, src }) {
+      try {
+        await requestHost({
+          type: 'request',
+          method: 'image/reveal',
+          payload: createImageSourceRequestPayload(src, readDocumentUri(document) ?? readCurrent()?.uri)
+        })
+
+        return {
+          ok: true,
+          value: undefined
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: 'reveal-failed',
+            message: readErrorMessage(error, 'VS Code could not reveal the image source.')
+          }
+        }
+      }
+    }
+  }
+}
+
+function readDocumentUri(document: CanvasDocumentRecord | null | undefined): string | undefined {
+  return document?.locator.kind === 'file' ? document.locator.path : undefined
+}
+
+function createImageSourceRequestPayload(src: string, documentUri: string | undefined) {
+  return {
+    src,
+    documentUri
+  }
+}
+
+function readImageResolvePayload(value: unknown):
+  | { ok: true; value: { src: string } }
+  | { ok: false; error: string } {
+  if (typeof value !== 'object' || value === null || !('src' in value)) {
+    return {
+      ok: false,
+      error: 'VS Code image resolve response must include a string src.'
+    }
+  }
+
+  const record = value as Record<string, unknown>
+
+  if (typeof record.src !== 'string') {
+    return {
+      ok: false,
+      error: 'VS Code image resolve response src must be a string.'
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      src: record.src
     }
   }
 }

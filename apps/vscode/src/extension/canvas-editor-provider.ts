@@ -7,6 +7,7 @@ import {
 import { validateBoardmarkDocument } from './boardmark-document-validation'
 import { renderWebviewHtml } from './webview-html'
 import { TextDocumentBridge } from './text-document-bridge'
+import { handleImageHostRequest, readLocalResourceRoots } from './vscode-image-requests'
 
 /**
  * CustomTextEditorProvider for Boardmark markdown documents.
@@ -46,7 +47,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
 
     panel.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview')]
+      localResourceRoots: readLocalResourceRoots(document, this.context.extensionUri)
     }
     panel.webview.html = renderWebviewHtml({
       webview: panel.webview,
@@ -106,7 +107,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
       if (!isWebviewToHostMessage(raw)) {
         return
       }
-      await this.handleWebviewMessage(raw, document, bridge, sendSync, respond)
+      await this.handleWebviewMessage(raw, document, bridge, panel.webview, sendSync, respond)
     })
 
     panel.onDidDispose(() => {
@@ -120,6 +121,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     message: WebviewToHostMessage,
     document: vscode.TextDocument,
     bridge: TextDocumentBridge,
+    webview: vscode.Webview,
     sendSync: () => void,
     respond: (id: string, result: { ok: true; value?: unknown } | { ok: false; error: string }) => void
   ): Promise<void> {
@@ -196,6 +198,18 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
         return
       }
       case 'request': {
+        const imageResult = await handleImageHostRequest({
+          document,
+          method: message.method,
+          payload: message.payload,
+          webview
+        })
+
+        if (imageResult) {
+          respond(message.id, imageResult)
+          return
+        }
+
         respond(message.id, {
           ok: false,
           error: `VS Code bridge method "${message.method}" is not implemented yet.`

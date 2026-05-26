@@ -43,4 +43,22 @@ describe('VS Code webview protocol guards', () => {
       error: 'stale revision'
     })).toBe(true)
   })
+
+  it('accepts image bridge requests with correlation ids', () => {
+    expect(isWebviewToHostMessage({
+      type: 'request',
+      id: 'image-1',
+      method: 'image/resolve',
+      payload: {
+        documentUri: 'file:///workspace/board.md',
+        src: './assets/example.png'
+      }
+    })).toBe(true)
+
+    expect(isWebviewToHostMessage({
+      type: 'request',
+      id: 'image-2',
+      method: 'image/export'
+    })).toBe(false)
+  })
 })
