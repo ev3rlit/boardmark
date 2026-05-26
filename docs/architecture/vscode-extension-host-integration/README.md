@@ -271,7 +271,24 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 
 ---
 
-## 9. 현재 구현 상태
+## 9. Webview runtime security policy
+
+VS Code webview의 CSP는 extension host의 책임이다. Boardmark 문서 예제, markdown renderer, `packages/ui` 컴포넌트는 VS Code CSP 세부 origin을 알지 않는다.
+
+구조:
+
+- `canvas-editor-provider.ts`: 이 editor가 공식 지원하는 embedded runtime capability를 선택한다.
+- `webview-runtime-policy.ts`: host가 지원하는 runtime capability를 타입으로 표현한다.
+- `webview-csp.ts`: 기본 CSP와 capability별 allowlist를 하나의 문자열로 컴파일한다.
+- `webview-html.ts`: HTML shell, bundle URI, nonce 생성만 담당하고 CSP 세부 조립은 위임한다.
+
+기본 정책은 `default-src 'none'`를 유지한다. 외부 script는 넓게 허용하지 않으며, extension resource와 nonce 중심으로만 로드한다.
+
+첫 적용 사례는 Sandpack remote preview runtime이다. 이 runtime은 sandboxed iframe과 runtime 통신 origin이 필요하므로, host policy를 통해서만 `child-src`, `frame-src`, `connect-src`가 확장된다. CodeSandbox 생성/API origin은 preview runtime 자체에 필요하지 않으므로 별도 capability가 생기기 전까지 허용하지 않는다.
+
+---
+
+## 10. 현재 구현 상태
 
 완료된 host integration:
 
@@ -292,7 +309,7 @@ asset directory 이름은 현재 desktop 규칙처럼 문서 basename 기반으�
 
 ---
 
-## 10. Extension 전용 책임 경계
+## 11. Extension 전용 책임 경계
 
 VS Code extension에 둘 수 있는 코드는 아래에 한정한다.
 
@@ -311,7 +328,7 @@ VS Code extension에 둘 수 있는 코드는 아래에 한정한다.
 
 ---
 
-## 11. 검증 기준
+## 12. 검증 기준
 
 최소 검증:
 
@@ -339,7 +356,7 @@ VS Code extension에 둘 수 있는 코드는 아래에 한정한다.
 
 ---
 
-## 12. 보류
+## 13. 보류
 
 이번 문서가 바로 결정하지 않는 것:
 

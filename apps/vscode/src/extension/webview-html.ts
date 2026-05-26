@@ -1,17 +1,19 @@
 import * as vscode from 'vscode'
+import { compileWebviewCsp } from './webview-csp'
+import type { WebviewRuntimePolicy } from './webview-runtime-policy'
 
 type RenderInput = {
   webview: vscode.Webview
   extensionUri: vscode.Uri
+  runtimePolicy: WebviewRuntimePolicy
 }
 
 /**
  * Builds the HTML shell for the Boardmark webview.
  *
  * Constraints:
- *  - VS Code webviews enforce a strict CSP. We allow only:
- *      script:  the extension's own bundle and its dynamic import chunks
- *      style:   inline styles (Tiptap / xyflow rely on them)
+ *  - VS Code webviews enforce a strict CSP. Host runtime capabilities are
+ *    compiled in `webview-csp.ts` so renderer packages do not own CSP details.
  *  - All asset URIs must be passed through `webview.asWebviewUri` so the
  *    `vscode-resource:` scheme is applied.
  *
@@ -19,21 +21,14 @@ type RenderInput = {
  * with `assets/index-*.js` and `assets/index-*.css`. The exact filenames
  * include hashes; the webview-html module resolves them via the manifest.
  *
- * For Phase 1 we resolve by convention; the manifest read-out is a follow-up.
+ * The stable file names are emitted by `vite.config.webview.ts`.
  */
-export function renderWebviewHtml({ webview, extensionUri }: RenderInput): string {
+export function renderWebviewHtml({ webview, extensionUri, runtimePolicy }: RenderInput): string {
   const webviewRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'webview')
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.js'))
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(webviewRoot, 'assets', 'index.css'))
   const nonce = createNonce()
-
-  const csp = [
-    `default-src 'none'`,
-    `img-src ${webview.cspSource} https: data:`,
-    `font-src ${webview.cspSource}`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `script-src ${webview.cspSource} 'nonce-${nonce}'`
-  ].join('; ')
+  const csp = compileWebviewCsp({ webview, nonce, runtimePolicy })
 
   return /* html */ `<!doctype html>
 <html lang="en">

@@ -8,6 +8,7 @@ import { validateBoardmarkDocument } from './boardmark-document-validation'
 import { renderWebviewHtml } from './webview-html'
 import { TextDocumentBridge } from './text-document-bridge'
 import { handleImageHostRequest, readLocalResourceRoots } from './vscode-image-requests'
+import { BOARDMARK_CANVAS_WEBVIEW_RUNTIME_POLICY } from './webview-runtime-policy'
 
 /**
  * CustomTextEditorProvider for Boardmark markdown documents.
@@ -53,7 +54,8 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider {
     }
     panel.webview.html = renderWebviewHtml({
       webview: panel.webview,
-      extensionUri: this.context.extensionUri
+      extensionUri: this.context.extensionUri,
+      runtimePolicy: BOARDMARK_CANVAS_WEBVIEW_RUNTIME_POLICY
     })
 
     const post = (message: HostToWebviewMessage) => {

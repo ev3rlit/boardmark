@@ -14,7 +14,9 @@ src/
     text-document-bridge.ts     # per-session revision tracking
     markdown-image-source.ts    # markdown image path policy
     vscode-image-requests.ts    # VS Code fs/dialog/image host requests
-    webview-html.ts             # CSP + bundle loader
+    webview-csp.ts              # host CSP compiler
+    webview-html.ts             # HTML shell + bundle loader
+    webview-runtime-policy.ts   # supported embedded runtime capabilities
   webview/     # Browser — canvas-app shell host
     index.html
     main.tsx                    # CanvasApp mount
@@ -35,6 +37,12 @@ pnpm --filter @boardmark/vscode build
 ```
 
 Both bundles use Vite. The extension bundle is built in SSR mode with `vscode` marked external; the webview bundle is built as a regular browser bundle and loaded by `webview-html.ts` via `webview.asWebviewUri`.
+
+## Webview Runtime Policy
+
+VS Code CSP is owned by the extension host, not by Boardmark documents or shared renderers. The provider selects a `WebviewRuntimePolicy`, `webview-csp.ts` compiles that policy into CSP directives, and `webview-html.ts` only places the compiled policy into the HTML shell.
+
+Sandpack remote preview is the first supported embedded runtime capability. Its iframe/child/connect origins are centralized in the CSP compiler so future runtime renderers can extend host policy without teaching document examples or `packages/ui` about VS Code CSP.
 
 ## Development Loop
 
