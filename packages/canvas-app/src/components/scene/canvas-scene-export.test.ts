@@ -35,6 +35,11 @@ describe('canvas scene export', () => {
     toPngMock.mockResolvedValue('data:image/png;base64,sandpack-preview')
     rasterizeSandpackBlockToDataUrlMock.mockResolvedValue('data:image/png;base64,sandpack-preview')
     readSandpackBlockPayloadMock.mockReturnValue(null)
+    // jsdom cannot decode PNGs. Complete the browser image-loading boundary.
+    vi.spyOn(HTMLImageElement.prototype, 'src', 'set').mockImplementation(function (this: HTMLImageElement, src) {
+      this.setAttribute('src', src)
+      queueMicrotask(() => this.dispatchEvent(new Event('load')))
+    })
     Object.defineProperty(window, 'devicePixelRatio', {
       configurable: true,
       value: 2

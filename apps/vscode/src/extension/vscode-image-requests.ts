@@ -268,7 +268,7 @@ function readImageImportPayload(payload: unknown):
         readonly fileName: string
       }
     }
-  | HostRequestResult {
+  | { readonly ok: false; readonly error: string } {
   if (typeof payload !== 'object' || payload === null) {
     return {
       ok: false,
@@ -316,7 +316,7 @@ function readImageExportPayload(payload: unknown):
         readonly mimeType: 'image/jpeg' | 'image/png'
       }
     }
-  | HostRequestResult {
+  | { readonly ok: false; readonly error: string } {
   if (typeof payload !== 'object' || payload === null) {
     return {
       ok: false,

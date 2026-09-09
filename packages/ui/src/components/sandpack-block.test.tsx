@@ -44,7 +44,7 @@ describe('SandpackBlock', () => {
 
     expect(sandpackProviderMock).toHaveBeenCalledWith(expect.objectContaining({
       customSetup: {
-        dependencies: {}
+        dependencies: { html2canvas: '^1.4.1' }
       },
       template: 'react'
     }))
@@ -67,6 +67,7 @@ export default function App() {
     expect(sandpackMock).toHaveBeenCalledWith(expect.objectContaining({
       customSetup: {
         dependencies: {
+          html2canvas: '^1.4.1',
           '@radix-ui/react-dialog': '^1.1.0'
         }
       },

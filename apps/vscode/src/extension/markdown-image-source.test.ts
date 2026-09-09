@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   readMarkdownAssetDirectoryName,
@@ -41,7 +42,7 @@ describe('resolveMarkdownImageSource', () => {
       ok: true,
       value: {
         kind: 'file',
-        fsPath: '/workspace/docs/assets/diagram 1.png',
+        fsPath: resolve('/workspace/docs/assets/diagram 1.png'),
         query: 'raw=1',
         fragment: 'preview'
       }
@@ -57,7 +58,7 @@ describe('resolveMarkdownImageSource', () => {
       ok: true,
       value: {
         kind: 'file',
-        fsPath: '/workspace/assets/logo.png',
+        fsPath: resolve('/workspace/assets/logo.png'),
         query: '',
         fragment: ''
       }

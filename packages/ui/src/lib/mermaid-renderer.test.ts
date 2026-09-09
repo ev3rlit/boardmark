@@ -7,6 +7,7 @@ const { initializeMock, renderMock } = vi.hoisted(() => ({
 
 vi.mock('mermaid', () => ({
   default: {
+    registerIconPacks: vi.fn(),
     initialize: initializeMock,
     render: renderMock
   }
