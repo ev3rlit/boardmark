@@ -55,6 +55,13 @@ type Deferred<T> = {
 }
 
 describe('MarkdownContent', () => {
+  it('resolves DB asset images while still rejecting unsafe link protocols', async () => {
+    const src = `asset:${'a'.repeat(64)}`
+    const resolver = vi.fn().mockResolvedValue({ status: 'resolved', src: 'data:image/png;base64,AQID' })
+    const { container } = render(<MarkdownContent content={`![DB image](${src})\n\n[unsafe](javascript:alert)`} imageResolver={resolver} />)
+    await waitFor(() => expect(resolver).toHaveBeenCalledWith(src))
+    expect(container.querySelector('a')?.getAttribute('href')).toBe('')
+  })
   let writeTextMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {

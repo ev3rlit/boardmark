@@ -247,6 +247,7 @@ function applyEditingOutcome({
     createCanvasDocumentRecordPatch(outcome.record, {
       clipboardState: get().clipboardState,
       documentState: outcome.documentState,
+      editingState: get().editingState,
       groupSelectionState: get().groupSelectionState,
       history: nextHistory,
       viewport: get().viewport,
@@ -368,7 +369,7 @@ async function schedulePersistedAutosave({
 }) {
   const state = get()
 
-  if (!state.document || !state.documentState?.isPersisted || state.conflictState.status === 'conflict') {
+  if (!state.document || !state.documentState?.isPersisted || !state.isDirty || state.conflictState.status === 'conflict') {
     logCanvasDiagnostic('debug', 'Skipped persisted autosave because the current state is not autosave-eligible.', {
       hasDocument: Boolean(state.document),
       isPersisted: state.documentState?.isPersisted ?? false,
@@ -2098,7 +2099,13 @@ export function createCanvasCommandSlice(
         intent: readEditingIntent(session, flushedMarkdown),
         onSuccess() {
           set((currentState) => {
-            if (close) {
+            const liveEditingState = currentState.editingState
+            const changedWhileSaving = liveEditingState.status === 'active' && (
+              liveEditingState.surface === 'wysiwyg'
+                ? hasWysiwygDocumentChanged(flushedDocument, liveEditingState.draftDocument)
+                : liveEditingState.draftMarkdown !== flushedMarkdown
+            )
+            if (close && !changedWhileSaving) {
               return {
                 editingState: { status: 'idle' },
                 operationError: null
@@ -2173,6 +2180,9 @@ export function createCanvasCommandSlice(
 
       if (flushResult) {
         const currentEditingState = get().editingState
+        if (close && currentEditingState.status === 'active' && currentEditingState.dirty) {
+          return get().flushEditingSession(options)
+        }
 
         if (
           currentEditingState.status === 'active' &&

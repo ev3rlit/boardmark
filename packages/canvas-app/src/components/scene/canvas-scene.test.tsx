@@ -71,6 +71,37 @@ const sourceMap = {
 } as const
 
 describe('CanvasScene', () => {
+  it('keeps the managed drag preview through unrelated snapshots and until the commit is projected', async () => {
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    const store = await createHydratedCanvasStore('---\ntype: canvas\nversion: 2\n---\n\n::: note {"id":"a","at":{"x":20,"y":30,"w":320,"h":220}}\nDrag regression\n:::\n')
+    let confirm!: () => void
+    const committed = new Promise<void>(resolve => { confirm = resolve })
+    store.setState({ interactionAuthority: { begin: async () => true, finish: async () => {}, isHeld: () => true },
+      commitNodeMoves: async moves => {
+        await committed
+        store.setState({ nodes: store.getState().nodes.map(node => ({ ...node, at: { ...node.at, x: moves[0].x, y: moves[0].y } })) })
+      }
+    })
+    const { container, unmount } = render(<ReactFlowProvider><CanvasScene {...createSceneInputProps(store)} store={store} /></ReactFlowProvider>)
+    const node = (await screen.findByText('Drag regression')).closest('.react-flow__node') as HTMLElement
+    const pointer = (target: Element | Window, name: string, x: number) => fireEvent(target, new MouseEvent(name, { bubbles: true, button: 0, clientX: x, clientY: 100 }))
+    pointer(node, 'pointerdown', 100)
+    await act(async () => { pointer(window, 'pointermove', 120) })
+    await act(async () => { pointer(window, 'pointermove', 140) })
+    expect(node.style.transform).toContain('60px,30px')
+    await act(async () => { store.setState({ nodes: [...store.getState().nodes] }) })
+    expect(node.style.transform).toContain('60px,30px')
+    pointer(window, 'pointerup', 140)
+    expect(node.style.transform).toContain('60px,30px')
+    const observed: string[] = []
+    const observer = new MutationObserver(() => observed.push(node.style.transform))
+    observer.observe(node, { attributes: true, attributeFilter: ['style'] })
+    await act(async () => { confirm(); await committed })
+    expect(observed.every(position => position.includes('60px,30px'))).toBe(true)
+    expect(container.querySelector('.react-flow__node')?.getAttribute('style')).toContain('60px,30px')
+    observer.disconnect(); unmount(); vi.unstubAllGlobals()
+  })
+
   it('maps canvas nodes into react flow nodes without mutating selection state', () => {
     const nodes: CanvasNode[] = [
       {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ImageInputDialog } from './image-input-dialog'
 import {
   Circle,
   Frame,
@@ -23,6 +24,7 @@ type ToolMenuProps = {
 }
 
 export function ToolMenu({ store }: ToolMenuProps) {
+  const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const createFrameAtViewport = useStore(store, (state) => state.createFrameAtViewport)
   const insertImageFromFile = useStore(store, (state) => state.insertImageFromFile)
   const insertImageFromLink = useStore(store, (state) => state.insertImageFromLink)
@@ -179,6 +181,7 @@ export function ToolMenu({ store }: ToolMenuProps) {
           label="Image"
           onClick={() => setIsImageMenuOpen((current) => !current)}
         />
+        {imageDialogOpen && <ImageInputDialog imageResolver={store.getState().resolveImageSource} onClose={() => setImageDialogOpen(false)} onSubmit={async values => { await insertImageFromLink({ ...values, lockAspectRatio: true }); const error = store.getState().operationError; if (error) throw new Error(error) }} />}
         {isImageMenuOpen ? (
           <div
             className="viewer-context-menu bottom-[calc(100%+0.75rem)] left-0"
@@ -188,23 +191,8 @@ export function ToolMenu({ store }: ToolMenuProps) {
               <button
                 className="viewer-context-menu-item"
                 onClick={() => {
-                  const src = window.prompt('Image URL or local path')
-
-                  if (!src || src.trim().length === 0) {
-                    setIsImageMenuOpen(false)
-                    return
-                  }
-
-                  const alt = window.prompt('Alt text', '') ?? ''
-                  const title = window.prompt('Title (optional)', '') ?? ''
-
                   setIsImageMenuOpen(false)
-                  void insertImageFromLink({
-                    alt,
-                    lockAspectRatio: true,
-                    src: src.trim(),
-                    title: title.trim().length > 0 ? title.trim() : undefined
-                  })
+                  setImageDialogOpen(true)
                 }}
                 role="menuitem"
                 type="button"

@@ -258,18 +258,20 @@ function useToolbarOverlayPosition({
       }
 
       const viewportPadding = 12
+      const canvasTop = anchor.closest('.boardmark-canvas-app')?.getBoundingClientRect().top ?? 0
+      const viewportTop = Math.max(viewportPadding, canvasTop + viewportPadding)
       const gap = 16
       const preferredLeft = anchorRect.left + anchorRect.width / 2 - toolbarWidth / 2
       const maxLeft = Math.max(viewportPadding, window.innerWidth - toolbarWidth - viewportPadding)
       const left = clampNumber(preferredLeft, viewportPadding, maxLeft)
 
-      const hasRoomAbove = anchorRect.top - toolbarHeight - gap >= viewportPadding
+      const hasRoomAbove = anchorRect.top - toolbarHeight - gap >= viewportTop
       const placement = hasRoomAbove ? 'above' : 'below'
       const preferredTop = placement === 'above'
         ? anchorRect.top - toolbarHeight - gap
         : anchorRect.bottom + gap
-      const maxTop = Math.max(viewportPadding, window.innerHeight - toolbarHeight - viewportPadding)
-      const top = clampNumber(preferredTop, viewportPadding, maxTop)
+      const maxTop = Math.max(viewportTop, window.innerHeight - toolbarHeight - viewportPadding)
+      const top = clampNumber(preferredTop, viewportTop, maxTop)
 
       setPosition({
         left,

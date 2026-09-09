@@ -34,6 +34,7 @@ export function createCanvasStore({
   documentRepository,
   documentPersistenceBridge,
   imageAssetBridge,
+  editingService: suppliedEditingService,
   templateSource
 }: CanvasStoreOptions) {
   let disposeExternalChanges: (() => void) | null = null
@@ -44,7 +45,7 @@ export function createCanvasStore({
     documentPersistenceBridge,
     templateSource
   })
-  const editingService = createCanvasEditingService({
+  const editingService = suppliedEditingService ?? createCanvasEditingService({
     documentRepository
   })
   const historyService = createCanvasHistoryService({

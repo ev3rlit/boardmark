@@ -1,4 +1,5 @@
 import type { CanvasStoreState } from '@canvas-app/store/canvas-store-types'
+import type { CanvasEditingMode } from '@canvas-app/store/canvas-store-types'
 
 export function selectCanvasDocument(state: CanvasStoreState) {
   return state.document
@@ -6,6 +7,12 @@ export function selectCanvasDocument(state: CanvasStoreState) {
 
 export function selectCanvasEditingState(state: CanvasStoreState) {
   return state.editingState
+}
+
+export function selectCanvasEditingMode(state: CanvasStoreState): CanvasEditingMode {
+  const editing = state.editingState
+  return editing.status === 'idle' ? { status: 'idle' }
+    : { status: 'active', surface: editing.surface, blockMode: editing.blockMode }
 }
 
 export function selectCanvasIsDropActive(state: CanvasStoreState) {

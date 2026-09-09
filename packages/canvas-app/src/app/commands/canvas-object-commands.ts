@@ -45,7 +45,7 @@ export type CanvasObjectCommandContext = CanvasSelectionSnapshot & {
   copySelection: () => Promise<void>
   cutSelection: () => Promise<void>
   duplicateSelection: () => Promise<void>
-  editingState: CanvasEditingState
+  editingState: Pick<CanvasEditingState, 'status'>
   groupSelection: () => Promise<void>
   nudgeSelection: (dx: number, dy: number) => Promise<void>
   pasteClipboard: () => Promise<void>

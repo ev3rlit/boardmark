@@ -1,15 +1,16 @@
 import type {
   CanvasEditingBlockMode,
+  CanvasEditingMode,
   CanvasEditingSessionState,
   CanvasEditingState,
   CanvasEditingTarget
 } from '@canvas-app/store/canvas-store-types'
 
-export function isCanvasEditingActive(editingState: CanvasEditingState) {
+export function isCanvasEditingActive(editingState: CanvasEditingMode) {
   return editingState.status === 'active'
 }
 
-export function canCanvasMutateSelection(editingState: CanvasEditingState) {
+export function canCanvasMutateSelection(editingState: Pick<CanvasEditingState, 'status'>) {
   return editingState.status === 'idle'
 }
 

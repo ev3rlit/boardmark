@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { NodeToolbar, Position, useInternalNode } from '@xyflow/react'
-import { Ban, Circle, Maximize2, PaintBucket } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { NodeToolbar, Panel, Position, useInternalNode, useStore as useFlowStore } from '@xyflow/react'
+import { Ban, Circle, Maximize2, PaintBucket, Pencil, Copy, Trash2, Move } from 'lucide-react'
 import {
   ColorArea,
   ColorPicker,
@@ -70,6 +70,7 @@ export function SelectionToolbar({
   const nodes = useStore(store, (state) => state.nodes)
   const internalNode = useInternalNode(anchorNodeId)
   const [customPickerColor, setCustomPickerColor] = useState<Color>(parseColor('#FFF5BF'))
+  const [geometryOpen, setGeometryOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const openTarget = selectionToolbarState.nodeId === anchorNodeId ? selectionToolbarState.target : null
   const customPickerOpen =
@@ -178,11 +179,9 @@ export function SelectionToolbar({
   }
 
   return (
-    <NodeToolbar
+    <SelectionToolbarSurface
       isVisible={isVisible}
       nodeId={nodeIds}
-      position={Position.Top}
-      offset={8}
     >
       <div
         className="relative nodrag nopan"
@@ -194,6 +193,10 @@ export function SelectionToolbar({
           className="viewer-control-group"
           role="toolbar"
         >
+          {nodeIds.length === 1 && nodes.find(node => node.id === anchorNodeId)?.component !== 'image' && <button className="viewer-control-button" aria-label="본문 편집" onClick={() => store.getState().startObjectEditing(anchorNodeId)}><Pencil className="viewer-control-icon" /></button>}
+          <button className="viewer-control-button" aria-label="선택 복제" onClick={() => void store.getState().duplicateSelection()}><Copy className="viewer-control-icon" /></button>
+          <button className="viewer-control-button" aria-label="선택 삭제" onClick={() => void store.getState().deleteSelection()}><Trash2 className="viewer-control-icon" /></button>
+          <button className="viewer-control-button" aria-label="위치와 크기 입력" aria-expanded={geometryOpen} onClick={() => setGeometryOpen(!geometryOpen)}><Move className="viewer-control-icon" /></button>
           <button
             aria-label="Auto height"
             aria-pressed={autoHeight}
@@ -265,6 +268,20 @@ export function SelectionToolbar({
             />
           </button>
         </div>
+        {geometryOpen && <form className="selection-geometry-form" aria-label="위치와 크기" onSubmit={event => {
+          event.preventDefault()
+          const data = new FormData(event.currentTarget)
+          const x = Number(data.get('x')), y = Number(data.get('y'))
+          if (nodeIds.length > 1) { void store.getState().nudgeSelection(x, y); setGeometryOpen(false); return }
+          const width = Number(data.get('width')), height = Number(data.get('height'))
+          void commitNodeResize(anchorNodeId, { x, y, width, height })
+          setGeometryOpen(false)
+        }}>
+          <label>{nodeIds.length > 1 ? '가로 이동량' : 'X'}<input name="x" type="number" required defaultValue={nodeIds.length > 1 ? 0 : nodes.find(node => node.id === anchorNodeId)?.at.x} /></label>
+          <label>{nodeIds.length > 1 ? '세로 이동량' : 'Y'}<input name="y" type="number" required defaultValue={nodeIds.length > 1 ? 0 : nodes.find(node => node.id === anchorNodeId)?.at.y} /></label>
+          {nodeIds.length === 1 && <><label>너비<input name="width" type="number" min="120" required defaultValue={nodes.find(node => node.id === anchorNodeId)?.at.w ?? 320} /></label><label>높이<input name="height" type="number" min="120" required defaultValue={nodes.find(node => node.id === anchorNodeId)?.at.h ?? internalNode?.measured?.height ?? 220} /></label></>}
+          <button type="submit">적용</button><button type="button" onClick={() => setGeometryOpen(false)}>닫기</button>
+        </form>}
         {openTarget ? (
           <div
             aria-label={openTarget === 'bg' ? 'Background colors' : 'Outline colors'}
@@ -301,8 +318,16 @@ export function SelectionToolbar({
           </div>
         ) : null}
       </div>
-    </NodeToolbar>
+    </SelectionToolbarSurface>
   )
+}
+
+function SelectionToolbarSurface({ isVisible, nodeId, children }: { isVisible: boolean; nodeId: string[]; children: ReactNode }) {
+  const width = useFlowStore(state => state.width)
+  if (width > 0 && width <= 780) {
+    return isVisible ? <Panel position="top-center" className="selection-mobile-toolbar">{children}</Panel> : null
+  }
+  return <NodeToolbar isVisible={isVisible} nodeId={nodeId} position={Position.Top} offset={8}>{children}</NodeToolbar>
 }
 
 type ColorSectionProps = {

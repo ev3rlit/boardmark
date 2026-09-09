@@ -1,5 +1,5 @@
 import { applyZoomStep } from '@canvas-app/store/canvas-store'
-import type { CanvasEditingState } from '@canvas-app/store/canvas-store'
+import type { CanvasEditingMode } from '@canvas-app/store/canvas-store-types'
 import type {
   CanvasPointerInteractionState,
   CanvasTemporaryPanState,
@@ -24,7 +24,7 @@ export type CanvasAppCommandId =
 
 export type CanvasAppCommandContext = CanvasSelectionSnapshot & {
   deleteSelection: () => Promise<void>
-  editingState: CanvasEditingState
+  editingState: CanvasEditingMode
   objectContextMenuOpen: boolean
   pointerInteractionState: CanvasPointerInteractionState
   temporaryPanState: CanvasTemporaryPanState

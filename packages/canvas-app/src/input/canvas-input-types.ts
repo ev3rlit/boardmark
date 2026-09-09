@@ -9,7 +9,7 @@ import type {
 } from '@canvas-app/app/commands/canvas-object-commands'
 import type { CanvasSelectionSnapshot } from '@canvas-app/store/canvas-object-selection'
 import type {
-  CanvasEditingState,
+  CanvasEditingMode,
   CanvasPointerInteractionState,
   CanvasTemporaryPanState,
   ToolMode
@@ -135,7 +135,7 @@ export type CanvasMatchedInput = {
 export type CanvasInputContext = {
   activeToolMode: ToolMode
   appCommandContext: CanvasAppCommandContext
-  editingState: CanvasEditingState
+  editingState: CanvasEditingMode
   isEditableTarget: boolean
   objectCommandContext: CanvasObjectCommandContext
   objectContextMenuOpen: boolean

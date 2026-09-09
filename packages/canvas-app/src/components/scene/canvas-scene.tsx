@@ -41,6 +41,7 @@ import { MarkdownContent, StickyNoteCard } from '@boardmark/ui'
 import { BodyEditorHost } from '@canvas-app/components/editor/body-editor-host'
 import { readMarkdownLayoutStyle } from '@canvas-app/components/markdown-layout-style'
 import { SelectionToolbar } from '@canvas-app/components/scene/selection-toolbar'
+import { useManagedGeometry } from './use-managed-geometry'
 import { CanvasFlowViewportSync } from '@canvas-app/components/scene/flow/canvas-flow-viewport-sync'
 import {
   applyFlowNodeGeometryDrafts,
@@ -144,13 +145,15 @@ export function CanvasScene({
   const nodes = useStore(store, (state) => state.nodes)
   const edges = useStore(store, (state) => state.edges)
   const viewport = useStore(store, (state) => state.viewport)
+  const interactionAuthority = useStore(store, state => state.interactionAuthority)
   const defaultStyle = useStore(store, (state) => state.document?.ast.frontmatter.defaultStyle)
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
   const selectedNodeIds = useStore(store, (state) => state.selectedNodeIds)
   const selectedEdgeIds = useStore(store, (state) => state.selectedEdgeIds)
   const activeToolMode = useStore(store, readActiveToolMode)
   const pointerInteractionState = useStore(store, (state) => state.pointerInteractionState)
-  const editingState = useStore(store, (state) => state.editingState)
+  const editingStatus = useStore(store, state => state.editingState.status)
+  const editingObjectId = useStore(store, state => state.editingState.status === 'active' && state.editingState.target.kind === 'object-body' ? state.editingState.target.objectId : null)
   const resolveImageSource = useStore(store, (state) => state.resolveImageSource)
   const gridSnappingEnabled = useStore(store, (state) => state.smartGuides.gridSnappingEnabled)
   const viewportSize = useStore(store, (state) => state.viewportSize)
@@ -213,10 +216,8 @@ export function CanvasScene({
     [groups, nodes, selectionToolbarNodeIds]
   )
   const selectionToolbarIsEditing = useMemo(
-    () => editingState.status === 'active' &&
-      editingState.target.kind === 'object-body' &&
-      selectionToolbarNodeIds.includes(editingState.target.objectId),
-    [editingState, selectionToolbarNodeIds]
+    () => editingObjectId !== null && selectionToolbarNodeIds.includes(editingObjectId),
+    [editingObjectId, selectionToolbarNodeIds]
   )
   const selectionToolbarAutoHeight = selectionToolbarNodeIds.length === 1 &&
     selectionToolbarAnchorNode?.at.h === undefined
@@ -254,6 +255,11 @@ export function CanvasScene({
 
     updateFlowNodes(mergeFlowNodes(nextFlowNodes, flowNodesRef.current))
   }
+  useManagedGeometry(viewportRef, store, drafts => {
+    resizePreviewRef.current = drafts
+    if (Object.keys(drafts).length) updateFlowNodes(applyFlowNodeGeometryDrafts(flowNodesRef.current, drafts))
+    else syncFlowNodesFromStore({})
+  })
   const resizeCallbacks = useMemo<ResizeCallbacks>(
     () => ({
       onResizePreview(nodeId, geometry) {
@@ -348,7 +354,7 @@ export function CanvasScene({
   useEffect(() => {
     updateFlowNodes(applyFlowNodeGeometryDrafts(
       mergeFlowNodes(baseFlowNodes, flowNodesRef.current),
-      resizeDrafts
+      resizePreviewRef.current
     ))
   }, [baseFlowNodes, resizeDrafts])
 
@@ -467,7 +473,7 @@ export function CanvasScene({
     <div
       className="relative h-full w-full"
       onContextMenuCapture={(event) => {
-        const intent = readCapturedContextMenuIntent(event, editingState.status)
+        const intent = readCapturedContextMenuIntent(event, editingStatus)
 
         if (!intent) {
           return
@@ -501,7 +507,7 @@ export function CanvasScene({
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        nodesDraggable={pointerCapabilities.nodesDraggable}
+        nodesDraggable={!interactionAuthority && pointerCapabilities.nodesDraggable}
         nodesConnectable={pointerCapabilities.nodesConnectable}
         edgesReconnectable={pointerCapabilities.edgesReconnectable}
         elementsSelectable={pointerCapabilities.elementsSelectable}
@@ -928,6 +934,7 @@ function CanvasNoteNode({
       }}
     >
       <NodeResizer
+        shouldResize={() => !store.getState().interactionAuthority}
         isVisible={selected && !isEditing && !data.locked}
         minWidth={160}
         minHeight={140}
@@ -1081,6 +1088,7 @@ function CanvasComponentNode({
       }}
     >
       <NodeResizer
+        shouldResize={() => !store.getState().interactionAuthority}
         isVisible={selected && !isEditing && !data.locked}
         minWidth={isImageNode ? 96 : 120}
         minHeight={isImageNode ? 96 : 120}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useDropzone } from 'react-dropzone'
 import { useStore } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import {
   readCanvasDocumentBounds,
   readViewportForFitBounds,
@@ -29,7 +30,7 @@ import {
 } from '@canvas-app/app/utils/canvas-app-helpers'
 import {
   selectCanvasDocument,
-  selectCanvasEditingState,
+  selectCanvasEditingMode,
   selectCanvasIsDropActive
 } from '@canvas-app/store/canvas-selectors'
 import { canCanvasMutateSelection } from '@canvas-app/store/canvas-editing-session'
@@ -55,6 +56,7 @@ import {
 import { ObjectContextMenu } from '@canvas-app/components/context-menu/object-context-menu'
 import { StatusPanels } from '@canvas-app/components/controls/status-panels'
 import { ToolMenu } from '@canvas-app/components/controls/tool-menu'
+import { ImageInputDialog } from '@canvas-app/components/controls/image-input-dialog'
 import { ZoomControls } from '@canvas-app/components/controls/zoom-controls'
 import { matchesEscapeKey } from '@canvas-app/keyboard/key-event-matchers'
 import { readSelectionMarkdownContentBody } from '@canvas-app/services/selection-plain-text'
@@ -119,7 +121,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const undo = useStore(store, (state) => state.undo)
   const updateSelectedImageAltText = useStore(store, (state) => state.updateSelectedImageAltText)
   const isDropActive = useStore(store, selectCanvasIsDropActive)
-  const editingState = useStore(store, selectCanvasEditingState)
+  const editingState = useStore(store, useShallow(selectCanvasEditingMode))
   const groups = useStore(store, (state) => state.groups)
   const edges = useStore(store, (state) => state.edges)
   const selectedGroupIds = useStore(store, (state) => state.selectedGroupIds)
@@ -137,6 +139,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
   const startObjectEditing = useStore(store, (state) => state.startObjectEditing)
   const startEdgeEditing = useStore(store, (state) => state.startEdgeEditing)
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
+  const [imageMetadataOpen, setImageMetadataOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null)
   const [exportFormat, setExportFormat] = useState<CanvasExportFormat>('png')
@@ -546,7 +549,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
       <main
         {...getRootProps({
           className:
-            'relative h-screen w-screen overflow-hidden bg-[var(--color-surface)] text-[var(--color-on-surface)]'
+            'boardmark-canvas-app relative h-full w-full overflow-hidden bg-[var(--color-surface)] text-[var(--color-on-surface)]'
         })}
       >
         <input {...getInputProps()} />
@@ -583,10 +586,10 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             <div className="flex h-full items-start justify-between px-5 pt-4">
               <div className="app-no-drag pointer-events-auto">
                 <div className="flex items-center gap-3">
-                  <FileMenu
+                  {(capabilities.canOpen || capabilities.canSave) && <FileMenu
                     store={store}
                     capabilities={capabilities}
-                  />
+                  />}
                   <CanvasNavigationToggleButton
                     isOpen={isNavigationOpen}
                     onClick={() => {
@@ -605,11 +608,11 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             </div>
           </div>
 
-          <div className="pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2">
+          <div className="canvas-primary-tools pointer-events-auto absolute bottom-5 left-1/2 -translate-x-1/2">
             <ToolMenu store={store} />
           </div>
 
-          <div className="pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">
+          <div className="canvas-view-tools pointer-events-auto absolute bottom-5 right-5 flex items-end gap-3">
             <HistoryControls store={store} />
             <ZoomControls
               canFitCanvas={canFitCanvas}
@@ -628,7 +631,7 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             />
           </div>
 
-          <div className="pointer-events-auto absolute left-5 top-24 z-20">
+          <div className="canvas-navigation-position pointer-events-auto absolute left-5 top-24 z-20">
             <NavigationPanel
               isOpen={isNavigationOpen}
               onClose={() => setIsNavigationOpen(false)}
@@ -668,13 +671,8 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
                             ? 'Unlock aspect ratio'
                             : 'Lock aspect ratio',
                         onEditAltText: () => {
-                          const alt = window.prompt('Alt text', selectedNode.alt ?? '')
-
                           setObjectContextMenu(null)
-
-                          if (alt !== null) {
-                            void updateSelectedImageAltText(alt)
-                          }
+                          setImageMetadataOpen(true)
                         },
                         onOpenSource: () => {
                           setObjectContextMenu(null)
@@ -794,6 +792,13 @@ export function CanvasApp({ store, capabilities, imageExportBridge }: CanvasAppP
             </div>
           ) : null}
 
+          {imageMetadataOpen && selectedNode?.component === 'image' && <ImageInputDialog
+            metadataOnly
+            imageResolver={store.getState().resolveImageSource}
+            initial={{ src: selectedNode.src ?? '', alt: selectedNode.alt ?? '', title: selectedNode.title ?? '' }}
+            onClose={() => setImageMetadataOpen(false)}
+            onSubmit={async values => { await updateSelectedImageAltText(values.alt); const error = store.getState().operationError; if (error) throw new Error(error) }}
+          />}
           <CanvasExportDialog
             canExportSelection={canExportSelection}
             errorMessage={exportErrorMessage}

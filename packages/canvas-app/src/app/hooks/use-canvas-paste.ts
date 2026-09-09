@@ -5,12 +5,12 @@ import {
   readClipboardImageFile
 } from '@canvas-app/app/utils/canvas-app-helpers'
 import { isCanvasEditingActive } from '@canvas-app/store/canvas-editing-session'
-import type { CanvasEditingState } from '@canvas-app/store/canvas-store-types'
+import type { CanvasEditingMode } from '@canvas-app/store/canvas-store-types'
 
 type UseCanvasPasteOptions = {
   createMarkdownImageAsset: (file: File) => Promise<string | null>
   clipboardReady: boolean
-  editingState: CanvasEditingState
+  editingState: CanvasEditingMode
   insertImageFromClipboard: (file: File) => Promise<void>
   pasteClipboard: () => Promise<void>
 }

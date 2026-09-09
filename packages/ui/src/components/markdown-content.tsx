@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { BuiltInImageResolution, BuiltInImageResolver } from '@boardmark/canvas-domain'
 import {
@@ -90,17 +90,24 @@ export function MarkdownContent({
     }
   } satisfies Components), [imageResolver])
 
+  // Camera/selection/layout changes do not change the Markdown tree. Keep the
+  // rendered subtree mounted so heavy blocks and editor-adjacent state survive.
+  const renderedMarkdown = useMemo(() => (
+    <ReactMarkdown
+      urlTransform={(url, key) => key === 'src' && /^asset:[a-f0-9]{64}$/.test(url) ? url : defaultUrlTransform(url)}
+      components={markdownComponents}
+      remarkPlugins={[remarkGfm, remarkHtmlBreakToMdastBreak]}
+    >
+      {content}
+    </ReactMarkdown>
+  ), [content, markdownComponents])
+
   return (
     <div
       className={className}
       style={style}
     >
-      <ReactMarkdown
-        components={markdownComponents}
-        remarkPlugins={[remarkGfm, remarkHtmlBreakToMdastBreak]}
-      >
-        {content}
-      </ReactMarkdown>
+      {renderedMarkdown}
     </div>
   )
 }
