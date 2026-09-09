@@ -1,0 +1,45 @@
+.db-workspace { height: 100dvh; position: relative; overflow: hidden; background: var(--color-surface); }
+.db-header { height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: var(--color-surface-lowest); position: relative; z-index: 40; }
+.db-document-title { display: flex; gap: 16px; align-items: baseline; flex: 1; min-width: 0; }
+.db-document-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-document-title span { color: var(--color-on-surface-variant); font-size: 12px; white-space: nowrap; }
+.db-document-title [data-state="failed"], .db-document-title [data-state="offline"] { color: #a13e21; }
+.db-canvas { height: calc(100% - 64px); position: relative; }
+:where(.db-header, .db-library, .db-recovery, .db-connect) button { border: 0; border-radius: 8px; padding: 10px 14px; background: transparent; color: var(--color-on-surface); cursor: pointer; transition: background 100ms, opacity 100ms; }
+:where(.db-header, .db-library, .db-recovery, .db-connect) button:hover { background: var(--color-primary-container); }
+:where(.db-header, .db-library, .db-recovery, .db-connect) button:disabled { opacity: .5; cursor: wait; }
+.db-workspace .db-primary, .db-connect .db-primary { background: var(--color-primary); color: #fbf6ff; }
+.db-workspace :focus-visible, .db-connect :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.db-library { position: absolute; top: 76px; left: 12px; bottom: 100px; z-index: 45; width: min(360px, calc(100% - 24px)); overflow: auto; padding: 24px; box-sizing: border-box; border-radius: 16px; background: var(--color-surface-lowest); box-shadow: 0 20px 40px rgba(43,52,55,.06); animation: db-panel 180ms ease-out; }
+.db-library-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.db-library h2 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+.db-library form { display: grid; gap: 12px; }
+.db-library label, .db-connect label { display: grid; gap: 8px; font-size: 13px; }
+.db-library input, .db-connect input { min-width: 0; padding: 12px; border: 0; border-radius: 8px; background: var(--color-surface-high); color: var(--color-on-surface); font: inherit; }
+.db-import { margin-top: 24px; }
+.db-import input { max-width: 100%; box-sizing: border-box; }
+.db-help { color: var(--color-on-surface-variant); font-size: 12px; line-height: 1.6; }
+.db-library ul { list-style: none; padding: 0; margin: 28px 0; display: grid; gap: 8px; }
+.db-library li button { display: flex; width: 100%; justify-content: space-between; text-align: left; gap: 16px; }
+.db-library li span { overflow-wrap: anywhere; }
+.db-library [aria-current="page"] { background: var(--color-primary-container); }
+.db-document-actions { display: grid; gap: 16px; padding-top: 16px; }
+.db-recovery { position: absolute; z-index: 50; top: 76px; right: 16px; width: min(380px, calc(100% - 32px)); padding: 16px; box-sizing: border-box; background: #fff3e5; border-radius: 12px; font-size: 13px; }
+.db-recovery p { margin: 0 0 12px; overflow-wrap: anywhere; }
+.db-recovery button { margin: 4px 8px 0 0; }
+.db-presence { position: absolute; right: 20px; bottom: 92px; display: grid; gap: 4px; font-size: 11px; color: var(--color-on-surface-variant); pointer-events: none; }
+.db-preparing { position: absolute; top: 76px; right: 16px; z-index: 55; width: min(380px, calc(100% - 32px)); padding: 16px; box-sizing: border-box; background: var(--color-surface-lowest); border-radius: 12px; font-size: 13px; }
+.db-preparing label { display: grid; gap: 12px; }
+.db-preparing textarea { min-height: 80px; padding: 12px; border-radius: 8px; background: var(--color-surface-high); resize: vertical; }
+.db-connect { min-height: 100dvh; display: flex; align-items: center; padding: clamp(24px, 8vw, 120px); box-sizing: border-box; }
+.db-connect form { width: min(480px, 100%); display: grid; gap: 20px; }
+.db-connect h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.18; letter-spacing: -.04em; margin: 8px 0; }
+.db-connect p { margin: 0; line-height: 1.7; }
+.db-eyebrow { font-size: 11px; letter-spacing: .16em; color: var(--color-primary); }
+.db-empty { padding: clamp(32px, 10vw, 140px); }
+.db-empty h2 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -.035em; }
+.db-empty p { color: var(--color-on-surface-variant); line-height: 1.8; }
+@keyframes db-panel { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-height: 520px) { .db-workspace[data-editing="true"] .canvas-primary-tools, .db-workspace[data-editing="true"] .canvas-view-tools, .db-workspace[data-editing="true"] .canvas-navigation-trigger { display: none; } }
+@media (max-width: 640px) { .db-header { padding: 0 12px; gap: 8px; } .db-document-title { display: grid; gap: 2px; } .db-header button { padding: 10px; font-size: 12px; } .db-presence { bottom: 152px; max-width: 70%; } }
+@media (prefers-reduced-motion: reduce) { .db-workspace *, .db-connect * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

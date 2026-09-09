@@ -23,6 +23,13 @@ export default defineConfig({
     }
   },
   plugins: [react(), tailwindcss(), tsconfigPaths()],
+  server: {
+    host: '127.0.0.1',
+    proxy: { '/api': { target: process.env.BOARDMARK_API_PROXY ?? 'http://127.0.0.1:4317' } }
+  },
+  preview: {
+    proxy: { '/api': { target: process.env.BOARDMARK_API_PROXY ?? 'http://127.0.0.1:4317' } }
+  },
   build: {
     outDir: 'dist'
   }
