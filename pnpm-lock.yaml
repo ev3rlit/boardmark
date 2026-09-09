@@ -93,6 +93,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.1(@types/node@22.19.15)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))
+      esbuild:
+        specifier: 0.25.12
+        version: 0.25.12
       jsdom:
         specifier: ^26.0.0
         version: 26.1.0
@@ -121,7 +124,11 @@ importers:
         specifier: ^3.0.9
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.15)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)
 
+  apps/cli: {}
+
   apps/desktop: {}
+
+  apps/server: {}
 
   apps/vscode:
     devDependencies:
@@ -137,6 +144,8 @@ importers:
       '@vercel/analytics':
         specifier: ^2.0.1
         version: 2.0.1(react@18.3.1)
+
+  packages/canvas-api: {}
 
   packages/canvas-app:
     dependencies:
@@ -178,6 +187,8 @@ importers:
         version: 1.7.0(react@18.3.1)
 
   packages/canvas-domain: {}
+
+  packages/canvas-edit: {}
 
   packages/canvas-parser: {}
 
@@ -2203,6 +2214,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@upsetjs/venn.js@2.0.0':
     resolution: {integrity: sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==}
@@ -4543,6 +4555,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0

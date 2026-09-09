@@ -1,0 +1,8 @@
+{
+  "name": "@boardmark/cli",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "boardmark": "dist/main.mjs" },
+  "scripts": { "build": "node build.mjs", "dev": "tsx src/main.ts", "test": "vitest run src" }
+}
