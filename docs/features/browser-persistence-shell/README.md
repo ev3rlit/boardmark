@@ -1,5 +1,7 @@
 # Boardmark Post Web Shell PRD & Implementation Plan
 
+> 2026-09-09 저장 방향 갱신: 이 문서의 파일 직접 저장·extension-first 설명은 이전 기획 또는 파일 호환 모드에 한정한다. 기본 웹/AI 제품은 DB의 Markdown 원문과 공통 API를 사용한다. 충돌하는 설명보다 [현재 저장 계약](../../architecture/db-markdown-api.md)을 우선한다. 이 문서의 기능 상태는 현재 구현과 별도로 확인해야 한다.
+
 ## 1. 목적
 
 이 문서는 `docs/features/web-shell/README.md` 다음 단계에서 진행할 작업을, PRD와 구현 계획을 한 파일에 함께 정리한 문서다.

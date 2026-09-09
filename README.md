@@ -1,87 +1,85 @@
-## Boardmark
+# Boardmark
 
-마크다운 파일 하나로 그리는 캔버스
+Markdown으로 생각을 펼치고, 웹과 AI에서 함께 다듬는 캔버스입니다.
 
-> **이 프로젝트는 실험적 시도입니다.**
->
-> Claude Code, Claude Desktop, Gemini CLI, Codex 같은 AI 에이전트가 가장 잘 하는 일은 두 가지입니다 — 로컬 파일을 읽고, 텍스트를 생성하는 것. 그리고 AI가 가장 빠르고 정확하게 다루는 포맷은 마크다운입니다.
->
-> Boardmark는 이 단순한 관찰에서 출발합니다. 별도의 API나 플러그인 없이, 사용자가 이미 구독하고 있는 AI 도구가 `.md` 파일을 직접 열고, 캔버스를 만들고, 편집할 수 있다면 어떨까. 마크다운은 사람도 쉽게 읽고 고칠 수 있고, AI는 토큰을 아끼면서 높은 품질로 생성할 수 있습니다.
->
-> **핵심은 하나입니다. AI가 마크다운으로 캔버스를 그린다.**
+**DB에 저장한 Markdown 원문이 문서의 단일 원본입니다.** 웹 GUI와 AI CLI는 같은 API를 통해 편집합니다. 노트·연결선·검색 모델은 원문에서 다시 만들 수 있습니다. 웹에서 A 노트를 편집하는 동안 AI는 B를 수정할 수 있지만, 같은 A를 수정하려는 요청은 서버가 차단합니다.
 
+이 방향은 이전의 “AI가 원본 .md 파일을 직접 수정한다”는 설명을 대체합니다. .md는 가져오기·내보내기에 사용하며 DB와 양방향 동기화하지 않습니다.
+
+## 로컬 실행
+
+Node.js **24**와 Corepack이 필요합니다. 저장소의 pnpm 버전은 10.6.2입니다.
+
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev:api
+```
+
+다른 터미널에서 웹을 실행합니다.
+
+```powershell
+corepack pnpm dev:web
+```
+
+[로컬 웹](http://127.0.0.1:5173)을 열고 API 주소 `/api`, `.boardmark/access-token` 파일의 값을 입력합니다. API는 기본적으로 `127.0.0.1:4317`에서만 실행합니다. 문서·첨부·이력은 `.boardmark/boardmark.sqlite`에 저장됩니다. 토큰은 해당 브라우저 탭의 세션 저장소에 보관합니다.
+
+## AI CLI
+
+CLI는 파일이나 DB에 직접 저장하지 않습니다. 읽기 결과의 `revision`은 **읽었을 때의 문서 버전**입니다. 수정안을 만들 때 읽은 값을 제출해야 합니다.
+
+```powershell
+corepack pnpm --silent boardmark document list --json
+corepack pnpm --silent boardmark document import --input board.md --json
+corepack pnpm --silent boardmark node read DOCUMENT_ID NODE_ID --json
+corepack pnpm --silent boardmark node update DOCUMENT_ID NODE_ID --body-file note.md --base-revision 3 --request-id proposal-001 --json
+corepack pnpm --silent boardmark document export DOCUMENT_ID --output backup.boardmark.json --json
+```
+
+ID와 기준 버전은 실제 읽기 결과로 바꿉니다. 다른 노트만 바뀌었다면 적용되지만, 대상이나 관련 구조가 바뀌면 거절합니다. 실패 후 숫자만 최신으로 바꿔 제출하지 말고 수정안을 다시 검토해야 합니다.
+
+본문은 UTF-8 파일 또는 `--body-file -`의 표준 입력으로 전달합니다. 자동화에서는 pnpm의 `--silent`를 사용하거나 빌드 CLI를 직접 실행합니다.
+
+```powershell
+corepack pnpm build:cli
+node apps/cli/dist/main.mjs document list --json
+```
+
+[CLI·운영·복구 안내](docs/operations/db-workspace.md), [편집 정책과 설계 선택](docs/architecture/db-markdown-api.md), [실행·성능 검증 결과](docs/verification/db-workspace.md)를 참고하세요.
+
+## 저장과 파일 호환
+
+편집권은 실제 변경 시작 때 자동으로 확보·갱신하고 마지막 저장 후 반납합니다. 연결이 끊기면 권한은 만료되고 미반영 초안은 브라우저에 별도로 남습니다. Undo는 자신의 대상 변경만 검증하여 되돌립니다.
+
+현재 포맷은 명시적인 객체 ID와 JSON 속성을 가진 Markdown입니다.
+
+```markdown
+---
+type: canvas
+version: 2
 ---
 
-> "AI가 구조를 만들고, 사람은 의미를 완성한다."
-
-Boardmark는 아이디어, 설계, 흐름을 시각적으로 정리할 수 있는 텍스트 기반 캔버스입니다. 스티키 노트와 연결선을 보드 위에 펼치듯 구성하면서도, 모든 결과는 사람이 직접 읽고 수정할 수 있는 마크다운으로 유지됩니다. 별도의 포맷이나 전용 데이터 구조 없이, frontmatter에 `type: canvas`가 있는 `.md` 파일 하나가 곧 작업 공간이 됩니다.
-
-기존 캔버스 도구들은 상태가 내부 구조에 묶여 협업과 버전 관리에 제약이 있었습니다. Boardmark는 이를 텍스트로 전환하여 `git` 기반의 변경 이력 관리와 코드 리뷰 흐름까지 자연스럽게 연결합니다. 결과적으로 문서와 설계, 시각적 사고가 하나의 파일 안에서 일관되게 관리됩니다.
-
-각 노드는 `:::note`, `:::edge`, `:::group` 같은 마크다운 블록으로 표현되며, 위치와 크기, 색상 등의 정보는 YAML 메타데이터로 함께 정의됩니다. 이 구조는 사람이 직접 편집할 수 있을 뿐 아니라, AI 에이전트가 로컬 파일 시스템을 통해 캔버스를 생성하고 수정할 수 있는 인터페이스로 동작합니다.
-
-```md
-:::note
-x: 120
-y: 80
-w: 240
-color: indigo
----
-
-이 기능 구현해줘
-
-:::
-
-:::edge
-from: note-1
-to: note-2
+::: note {"id":"idea","at":{"x":120,"y":80,"w":320,"h":220}}
+사람과 AI가 함께 다듬는 아이디어
 :::
 ```
 
-Boardmark는 텍스트와 시각적 표현을 분리하지 않습니다. 하나의 파일 안에서 사고를 펼치고, AI와 함께 구조를 만들며, 사람의 판단으로 내용을 정제하는 흐름을 제공합니다.
+가져오기는 새 문서를 만들고 원본 파일을 남깁니다. 무수정 내보내기는 원문을 그대로 보존합니다. 첨부 이동에는 `.boardmark.json` 묶음을 사용하세요. CLI는 상대 경로 이미지도 함께 가져옵니다.
 
-## Web Preview
+기존 desktop·VS Code는 **별도의 파일 호환 모드**로 유지되며 서버 문서를 동시에 쓰지 않습니다. VS Code 미저장 TextDocument 버퍼는 서버 원본에 연결되지 않습니다.
 
-로컬 내부용 preview 배포는 정적 빌드 후 Vite preview 서버로 실행한다.
+## 빌드와 배포 경계
 
-```bash
-pnpm install
-pnpm build:web
-pnpm preview:web
+```powershell
+corepack pnpm test
+corepack pnpm typecheck
+corepack pnpm build:web
+corepack pnpm build
+corepack pnpm test:api
 ```
 
-기본 preview 서버는 `127.0.0.1:4173`에만 바인딩되므로 현재 머신에서만 접속할 수 있다.
+`build`는 API·CLI·desktop·web을 빌드합니다. 빌드 API는 저장소 루트에서 `node apps/server/dist/main.mjs`, 웹 preview는 `corepack pnpm preview:web`으로 실행합니다.
 
-같은 내부망 장비에서도 접속해야 하면 아래 명령을 사용한다.
-
-```bash
-pnpm preview:web:lan
-```
-
-이 경우 서버는 `0.0.0.0:4173`으로 열리므로 사내망이나 집 내부망에서만 접근되게 라우터/방화벽 범위 안에서 사용하면 된다.
-
-## Vercel Deployment
-
-Boardmark web 앱은 Vercel에서 루트 프로젝트로 배포한다. 루트 `vercel.json`이 `apps/web`만 빌드하고 `apps/web/dist`를 정적 결과물로 서빙한다.
-
-Vercel 프로젝트 설정은 아래 값과 맞춘다.
-
-```text
-Framework Preset: Vite
-Install Command: pnpm install --frozen-lockfile
-Build Command: pnpm build:web
-Output Directory: apps/web/dist
-Root Directory: .
-```
-
-GitHub 저장소를 Vercel에 연결하면 `main`은 production 배포가 되고, 그 외 브랜치는 preview 배포가 된다. 로컬에서 확인할 때는 아래 명령으로 같은 빌드를 재현한다.
-
-```bash
-pnpm install
-pnpm build:web
-```
-
-공개 저장소로 전환하기 전에는 `.env`, `.env.*`, `.vercel` 같은 로컬 설정 파일이 커밋되지 않았는지 확인한다.
+기존 Vercel 설정은 `apps/web/dist`만 정적으로 배포합니다. **웹 빌드에 DB 서버는 포함되지 않습니다.** 지속 가능한 별도 API 프로세스와 SQLite 볼륨이 필요합니다. 원격 API 주소는 웹 연결 화면에서 설정할 수 있지만, 현재 인증은 하나의 작업 공간 접근 토큰 방식입니다. HTTPS·허용 Origin·접근 통제는 별도로 구성해야 합니다.
 
 ## License
 

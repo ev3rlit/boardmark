@@ -1,5 +1,7 @@
 # Sandboxed HTML PRD
 
+> 2026-09-09 저장 방향 갱신: 이 문서의 파일 직접 저장·extension-first 설명은 이전 기획 또는 파일 호환 모드에 한정한다. 기본 웹/AI 제품은 DB의 Markdown 원문과 공통 API를 사용한다. 충돌하는 설명보다 [현재 저장 계약](../../architecture/db-markdown-api.md)을 우선한다. 이 문서의 기능 상태는 현재 구현과 별도로 확인해야 한다.
+
 ## 1. 목적
 
 이 문서는 Boardmark에서 자유로운 HTML을 지원하되, 현재 앱 DOM에 직접 주입하지 않고 **격리된 샌드박스 surface** 안에서 렌더하는 기능 요구사항을 정리한다.
