@@ -175,7 +175,7 @@ Missing metadata
     )
   })
 
-  it('rejects unsupported top-level header keys like props', () => {
+  it('keeps objects with uninterpreted header attributes readable without rewriting source', () => {
     const source = `---
 type: canvas
 version: 2
@@ -194,13 +194,10 @@ Legacy
       return
     }
 
-    expect(result.value.ast.nodes).toEqual([])
-    expect(result.value.issues).toEqual([
-      expect.objectContaining({
-        kind: 'invalid-node',
-        message: expect.stringContaining('unsupported top-level keys: props')
-      })
-    ])
+    expect(result.value.ast.nodes[0]).toMatchObject({ id: 'legacy', body: 'Legacy\n' })
+    expect(result.value.issues).toEqual([])
+    const range = result.value.ast.nodes[0].sourceMap.headerLineRange
+    expect(source.slice(range.start.offset, range.end.offset)).toContain('props: { palette: amber }')
   })
 
   it('skips invalid edges and missing references individually', () => {

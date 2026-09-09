@@ -1,3 +1,5 @@
+import type { CanvasClipboardPayload, CanvasClipboardNode, CanvasClipboardEdge, CanvasClipboardGroup } from '../../../canvas-edit/src/edit-types'
+export type { CanvasClipboardPayload, CanvasClipboardNode, CanvasClipboardEdge, CanvasClipboardGroup } from '../../../canvas-edit/src/edit-types'
 import type { StoreApi } from 'zustand'
 import type { JSONContent } from '@tiptap/core'
 import type {
@@ -72,6 +74,11 @@ export type CanvasEditingState =
   | { status: 'idle' }
   | CanvasEditingSessionState
 
+// Surrounding commands need interaction mode, not the frequently changing draft.
+export type CanvasEditingMode =
+  | { status: 'idle' }
+  | Pick<CanvasEditingSessionState, 'status' | 'surface' | 'blockMode'>
+
 export type CanvasConflictState =
   | { status: 'idle' }
   | { status: 'conflict'; diskSource: string }
@@ -121,45 +128,6 @@ export type CanvasNodeMove = {
   y: number
 }
 
-export type CanvasClipboardPayload = {
-  edges: CanvasClipboardEdge[]
-  groups: CanvasClipboardGroup[]
-  nodes: CanvasClipboardNode[]
-  origin: CanvasPointer | null
-}
-
-export type CanvasClipboardNode = {
-  id: string
-  component: string
-  at: CanvasObjectAt
-  z?: number
-  locked?: boolean
-  style?: CanvasObjectStyle
-  body?: string
-  src?: string
-  alt?: string
-  title?: string
-  lockAspectRatio?: boolean
-}
-
-export type CanvasClipboardEdge = {
-  id: string
-  from: string
-  to: string
-  z?: number
-  locked?: boolean
-  style?: CanvasObjectStyle
-  body?: string
-}
-
-export type CanvasClipboardGroup = {
-  id: string
-  z?: number
-  locked?: boolean
-  body?: string
-  members: CanvasGroupMembership
-}
-
 export type CanvasClipboardState =
   | { status: 'empty' }
   | { status: 'ready'; payload: CanvasClipboardPayload }
@@ -193,6 +161,7 @@ export type CanvasSmartGuidesState = {
 }
 
 export type CanvasStoreOptions = {
+  editingService?: import('@canvas-app/services/canvas-editing-service').CanvasEditingService
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway
   documentPersistenceBridge?: CanvasDocumentPersistenceBridge
@@ -201,6 +170,11 @@ export type CanvasStoreOptions = {
 }
 
 export type CanvasStoreState = {
+  interactionAuthority?: {
+    begin: (objectIds: string[]) => Promise<boolean>
+    finish: () => Promise<void>
+    isHeld: (objectIds: string[]) => boolean
+  }
   document: CanvasDocumentRecord | null
   lastParsedDocument: CanvasDocumentRecord | null
   documentState: CanvasDocumentState | null

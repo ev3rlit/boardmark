@@ -231,26 +231,25 @@ function parseFrontmatter(
 function splitFrontmatter(
   source: string
 ): Result<SplitFrontmatterResult, CanvasParseError> {
-  if (!source.startsWith('---\n')) {
+  if (!/^(?:\uFEFF)?---\r?\n/.test(source)) {
     return err({
       kind: 'invalid-frontmatter',
       message: 'Document must start with YAML frontmatter.'
     })
   }
 
-  const closingIndex = source.indexOf('\n---\n', 4)
-
-  if (closingIndex === -1) {
+  const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source)
+  if (!match) {
     return err({
       kind: 'invalid-frontmatter',
       message: 'Frontmatter must end with a closing "---" line.'
     })
   }
 
-  const contentStartOffset = closingIndex + 5
+  const contentStartOffset = match[0].length
 
   return ok({
-    frontmatterSource: source.slice(4, closingIndex),
+    frontmatterSource: match[1],
     content: source.slice(contentStartOffset),
     contentStartLine: source.slice(0, contentStartOffset).split('\n').length,
     contentStartOffset
@@ -277,7 +276,8 @@ function splitObjectBlocks({
   let openBlock: BlockHeader | null = null
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? ''
+    const rawLine = lines[index] ?? ''
+    const line = rawLine.replace(/\r$/, '')
     const lineNumber = contentStartLine + index
     const lineStartOffset = currentOffset
     const lineEndOffset = lineStartOffset + line.length
@@ -323,7 +323,7 @@ function splitObjectBlocks({
       }
     }
 
-    currentOffset = lineEndOffset + 1
+    currentOffset = lineStartOffset + rawLine.length + 1
   }
 
   if (openBlock) {
@@ -348,16 +348,7 @@ function parseNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParseIssue
   }
 
   const metadata = metadataResult.value
-  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'at', 'locked', 'style', 'z'].includes(key))
-
-  if (extraKeys.length > 0) {
-    return err(
-      invalidNode(
-        block,
-        `Node "${block.header.name}" contains unsupported top-level keys: ${extraKeys.join(', ')}.`
-      )
-    )
-  }
+  // Unknown attributes remain in the Markdown source and are not interpreted.
 
   if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
     return err(invalidNode(block, 'Node is missing a valid id.'))
@@ -408,18 +399,7 @@ function parseImageNodeBlock(block: ObjectBlock): Result<CanvasNode, CanvasParse
   }
 
   const metadata = metadataResult.value
-  const extraKeys = Object.keys(metadata).filter((key) => {
-    return !['id', 'src', 'alt', 'title', 'lockAspectRatio', 'at', 'locked', 'style', 'z'].includes(key)
-  })
-
-  if (extraKeys.length > 0) {
-    return err(
-      invalidNode(
-        block,
-        `Node "image" contains unsupported top-level keys: ${extraKeys.join(', ')}.`
-      )
-    )
-  }
+  // Unknown attributes remain in the Markdown source and are not interpreted.
 
   if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
     return err(invalidNode(block, 'Image node is missing a valid id.'))
@@ -502,17 +482,7 @@ function parseGroupBlock(block: ObjectBlock): Result<CanvasGroup, CanvasParseIss
   }
 
   const metadata = metadataResult.value
-  const extraKeys = Object.keys(metadata).filter((key) => !['id', 'locked', 'z'].includes(key))
-
-  if (extraKeys.length > 0) {
-    return err(
-      invalidNode(
-        block,
-        `Group contains unsupported top-level keys: ${extraKeys.join(', ')}.`,
-        readOptionalId(metadata.id)
-      )
-    )
-  }
+  // Unknown attributes remain in the Markdown source and are not interpreted.
 
   if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
     return err(invalidNode(block, 'Group is missing a valid id.'))
@@ -557,19 +527,7 @@ function parseEdgeBlock(block: ObjectBlock): Result<CanvasEdge, CanvasParseIssue
   }
 
   const metadata = metadataResult.value
-  const extraKeys = Object.keys(metadata).filter(
-    (key) => !['id', 'from', 'to', 'locked', 'style', 'z'].includes(key)
-  )
-
-  if (extraKeys.length > 0) {
-    return err(
-      invalidEdge(
-        block,
-        `Edge contains unsupported top-level keys: ${extraKeys.join(', ')}.`,
-        readOptionalId(metadata.id)
-      )
-    )
-  }
+  // Unknown attributes remain in the Markdown source and are not interpreted.
 
   if (typeof metadata.id !== 'string' || metadata.id.length === 0) {
     return err(invalidEdge(block, 'Edge is missing a valid id.'))
@@ -1015,6 +973,7 @@ function readOffsetRange(
 }
 
 function readLineBreakOffset(source: string, lineEndOffset: number): number {
+  if (source.slice(lineEndOffset, lineEndOffset + 2) === '\r\n') return lineEndOffset + 2
   return source[lineEndOffset] === '\n' ? lineEndOffset + 1 : lineEndOffset
 }
 
@@ -1043,7 +1002,7 @@ function readLineEndOffset(sourceLocator: SourceLocator, line: number): number {
   const nextLineStart = sourceLocator.lineStarts[line] ?? sourceLocator.source.length
 
   if (nextLineStart > startOffset && sourceLocator.source[nextLineStart - 1] === '\n') {
-    return nextLineStart - 1
+    return sourceLocator.source[nextLineStart - 2] === '\r' ? nextLineStart - 2 : nextLineStart - 1
   }
 
   return nextLineStart

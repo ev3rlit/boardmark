@@ -7,22 +7,22 @@ type: canvas
 version: 2
 ---
 
-::: group { id: ideation-group, z: 1 }
+::: group {"id":"ideation-group","z":1}
 ~~~yaml members
 nodes:
   - welcome
 ~~~
 :::
 
-::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 2 }
+::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220},"z":2}
 Boardmark Viewer
 :::
 
-::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 }, z: 3 }
+::: note {"id":"overview","at":{"x":380,"y":72,"w":320,"h":220},"z":3}
 Overview
 :::
 
-::: edge { id: welcome-overview, from: welcome, to: overview, z: 4 }
+::: edge {"id":"welcome-overview","from":"welcome","to":"overview","z":4}
 main thread
 :::`
 
@@ -31,19 +31,19 @@ type: canvas
 version: 2
 ---
 
-::: note { id: alpha, at: { x: 80, y: 72, w: 200, h: 120 }, z: 100 }
+::: note {"id":"alpha","at":{"x":80,"y":72,"w":200,"h":120},"z":100}
 Alpha
 :::
 
-::: note { id: beta, at: { x: 320, y: 72, w: 200, h: 120 }, z: 200 }
+::: note {"id":"beta","at":{"x":320,"y":72,"w":200,"h":120},"z":200}
 Beta
 :::
 
-::: note { id: gamma, at: { x: 560, y: 72, w: 200, h: 120 }, z: 500 }
+::: note {"id":"gamma","at":{"x":560,"y":72,"w":200,"h":120},"z":500}
 Gamma
 :::
 
-::: note { id: delta, at: { x: 800, y: 72, w: 200, h: 120 }, z: 900 }
+::: note {"id":"delta","at":{"x":800,"y":72,"w":200,"h":120},"z":900}
 Delta
 :::`
 
@@ -52,19 +52,19 @@ type: canvas
 version: 2
 ---
 
-::: note { id: alpha, at: { x: 80, y: 72, w: 200, h: 120 }, z: 100 }
+::: note {"id":"alpha","at":{"x":80,"y":72,"w":200,"h":120},"z":100}
 Alpha
 :::
 
-::: note { id: beta, at: { x: 320, y: 72, w: 200, h: 120 }, z: 150 }
+::: note {"id":"beta","at":{"x":320,"y":72,"w":200,"h":120},"z":150}
 Beta
 :::
 
-::: note { id: gamma, at: { x: 560, y: 72, w: 200, h: 120 }, z: 200 }
+::: note {"id":"gamma","at":{"x":560,"y":72,"w":200,"h":120},"z":200}
 Gamma
 :::
 
-::: note { id: delta, at: { x: 800, y: 72, w: 200, h: 120 }, z: 201 }
+::: note {"id":"delta","at":{"x":800,"y":72,"w":200,"h":120},"z":201}
 Delta
 :::`
 
@@ -73,23 +73,23 @@ type: canvas
 version: 2
 ---
 
-::: note { id: alpha, at: { x: 80, y: 72, w: 200, h: 120 }, z: 100 }
+::: note {"id":"alpha","at":{"x":80,"y":72,"w":200,"h":120},"z":100}
 Alpha
 :::
 
-::: note { id: beta, at: { x: 320, y: 72, w: 200, h: 120 }, z: 150 }
+::: note {"id":"beta","at":{"x":320,"y":72,"w":200,"h":120},"z":150}
 Beta
 :::
 
-::: note { id: charlie, at: { x: 560, y: 72, w: 200, h: 120 }, z: 250 }
+::: note {"id":"charlie","at":{"x":560,"y":72,"w":200,"h":120},"z":250}
 Charlie
 :::
 
-::: note { id: delta, at: { x: 800, y: 72, w: 200, h: 120 }, z: 300 }
+::: note {"id":"delta","at":{"x":800,"y":72,"w":200,"h":120},"z":300}
 Delta
 :::
 
-::: note { id: epsilon, at: { x: 1040, y: 72, w: 200, h: 120 }, z: 700 }
+::: note {"id":"epsilon","at":{"x":1040,"y":72,"w":200,"h":120},"z":700}
 Epsilon
 :::`
 
@@ -98,21 +98,21 @@ type: canvas
 version: 2
 ---
 
-::: group { id: cluster, z: 100 }
+::: group {"id":"cluster","z":100}
 ~~~yaml members
 nodes: []
 ~~~
 :::
 
-::: note { id: card, at: { x: 80, y: 72, w: 240, h: 160 }, z: 200 }
+::: note {"id":"card","at":{"x":80,"y":72,"w":240,"h":160},"z":200}
 Card
 :::
 
-::: edge { id: card-link, from: card, to: after, z: 300 }
+::: edge {"id":"card-link","from":"card","to":"after","z":300}
 Link
 :::
 
-::: note { id: after, at: { x: 360, y: 72, w: 240, h: 160 }, z: 301 }
+::: note {"id":"after","at":{"x":360,"y":72,"w":240,"h":160},"z":301}
 After
 :::`
 
@@ -155,8 +155,8 @@ describe('canvas document edit service compiler', () => {
         structuralImpact: 'none'
       })
     ])
-    expect(result.value.edits[0]?.replacement).toContain('x: 90')
-    expect(result.value.edits[1]?.replacement).toContain('x: 390')
+    expect(result.value.edits[0]?.replacement).toContain('"x":90')
+    expect(result.value.edits[1]?.replacement).toContain('"x":390')
   })
 
   it('compiles multi-node color edits into canonical style header patches', () => {
@@ -178,10 +178,10 @@ describe('canvas document edit service compiler', () => {
     expect(result.value.intentKind).toBe('set-node-style-color')
     expect(result.value.edits).toHaveLength(2)
     expect(result.value.edits[0]?.replacement).toContain(
-      'style: { bg: { color: "#D7E8FF" } }'
+      '"style":{"bg":{"color":"#D7E8FF"}}'
     )
     expect(result.value.edits[1]?.replacement).toContain(
-      'style: { bg: { color: "#D7E8FF" } }'
+      '"style":{"bg":{"color":"#D7E8FF"}}'
     )
   })
 
@@ -405,7 +405,7 @@ function readRecord(source: string, name: string) {
 }
 
 function readReplacementZ(edit: { replacement: string }) {
-  const match = /z:\s*(-?\d+)/.exec(edit.replacement)
+  const match = /"z":\s*(-?\d+)/.exec(edit.replacement)
 
   if (!match) {
     throw new Error(`Missing z value in replacement: ${edit.replacement}`)

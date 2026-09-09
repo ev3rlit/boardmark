@@ -22,15 +22,15 @@ viewport:
   zoom: 0.92
 ---
 
-::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220}}
 Boardmark Viewer
 :::
 
-::: note { id: overview, at: { x: 380, y: 72, w: 320, h: 220 } }
+::: note {"id":"overview","at":{"x":380,"y":72,"w":320,"h":220}}
 Overview
 :::
 
-::: edge { id: welcome-overview, from: welcome, to: overview }
+::: edge {"id":"welcome-overview","from":"welcome","to":"overview"}
 main thread
 :::`
 
@@ -43,15 +43,15 @@ viewport:
   zoom: 1.2
 ---
 
-::: note { id: open, at: { x: 24, y: 24, w: 320, h: 220 } }
+::: note {"id":"open","at":{"x":24,"y":24,"w":320,"h":220}}
 Opened Board
 :::
 
-::: note { id: next, at: { x: 360, y: 24, w: 320, h: 220 } }
+::: note {"id":"next","at":{"x":360,"y":24,"w":320,"h":220}}
 Next
 :::
 
-::: edge { id: open-next, from: open, to: ghost }
+::: edge {"id":"open-next","from":"open","to":"ghost"}
 broken flow
 :::`
 
@@ -64,26 +64,26 @@ viewport:
   zoom: 0.92
 ---
 
-::: group { id: ideation-group, z: 1 }
+::: group {"id":"ideation-group","z":1}
 ~~~yaml members
 nodes:
   - welcome
 ~~~
 :::
 
-::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 2 }
+::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220},"z":2}
 Boardmark Viewer
 :::
 
-::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 3 }
+::: note {"id":"overview","at":{"x":420,"y":72,"w":320,"h":220},"z":3}
 Overview
 :::
 
-::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4 }
+::: note {"id":"solo","at":{"x":760,"y":72,"w":320,"h":220},"z":4}
 Solo
 :::
 
-::: edge { id: overview-solo, from: overview, to: solo, z: 5 }
+::: edge {"id":"overview-solo","from":"overview","to":"solo","z":5}
 main thread
 :::`
 
@@ -433,7 +433,7 @@ viewport:
   zoom: 0.92
 ---
 
-::: boardmark.shape.roundRect { id: shape-1, at: { x: 80, y: 72, w: 320, h: 220 } }
+::: boardmark.shape.roundRect {"id":"shape-1","at":{"x":80,"y":72,"w":320,"h":220}}
 Shape body
 :::`
     })
@@ -479,7 +479,7 @@ Shape body
     await store.getState().groupSelection()
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: group-1, z: 1 }'
+      '::: group {"id":"group-1","z":1}'
     )
     expect(store.getState().draftSource).toContain(
       '~~~yaml members\nnodes:\n  - welcome\n  - overview\n~~~'
@@ -584,7 +584,7 @@ Shape body
     await store.getState().copySelectionAsRawText()
 
     expect(writeText).toHaveBeenCalledWith(
-      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }\nBoardmark Viewer\n:::'
+      '::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220}}\nBoardmark Viewer\n:::'
     )
     expect(store.getState().operationError).toBeNull()
   })
@@ -654,10 +654,10 @@ Shape body
     await store.getState().pasteClipboard()
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-1, at: { x: 520, y: 360, w: 320, h: 220 }, z: 1 }'
+      '::: note {"id":"note-1","at":{"x":520,"y":360,"w":320,"h":220},"z":1}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-2, at: { x: 820, y: 360, w: 320, h: 220 }, z: 2 }'
+      '::: note {"id":"note-2","at":{"x":820,"y":360,"w":320,"h":220},"z":2}'
     )
     expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
     expect(store.getState().selectedEdgeIds).toEqual(['edge-1'])
@@ -699,12 +699,12 @@ Shape body
     expect(repository.readSource).toHaveBeenCalledWith(
       expect.objectContaining({
         source: expect.stringContaining(
-          '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+          '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
         )
       })
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
     )
     expect(store.getState().isDirty).toBe(true)
   })
@@ -718,15 +718,15 @@ type: canvas
 version: 2
 ---
 
-::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }
+::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220}}
 Boardmark Viewer
 :::
 
-::: boardmark.shape.rect { id: shape-1, at: { x: 420, y: 72, w: 180, h: 120 } }
+::: boardmark.shape.rect {"id":"shape-1","at":{"x":420,"y":72,"w":180,"h":120}}
 Rectangle
 :::
 
-::: image { id: image-1, src: /hero.png, alt: Hero, lockAspectRatio: true, at: { x: 720, y: 72, w: 280, h: 180 } }
+::: image {"id":"image-1","src":"/hero.png","alt":"Hero","lockAspectRatio":true,"at":{"x":720,"y":72,"w":280,"h":180}}
 :::`
     })
 
@@ -735,10 +735,10 @@ Rectangle
     await store.getState().setSelectedObjectColor('bg', '#D7E8FF')
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, style: { bg: { color: "#D7E8FF" } } }'
+      '::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220},"style":{"bg":{"color":"#D7E8FF"}}}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: boardmark.shape.rect { id: shape-1, at: { x: 420, y: 72, w: 180, h: 120 }, style: { bg: { color: "#D7E8FF" } } }'
+      '::: boardmark.shape.rect {"id":"shape-1","at":{"x":420,"y":72,"w":180,"h":120},"style":{"bg":{"color":"#D7E8FF"}}}'
     )
     expect(store.getState().nodes.find((node) => node.id === 'welcome')?.style?.bg?.color).toBe('#D7E8FF')
     expect(store.getState().nodes.find((node) => node.id === 'shape-1')?.style?.bg?.color).toBe('#D7E8FF')
@@ -758,7 +758,7 @@ Rectangle
     await store.getState().setSelectedObjectColor('bg', CANVAS_NO_FILL_COLOR)
 
     expect(store.getState().draftSource).toContain(
-      `style: { bg: { color: "${CANVAS_NO_FILL_COLOR}" } }`
+      `"style":{"bg":{"color":"${CANVAS_NO_FILL_COLOR}"}}`
     )
     expect(store.getState().nodes.find((node) => node.id === 'welcome')?.style?.bg?.color).toBe(
       CANVAS_NO_FILL_COLOR
@@ -790,15 +790,15 @@ Rectangle
     expect(repository.readSource).toHaveBeenCalledWith(
       expect.objectContaining({
         source: expect.stringContaining(
-          '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+          '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
         )
       })
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: overview, at: { x: 420, y: 180, w: 320, h: 220 } }'
+      '::: note {"id":"overview","at":{"x":420,"y":180,"w":320,"h":220}}'
     )
     expect(store.getState().history.past).toHaveLength(1)
   })
@@ -825,10 +825,10 @@ Rectangle
     ])
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 }, z: 2 }'
+      '::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220},"z":2}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: solo, at: { x: 820, y: 160, w: 320, h: 220 }, z: 4 }'
+      '::: note {"id":"solo","at":{"x":820,"y":160,"w":320,"h":220},"z":4}'
     )
 
     store.getState().clearSelection()
@@ -843,7 +843,7 @@ Rectangle
     ])
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 180, y: 200, w: 320, h: 220 }, z: 2 }'
+      '::: note {"id":"welcome","at":{"x":180,"y":200,"w":320,"h":220},"z":2}'
     )
   })
 
@@ -861,13 +861,13 @@ Rectangle
     expect(store.getState().history.past).toHaveLength(1)
     expect(store.getState().history.future).toHaveLength(0)
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
     )
 
     await store.getState().undo()
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 80, y: 72, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":80,"y":72,"w":320,"h":220}}'
     )
     expect(store.getState().selectedNodeIds).toEqual(['welcome'])
     expect(store.getState().history.past).toHaveLength(0)
@@ -876,7 +876,7 @@ Rectangle
     await store.getState().redo()
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 140, y: 160, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":140,"y":160,"w":320,"h":220}}'
     )
     expect(store.getState().selectedNodeIds).toEqual(['welcome'])
     expect(store.getState().history.past).toHaveLength(1)
@@ -896,7 +896,7 @@ Rectangle
     await store.getState().commitNodeMove('welcome', 220, 260)
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 220, y: 260, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":220,"y":260,"w":320,"h":220}}'
     )
     expect(store.getState().history.past).toHaveLength(1)
     expect(store.getState().history.future).toHaveLength(0)
@@ -917,7 +917,7 @@ Rectangle
     await store.getState().createFrameAtViewport()
 
     expect(store.getState().draftSource).toContain(
-      '::: boardmark.shape.roundRect { id: shape-1, at: { x: 681, y: 382, w: 420, h: 280 } }'
+      '::: boardmark.shape.roundRect {"id":"shape-1","at":{"x":681,"y":382,"w":420,"h":280}}'
     )
     expect(store.getState().draftSource).toContain('```yaml props\npalette: neutral\ntone: soft\n```')
     expect(
@@ -940,7 +940,7 @@ Rectangle
     await store.getState().createNoteAtViewport()
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-1, at: { x: 731, y: 412, w: 320, h: 220 } }'
+      '::: note {"id":"note-1","at":{"x":731,"y":412,"w":320,"h":220}}'
     )
   })
 
@@ -976,7 +976,7 @@ Rectangle
 
   it('keeps the last parsed document when a patch produces invalid source', async () => {
     const repository = createRepository({
-      failOnSource: 'x: NaN'
+      failOnSource: '"x":null'
     })
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -994,7 +994,7 @@ Rectangle
 
   it('does not push history when a batch move produces invalid source', async () => {
     const repository = createRepository({
-      failOnSource: 'x: NaN'
+      failOnSource: '"x":null'
     })
     const store = createCanvasStore({
       documentPicker: createPicker(),
@@ -1189,7 +1189,7 @@ Rectangle
     await store.getState().setSelectionLocked(true)
 
     expect(store.getState().history.past).toHaveLength(1)
-    expect(store.getState().draftSource).toContain('locked: true')
+    expect(store.getState().draftSource).toContain('"locked":true')
 
     await store.getState().undo()
 
@@ -1209,20 +1209,20 @@ Rectangle
 
     expect(store.getState().history.past).toHaveLength(1)
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-1, at: { x: 96, y: 88, w: 320, h: 220 }, z: 1 }'
+      '::: note {"id":"note-1","at":{"x":96,"y":88,"w":320,"h":220},"z":1}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-2, at: { x: 396, y: 88, w: 320, h: 220 }, z: 2 }'
+      '::: note {"id":"note-2","at":{"x":396,"y":88,"w":320,"h":220},"z":2}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: edge-1, from: note-1, to: note-2, z: 3 }'
+      '::: edge {"id":"edge-1","from":"note-1","to":"note-2","z":3}'
     )
     expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
     expect(store.getState().selectedEdgeIds).toEqual(['edge-1'])
 
     await store.getState().undo()
 
-    expect(store.getState().draftSource).not.toContain('::: note { id: note-1')
+    expect(store.getState().draftSource).not.toContain('::: note {"id":"note-1"')
     expect(store.getState().draftSource).not.toContain('::: edge { id: edge-1')
   })
 
@@ -1241,16 +1241,16 @@ Rectangle
     await store.getState().pasteClipboard()
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: group-2, z: 2 }'
+      '::: group {"id":"group-2","z":2}'
     )
     expect(store.getState().draftSource).toContain(
       '~~~yaml members\nnodes:\n  - note-1\n  - note-2\n~~~'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-1, at: { x: 600, y: 400, w: 320, h: 220 }, z: 3 }'
+      '::: note {"id":"note-1","at":{"x":600,"y":400,"w":320,"h":220},"z":3}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: edge-1, from: note-1, to: note-2, z: 5 }'
+      '::: edge {"id":"edge-1","from":"note-1","to":"note-2","z":5}'
     )
     expect(store.getState().selectedGroupIds).toEqual(['group-2'])
     expect(store.getState().selectedNodeIds).toEqual(['note-1', 'note-2'])
@@ -1270,10 +1270,10 @@ Rectangle
     await store.getState().pasteClipboardInPlace()
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-1, at: { x: 80, y: 72, w: 320, h: 220 }, z: 1 }'
+      '::: note {"id":"note-1","at":{"x":80,"y":72,"w":320,"h":220},"z":1}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: note-2, at: { x: 380, y: 72, w: 320, h: 220 }, z: 2 }'
+      '::: note {"id":"note-2","at":{"x":380,"y":72,"w":320,"h":220},"z":2}'
     )
   })
 
@@ -1290,7 +1290,7 @@ Rectangle
     await store.getState().nudgeSelection(10, 0)
 
     expect(store.getState().draftSource).toContain(
-      '::: note { id: welcome, at: { x: 91, y: 72, w: 320, h: 220 } }'
+      '::: note {"id":"welcome","at":{"x":91,"y":72,"w":320,"h":220}}'
     )
 
     store.getState().replaceSelectedEdges(['welcome-overview'])
@@ -1333,13 +1333,13 @@ Rectangle
     await store.getState().arrangeSelection('bring-to-front')
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: ideation-group, z: 105 }'
+      '::: group {"id":"ideation-group","z":105}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: overview, at: { x: 420, y: 72, w: 320, h: 220 }, z: 205 }'
+      '::: note {"id":"overview","at":{"x":420,"y":72,"w":320,"h":220},"z":205}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: overview-solo, from: overview, to: solo, z: 305 }'
+      '::: edge {"id":"overview-solo","from":"overview","to":"solo","z":305}'
     )
     expect(store.getState().selectedGroupIds).toEqual(['ideation-group'])
     expect(store.getState().selectedNodeIds).toEqual(['overview'])
@@ -1362,13 +1362,13 @@ Rectangle
     await store.getState().setSelectionLocked(true)
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: ideation-group, z: 1, locked: true }'
+      '::: group {"id":"ideation-group","z":1,"locked":true}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4, locked: true }'
+      '::: note {"id":"solo","at":{"x":760,"y":72,"w":320,"h":220},"z":4,"locked":true}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: overview-solo, from: overview, to: solo, z: 5, locked: true }'
+      '::: edge {"id":"overview-solo","from":"overview","to":"solo","z":5,"locked":true}'
     )
 
     const lockedSource = store.getState().draftSource
@@ -1399,13 +1399,13 @@ Rectangle
     await store.getState().setSelectionLocked(false)
 
     expect(store.getState().draftSource).toContain(
-      '::: group { id: ideation-group, z: 1 }'
+      '::: group {"id":"ideation-group","z":1}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: note { id: solo, at: { x: 760, y: 72, w: 320, h: 220 }, z: 4 }'
+      '::: note {"id":"solo","at":{"x":760,"y":72,"w":320,"h":220},"z":4}'
     )
     expect(store.getState().draftSource).toContain(
-      '::: edge { id: overview-solo, from: overview, to: solo, z: 5 }'
+      '::: edge {"id":"overview-solo","from":"overview","to":"solo","z":5}'
     )
     expect(store.getState().draftSource).not.toContain('locked: false')
   })
@@ -1441,7 +1441,7 @@ Rectangle
   it('does not push history when a transaction fails during repository reparse', async () => {
     const store = createCanvasStore({
       documentPicker: createPicker(),
-      documentRepository: createRepository({ failOnSource: 'locked: true' }),
+      documentRepository: createRepository({ failOnSource: '"locked":true' }),
       templateSource: arrangeLockSource
     })
 
