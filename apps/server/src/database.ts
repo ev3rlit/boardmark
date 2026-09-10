@@ -9,6 +9,9 @@ import { prepareRevert } from './revert-policy'
 export class BoardDatabase {
   private readonly db: DatabaseSync
   private readonly owner = randomUUID()
+  // Keep only the most recent plan. SQLite revision is checked on every use;
+  // permissions and object versions are always checked again at commit.
+  private prepared: { id: string; revision: number; command: string; plan: ReturnType<typeof prepareEdit> } | null = null
 
   constructor(path: string, private readonly now: () => number = Date.now) {
     this.db = new DatabaseSync(path)
@@ -221,7 +224,16 @@ export class BoardDatabase {
   }
 
   plan(id: string, command: EditRequest['command']) {
-    return { objects: prepareEdit(this.read(id), command).targets }
+    return { objects: [...this.prepare(this.read(id), command).targets] }
+  }
+
+  private prepare(doc: DocumentSnapshot, command: EditRequest['command']) {
+    const key = JSON.stringify(command)
+    const cached = this.prepared
+    if (cached?.id === doc.id && cached.revision === doc.revision && cached.command === key) return cached.plan
+    const plan = prepareEdit(doc, command)
+    this.prepared = { id: doc.id, revision: doc.revision, command: key, plan }
+    return plan
   }
 
   revert(id: string, session: string, input: { requestId: string; revision: number }) {
@@ -253,15 +265,14 @@ export class BoardDatabase {
   edit(id: string, session: string, input: EditRequest): DocumentSnapshot {
     return this.transaction(() => this.once(session, input.requestId, { action: 'edit', id, ...input }, () => {
       const doc = this.read(id)
-      const plan = prepareEdit(doc, input.command)
+      const plan = this.prepare(doc, input.command)
       this.checkBase(doc, input.baseRevision, plan.targets)
       const owned = this.readLease(id, session, input.leaseToken)
       if (plan.targets.some(target => !owned.includes(target) && !owned.includes('*'))) {
         fail('locked', '명령의 전체 영향 범위에 편집권이 필요합니다.', { requiredObjects: plan.targets })
       }
       const next = { ...doc, markdown: plan.markdown, revision: doc.revision + 1 }
-      const before = objectSignatures(plan.record)
-      const after = objectSignatures(plan.nextRecord)
+      const { before, after } = plan
       for (const object of new Set([...before.keys(), ...after.keys()])) {
         if (before.get(object) !== after.get(object)) {
           this.db.prepare('INSERT INTO object_versions VALUES (?, ?, ?) ON CONFLICT(document_id, object_id) DO UPDATE SET revision=excluded.revision')
@@ -287,10 +298,12 @@ export class BoardDatabase {
       if (revision !== doc.revision) fail('stale-base', '문서 전체 작업의 기준 버전이 변경되었습니다.', doc)
       return
     }
-    const signatures = objectSignatures(readEditableRecord(doc))
+    const cached = this.prepared
+    const parsed = cached?.id === doc.id && cached.revision === doc.revision ? cached.plan.record : readEditableRecord(doc)
+    const ids = new Set([...parsed.ast.nodes, ...parsed.ast.edges, ...parsed.ast.groups].map(object => object.id))
     for (const object of objects) {
       if (object === '@create') continue
-      if (!signatures.has(object)) fail('not-found', `객체 ${object}가 없습니다.`, doc)
+      if (!ids.has(object)) fail('not-found', `객체 ${object}가 없습니다.`, doc)
       const changed = this.db.prepare('SELECT revision FROM object_versions WHERE document_id=? AND object_id=?').get(doc.id, object)
       if (changed && Number(changed.revision) > revision) {
         fail('stale-base', `객체 ${object} 또는 관련 구조가 변경되었습니다. 최신 내용을 읽고 수정안을 다시 계산하세요.`, { objectId: object, latest: doc })

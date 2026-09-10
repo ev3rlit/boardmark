@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla'
 import { createCanvasStore } from '@boardmark/canvas-app'
-import { createCanvasMarkdownDocumentRepository, toAsyncResult } from '@boardmark/canvas-repository'
+import { createCanvasMarkdownDocumentRepository, toAsyncResult, type CanvasDocumentRecord } from '@boardmark/canvas-repository'
 import { createCanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 import { createCanvasDocumentRecordPatch } from '@canvas-app/store/canvas-store-projection'
 import type { CanvasEditingService } from '@canvas-app/services/canvas-editing-service'
@@ -19,6 +19,7 @@ export function createManagedSession(connection: ApiConnection) {
   const repository = createCanvasMarkdownDocumentRepository()
   const status = createStore<ManagedSessionState>(() => ({ snapshot: null, status: 'saved', message: '', presence: [], recovery: null, preparing: null }))
   let lease: Lease | null = null
+  let releasing: Promise<void> = Promise.resolve()
   let baseRevision = 0
   let acquiring = 0
   let pending = false
@@ -29,6 +30,8 @@ export function createManagedSession(connection: ApiConnection) {
   let compositionFinished: (() => void) | null = null
   let composing = false
   let viewportSave: ReturnType<typeof setTimeout> | undefined
+  let watchTimer: ReturnType<typeof setTimeout> | undefined
+  let watching: AbortController | null = null
   let past: number[] = []
   let future: number[] = []
   const draftKey = (id: string) => `boardmark:draft:${connection.url}:${id}:${connection.session}`
@@ -53,8 +56,8 @@ export function createManagedSession(connection: ApiConnection) {
     if (parsed.isErr()) throw new Error(parsed.error.message)
     return parsed.value
   }
-  function documentState(doc: DocumentSnapshot) {
-    return createCanvasDocumentState({ record: record(doc), isPersisted: true, persistedSnapshotSource: doc.markdown })
+  function documentState(parsed: CanvasDocumentRecord) {
+    return createCanvasDocumentState({ record: parsed, isPersisted: true, persistedSnapshotSource: parsed.source })
   }
   function project(doc: DocumentSnapshot, opening = false) {
     const current = store.getState()
@@ -68,9 +71,10 @@ export function createManagedSession(connection: ApiConnection) {
         } catch { /* Invalid camera data cannot affect the persisted document. */ }
       } else restoredViewport = { x: 0, y: 0, zoom: 1 }
     }
+    const parsed = record(doc)
     status.setState({ snapshot: doc })
-    store.setState(createCanvasDocumentRecordPatch(record(doc), {
-      documentState: documentState(doc), saveState: { status: 'saved', path: doc.name },
+    store.setState(createCanvasDocumentRecordPatch(parsed, {
+      documentState: documentState(parsed), saveState: { status: 'saved', path: doc.name },
       viewport: restoredViewport,
       ...(opening ? {} : { viewport: current.viewport, selectedNodeIds: current.selectedNodeIds, selectedEdgeIds: current.selectedEdgeIds,
         selectedGroupIds: current.selectedGroupIds, editingState: current.editingState, clipboardState: current.clipboardState,
@@ -82,9 +86,15 @@ export function createManagedSession(connection: ApiConnection) {
     const previous = lease
     lease = null
     const doc = status.getState().snapshot
-    if (previous && doc) await api.release(doc.id, previous.token).catch(report)
+    if (previous && doc) releasing = Promise.all([releasing, api.release(doc.id, previous.token).catch(report)]).then(() => {})
+    await releasing
   }
   async function begin(objects: string[], basis?: number) {
+    // The saved result can paint before release returns; a new acquisition must
+    // still wait for that release to avoid conflicting with our previous lease.
+    const beforeRelease = acquiring
+    await releasing
+    if (beforeRelease !== acquiring) return false
     const doc = status.getState().snapshot
     if (!doc || pending || disposed) return false
     if (basis === undefined && status.getState().recovery && store.getState().editingState.status === 'idle') {
@@ -143,14 +153,15 @@ export function createManagedSession(connection: ApiConnection) {
         future = []
         status.setState({ snapshot: saved, status: 'saved', message: '', recovery: null })
         clearDraft(doc.id)
-        return { status: 'updated', record: record(saved), documentState: documentState(saved) }
+        const parsed = record(saved)
+        return { status: 'updated', record: parsed, documentState: documentState(parsed) }
       } catch (error) {
         report(error)
         return { status: 'blocked', message: errorMessage(error) }
       } finally {
         planning = false
         pending = false
-        if (!held) await release()
+        if (!held) void release()
       }
     }
   }
@@ -321,19 +332,41 @@ export function createManagedSession(connection: ApiConnection) {
       } catch (error) { report(error) }
     }
   })
-  async function sync() {
+  async function sync(signal?: AbortSignal) {
     const doc = status.getState().snapshot
-    if (!doc || pending || disposed) return
+    if (!doc || pending || planning || disposed) return
     try {
-      const { revision, presence } = await api.changes(doc.id)
+      const { revision, presence } = signal ? await api.waitChanges(doc.id, doc.revision, signal) : await api.changes(doc.id)
+      if (signal?.aborted || disposed || pending || planning || status.getState().snapshot?.id !== doc.id) return
       const latest = revision > doc.revision ? await api.read(doc.id) : doc
-      if (disposed || pending || status.getState().snapshot?.id !== doc.id) return
+      if (signal?.aborted || disposed || pending || planning || status.getState().snapshot?.id !== doc.id) return
       if (latest.revision > (status.getState().snapshot?.revision ?? 0)) project(latest)
       status.setState({ presence })
       if (status.getState().status === 'offline') status.setState({ status: status.getState().recovery ? 'failed' : 'saved', message: status.getState().recovery ? '연결되었습니다. 보존된 초안을 확인하세요.' : '' })
-    } catch (error) { report(error) }
+    } catch (error) {
+      if (signal?.aborted || disposed || status.getState().snapshot?.id !== doc.id) return
+      report(error)
+      return false
+    }
+    return status.getState().snapshot?.revision === doc.revision ? 'unchanged' : 'changed'
   }
-  const poll = setInterval(() => { void sync() }, 1500)
+  function watch() {
+    watching?.abort()
+    clearTimeout(watchTimer)
+    const controller = new AbortController()
+    watching = controller
+    const next = async () => {
+      const started = Date.now()
+      const result = await sync(controller.signal)
+      if (controller.signal.aborted || disposed) return
+      // Older servers return unchanged immediately. Preserve the old request
+      // rate for those servers, without delaying new document revisions.
+      const delay = result === false ? 1500 : result === undefined ? 50
+        : result === 'unchanged' ? Math.max(0, 1500 - (Date.now() - started)) : 0
+      watchTimer = setTimeout(() => { void next() }, delay)
+    }
+    void next()
+  }
   const renew = setInterval(() => {
     const doc = status.getState().snapshot
     if (!lease || !doc || pending) return
@@ -350,6 +383,7 @@ export function createManagedSession(connection: ApiConnection) {
       editorRequest++
       status.setState({ preparing: null })
       await release()
+      watching?.abort()
       project(doc, true)
       past = []
       future = []
@@ -357,6 +391,7 @@ export function createManagedSession(connection: ApiConnection) {
       const saved = localStorage.getItem(sessionStorage.getItem(draftPointer(doc.id)) ?? draftKey(doc.id))
       status.setState({ recovery: saved ? JSON.parse(saved) as RecoveryDraft : null, status: saved ? 'failed' : 'saved', message: saved ? '서버에 반영되지 않은 복구 초안이 있습니다.' : '' })
       localStorage.setItem(`boardmark:recent:${connection.url}`, doc.id)
+      watch()
     },
     async archiveDraft() {
       const recovery = status.getState().recovery
@@ -430,7 +465,7 @@ export function createManagedSession(connection: ApiConnection) {
       } catch (error) { report(error) }
       finally { planning = false }
     },
-    dispose() { disposed = true; editorRequest++; compositionFinished?.(); window.removeEventListener('keydown', captureWaitingInput, true); clearTimeout(viewportSave); clearInterval(poll); clearInterval(renew); unsubscribe(); void release() }
+    dispose() { disposed = true; watching?.abort(); clearTimeout(watchTimer); editorRequest++; compositionFinished?.(); window.removeEventListener('keydown', captureWaitingInput, true); clearTimeout(viewportSave); clearInterval(renew); unsubscribe(); void release() }
   }
 }
 export type ManagedSession = ReturnType<typeof createManagedSession>

@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import { ApiError, fail } from '../../../packages/canvas-api/src/contracts'
 import { command, record, revision, string, strings } from '../../../packages/canvas-api/src/validation'
@@ -8,6 +8,24 @@ type ServerOptions = { database: BoardDatabase; token: string; origins: string[]
 const maxBytes = 20 * 1024 * 1024
 
 export function createApiServer({ database, token, origins }: ServerOptions) {
+  const waiting = new Map<string, Set<() => void>>()
+  function waitForChange(id: string, response: ServerResponse) {
+    return new Promise<void>(resolve => {
+      const listeners = waiting.get(id) ?? new Set<() => void>()
+      const finish = () => {
+        clearTimeout(timer)
+        response.off('close', finish)
+        listeners.delete(finish)
+        if (!listeners.size) waiting.delete(id)
+        resolve()
+      }
+      // Also refresh lease expiry/presence at the existing polling cadence.
+      const timer = setTimeout(finish, 1500)
+      listeners.add(finish)
+      waiting.set(id, listeners)
+      response.once('close', finish)
+    })
+  }
   return createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store')
     response.setHeader('X-Content-Type-Options', 'nosniff')
@@ -37,7 +55,15 @@ export function createApiServer({ database, token, origins }: ServerOptions) {
         if (parts.length === 2 && parts[1] === 'documents') result = database.list()
         else if (parts[1] === 'documents' && parts.length === 3) result = database.read(parts[2])
         else if (parts[1] === 'documents' && parts[3] === 'presence') result = database.owners(parts[2])
-        else if (parts[1] === 'documents' && parts[3] === 'changes') result = database.changes(parts[2])
+        else if (parts[1] === 'documents' && parts[3] === 'changes') {
+          const current = database.changes(parts[2])
+          const after = url.searchParams.get('after')
+          if (after !== null && revision(Number(after)) === current.revision) {
+            await waitForChange(parts[2], response)
+            if (response.destroyed) return
+            result = database.changes(parts[2])
+          } else result = current
+        }
         else if (parts[1] === 'documents' && parts[3] === 'attachments') result = database.attachments(parts[2])
         else if (parts[1] === 'documents' && parts[3] === 'bundle') result = database.bundle(parts[2])
         else if (parts[1] === 'assets' && parts.length === 3) {
@@ -69,6 +95,11 @@ export function createApiServer({ database, token, origins }: ServerOptions) {
             case 'replace': result = database.replace(id, session, { requestId: string(input.requestId, 'requestId'), baseRevision: revision(input.baseRevision), leaseToken: string(input.leaseToken, 'leaseToken'), markdown: string(input.markdown, 'markdown', true) }); break
             case 'delete': result = database.delete(id, session, { requestId: string(input.requestId, 'requestId'), baseRevision: revision(input.baseRevision), leaseToken: string(input.leaseToken, 'leaseToken') }); break
             default: fail('not-found', '변경 경로가 없습니다.')
+          }
+          // Database calls above return only after commit. Failed mutations never
+          // wake readers, and readers re-read the latest committed revision.
+          if (['edit', 'replace', 'rename', 'revert', 'delete'].includes(parts[3])) {
+            for (const finish of waiting.get(id) ?? []) finish()
           }
         } else fail('not-found', '변경 경로가 없습니다.')
       } else fail('invalid-request', '지원하지 않는 HTTP 메서드입니다.')

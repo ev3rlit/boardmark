@@ -8,7 +8,10 @@ import { createApiClient, submitCommand } from '../../../packages/canvas-api/src
 
 const dispose: Array<() => Promise<void>> = []
 // Native fetch uses Node's signal; the UI continues to run in jsdom.
-beforeEach(() => { vi.stubGlobal('AbortSignal', transferableAbortController().signal.constructor) })
+beforeEach(() => {
+  vi.stubGlobal('AbortSignal', transferableAbortController().signal.constructor)
+  vi.stubGlobal('AbortController', class { constructor() { return transferableAbortController() } })
+})
 afterEach(async () => { for (const cleanup of dispose.splice(0)) await cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 const source = '---\ntype: canvas\nversion: 2\n---\n\n::: note {"id":"a","at":{"x":0,"y":0}}\nA\n:::\n\n::: note {"id":"b","at":{"x":300,"y":0}}\nB\n:::\n'
 
@@ -28,6 +31,60 @@ async function setup() {
 }
 
 describe('웹 DB 세션', () => {
+  it('편집권 반납과 함께 취소된 요청은 뒤늦게 편집권을 얻지 않는다', async () => {
+    const { web, ai, doc } = await setup()
+    const acquiring = web.begin(['a'])
+    await web.release()
+    expect(await acquiring).toBe(false)
+    expect(await ai.presence(doc.id)).toEqual([])
+  })
+
+  it('다른 작성자의 저장을 수동 동기화 없이 반영한다', async () => {
+    const { web, ai, doc } = await setup()
+    await ai.rename(doc.id, { requestId: 'live-rename', baseRevision: 1, name: '즉시 변경' })
+    await waitFor(() => expect(web.status.getState().snapshot?.name).toBe('즉시 변경'), { timeout: 1000 })
+  })
+
+  it('문서를 전환한 뒤 늦게 도착한 이전 문서 알림은 무시한다', async () => {
+    const { web, ai, doc } = await setup()
+    const other = await ai.create({ requestId: 'other', name: '다음 문서', markdown: source })
+    const fetch = globalThis.fetch
+    let allow!: () => void
+    let received!: () => void
+    const gate = new Promise<void>(resolve => { allow = resolve })
+    const arrived = new Promise<void>(resolve => { received = resolve })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const response = await fetch(input, init)
+      if (String(input).includes(`${doc.id}/changes?`)) { received(); await gate }
+      return response
+    })
+    await web.open(doc)
+    try {
+      await ai.rename(doc.id, { requestId: 'old-rename', baseRevision: 1, name: '이전 문서 변경' })
+      await arrived
+      await web.open(other)
+    } finally { allow() }
+    await web.sync()
+    expect(web.status.getState()).toMatchObject({ snapshot: { id: other.id, name: '다음 문서' }, status: 'saved' })
+  })
+
+  it('저장된 이동은 편집권 반납 응답이 늦어도 화면에 확정된다', async () => {
+    const { web, ai, doc } = await setup()
+    const fetch = globalThis.fetch
+    let allow!: () => void
+    const gate = new Promise<void>(resolve => { allow = resolve })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const response = await fetch(input, init)
+      if (String(input).endsWith('/release')) await gate
+      return response
+    })
+    const moving = web.store.getState().commitNodeMove('a', 80, 90)
+    try {
+      await waitFor(() => expect(web.store.getState().nodes.find(node => node.id === 'a')?.at.x).toBe(80))
+      expect((await ai.read(doc.id)).revision).toBe(2)
+    } finally { allow(); await moving }
+  })
+
   it('정상 드래그 승인 대기는 저장 상태와 오류 안내를 깜빡이지 않는다', async () => {
     const { web } = await setup()
     const fetch = globalThis.fetch

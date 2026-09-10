@@ -19,6 +19,30 @@ async function setup() {
 }
 
 describe('HTTP 공통 API', () => {
+  it('변경 대기를 취소할 수 있고 문서 삭제도 기다리는 클라이언트에 전달한다', async () => {
+    const { web } = await setup()
+    const doc = await web.create({ requestId: 'watch-delete-create', name: '삭제', markdown: '' })
+    const controller = new AbortController()
+    const waiting = web.waitChanges(doc.id, 1, controller.signal)
+    controller.abort()
+    await expect(waiting).rejects.toMatchObject({ data: { code: 'connection-failed' } })
+    const deleted = expect(web.waitChanges(doc.id, 1, new AbortController().signal)).rejects.toMatchObject({ data: { code: 'not-found' } })
+    const lease = await web.acquire(doc.id, { objects: ['*'], baseRevision: 1 })
+    await web.delete(doc.id, { requestId: 'watch-delete', baseRevision: 1, leaseToken: lease.token })
+    await deleted
+  })
+
+  it('변경 대기는 다음 저장을 즉시 전달하고 이미 지난 버전은 대기하지 않는다', async () => {
+    const { url, web } = await setup()
+    const doc = await web.create({ requestId: 'watch-create', name: 'before', markdown: '' })
+    const headers = { Authorization: 'Bearer test-secret', 'X-Boardmark-Session': 'watch-session-1234' }
+    const waiting = fetch(`${url}/documents/${doc.id}/changes?after=1`, { headers }).then(response => response.json())
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await web.rename(doc.id, { requestId: 'watch-rename', baseRevision: 1, name: 'after' })
+    expect(await waiting).toMatchObject({ ok: true, value: { revision: 2 } })
+    expect(await (await fetch(`${url}/documents/${doc.id}/changes?after=1`, { headers })).json()).toMatchObject({ value: { revision: 2 } })
+  })
+
   it('대기는 시간 제한·취소를 지키고 기다리는 동안 바뀐 대상의 예전 기준을 거절한다', async () => {
     const { web, ai } = await setup()
     const doc = await web.create({ requestId: 'new', name: '대기', markdown: '---\ntype: canvas\nversion: 2\n---\n\n::: note {"id":"a","at":{"x":0,"y":0}}\nA\n:::\n' })

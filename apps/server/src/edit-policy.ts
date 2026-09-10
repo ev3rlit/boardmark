@@ -94,5 +94,5 @@ export function prepareEdit(doc: DocumentSnapshot, command: EditCommand) {
       fail('invalid-request', '본문 변경이 객체 경계를 벗어납니다. 본문 안의 ::: 줄을 확인하세요.')
     }
   }
-  return { targets: [...targets].sort(), markdown: applied.source, record, nextRecord }
+  return { targets: [...targets].sort(), markdown: applied.source, record, before, after }
 }

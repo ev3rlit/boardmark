@@ -8,6 +8,24 @@ import { BoardDatabase } from './database'
 export const original = '---\ntype: canvas\nversion: 1\ncustom: keep\n---\n\n<!-- untouched -->\n\n::: note {"id":"a","at":{"x":0,"y":0},"future":42}\nAlpha\n:::\n\n::: note {"id":"b","at":{"x":300,"y":0}}\nBeta\n:::\n\n'
 
 describe('DB Markdown 원본', () => {
+  it('계획 후 다른 객체가 저장되면 최신 원문으로 다시 적용하고 다른 변경을 보존한다', () => {
+    const db = new BoardDatabase(':memory:')
+    try {
+      const doc = db.create('web', { requestId: 'new', name: '계획 재사용', markdown: original })
+      const command = { kind: 'move-node' as const, nodeId: 'a', x: 80, y: 90 }
+      const plan = db.plan(doc.id, command)
+      const a = db.acquire(doc.id, 'web', { objects: plan.objects, baseRevision: 1 })
+      const b = db.acquire(doc.id, 'ai', { objects: ['b'], baseRevision: 1 })
+      db.edit(doc.id, 'ai', { requestId: 'peer', baseRevision: 1, leaseToken: b.token, command: { kind: 'replace-object-body', objectId: 'b', markdown: '동시 변경 보존' } })
+      const saved = db.edit(doc.id, 'web', { requestId: 'move', baseRevision: 1, leaseToken: a.token, command })
+      expect(saved.revision).toBe(3)
+      expect(saved.markdown).toContain('동시 변경 보존')
+      expect(saved.markdown).toContain('"x":80')
+      db.release(doc.id, 'web', a.token)
+      expect(() => db.edit(doc.id, 'web', { requestId: 'without-lease', baseRevision: 3, leaseToken: a.token, command })).toThrow(/편집권/)
+    } finally { db.close() }
+  })
+
   it('붙여넣기 명령도 새 연결선이 참조하는 기존 노트의 편집권과 기준을 검사한다', () => {
     const db = new BoardDatabase(':memory:')
     const doc = db.create('web', { requestId: 'new', name: '보드', markdown: original })

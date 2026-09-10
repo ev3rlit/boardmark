@@ -27,7 +27,8 @@ for (const [count, heavy] of [[100, false], [500, false], [1000, false], [100, t
     return { medianMs: +values[3].toFixed(2), maxMs: +values[6].toFixed(2) }
   }
   const command = { kind: 'move-node' as const, nodeId: 'n0', x: 60, y: 60 }
-  const entry = { name, count, bytes: Buffer.byteLength(markdown), parse: measure(() => parseCanvasDocument(markdown)), plan: measure(() => db.plan(doc.id, command)), documentId: client ? (await client.create({ requestId: randomUUID(), name, markdown })).id : undefined }
+  let planSequence = 0
+  const entry = { name, count, bytes: Buffer.byteLength(markdown), parse: measure(() => parseCanvasDocument(markdown)), plan: measure(() => db.plan(doc.id, { ...command, x: 60 + planSequence++ })), documentId: client ? (await client.create({ requestId: randomUUID(), name, markdown })).id : undefined }
   reports.push(entry)
   console.log(JSON.stringify(entry))
   db.close()

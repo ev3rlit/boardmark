@@ -37,6 +37,7 @@ export function createApiClient(connection: ApiConnection) {
     create: (input: CreateRequest) => request<DocumentSnapshot>('/documents', input),
     presence: (id: string) => request<Presence[]>(`${path(id)}/presence`),
     changes: (id: string) => request<{ revision: number; presence: Presence[] }>(`${path(id)}/changes`),
+    waitChanges: (id: string, after: number, signal: AbortSignal) => request<{ revision: number; presence: Presence[] }>(`${path(id)}/changes?after=${after}`, undefined, AbortSignal.any([signal, AbortSignal.timeout(15_000)])),
     plan: (id: string, command: EditCommand) => request<{ objects: string[] }>(`${path(id)}/plan`, { command }),
     revert: (id: string, input: { requestId: string; revision: number }) => request<DocumentSnapshot>(`${path(id)}/revert`, input),
     acquire: (id: string, input: AcquireRequest, signal?: AbortSignal) => request<Lease>(`${path(id)}/acquire`, input, signal),
