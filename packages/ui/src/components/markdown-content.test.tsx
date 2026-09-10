@@ -55,12 +55,47 @@ type Deferred<T> = {
 }
 
 describe('MarkdownContent', () => {
+  it('renders HTML code blocks in a flex layout and preserves code when copying', async () => {
+    const { container } = render(<MarkdownContent content={'<div style="display: flex; gap: 16px;"><div style="flex: 1; min-width: 0;"><pre><code>const left = 1 &lt; 2;</code></pre></div><div style="flex: 1; min-width: 0;"><pre><code>const right = 2;</code></pre></div></div>'} />)
+    const layout = container.querySelector('div[style]') as HTMLDivElement
+    expect(layout.style.display).toBe('flex')
+    expect(layout.style.gap).toBe('16px')
+    expect(layout.children).toHaveLength(2)
+    expect(layout.querySelectorAll('pre')).toHaveLength(2)
+    fireEvent.click(layout.querySelector('.markdown-code-block__copy-button')!)
+    await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('const left = 1 < 2;'))
+  })
+
+  it('renders HTML images with grid layout and dimensions', () => {
+    const { container } = render(<MarkdownContent content={'<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;"><img src="https://example.com/a.png" alt="Left" width="120" style="width: 100%; object-fit: contain;"><img src="https://example.com/b.png" alt="Right" height="80"></div>'} />)
+    const layout = container.querySelector('div[style]') as HTMLDivElement
+    expect(layout.style.display).toBe('grid')
+    expect(layout.style.gridTemplateColumns).toBe('1fr 1fr')
+    expect(screen.getByAltText('Left')).toHaveAttribute('width', '120')
+    expect(screen.getByAltText('Left')).toHaveStyle({ width: '100%', objectFit: 'contain' })
+    expect(screen.getByAltText('Right')).toHaveAttribute('height', '80')
+  })
+
+  it('removes active HTML and rejects styles outside the layout allowlist', () => {
+    const { container } = render(<MarkdownContent content={'<div onclick="alert(1)" style="position: fixed; inset: 0;">Content</div><script>alert(1)</script><iframe src="https://example.com"></iframe><a href="javascript:alert(1)">Unsafe</a><img src="javascript:alert(1)" onerror="alert(1)"><div style="display: flex; background: url(https://example.com/tracker);">No URL CSS</div>'} />)
+    expect(container.querySelector('script, iframe, [onclick], [onerror], [style]')).toBeNull()
+    expect(screen.getByText('Unsafe')).not.toHaveAttribute('href')
+    expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('keeps HTML inside a fenced code block as literal code', async () => {
+    const { container } = render(<MarkdownContent content={'```html\n<div style="display: flex;">Example</div>\n```'} />)
+    expect(container.querySelector('div[style]')).toBeNull()
+    fireEvent.click(container.querySelector('.markdown-code-block__copy-button')!)
+    await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('<div style="display: flex;">Example</div>'))
+  })
+
   it('resolves DB asset images while still rejecting unsafe link protocols', async () => {
     const src = `asset:${'a'.repeat(64)}`
     const resolver = vi.fn().mockResolvedValue({ status: 'resolved', src: 'data:image/png;base64,AQID' })
     const { container } = render(<MarkdownContent content={`![DB image](${src})\n\n[unsafe](javascript:alert)`} imageResolver={resolver} />)
     await waitFor(() => expect(resolver).toHaveBeenCalledWith(src))
-    expect(container.querySelector('a')?.getAttribute('href')).toBe('')
+    expect(container.querySelector('a')).not.toHaveAttribute('href')
   })
   let writeTextMock: ReturnType<typeof vi.fn>
 

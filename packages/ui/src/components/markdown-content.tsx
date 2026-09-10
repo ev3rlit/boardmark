@@ -11,6 +11,9 @@ import { AlertCircle, Check, Copy } from 'lucide-react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
+import { markdownHtmlSchema } from './markdown-html-schema'
+import { markdownRawHtml } from './markdown-raw-html'
 import type { BuiltInImageResolution, BuiltInImageResolver } from '@boardmark/canvas-domain'
 import {
   highlightCodeBlock,
@@ -97,6 +100,7 @@ export function MarkdownContent({
       urlTransform={(url, key) => key === 'src' && /^asset:[a-f0-9]{64}$/.test(url) ? url : defaultUrlTransform(url)}
       components={markdownComponents}
       remarkPlugins={[remarkGfm, remarkHtmlBreakToMdastBreak]}
+      rehypePlugins={[markdownRawHtml, [rehypeSanitize, markdownHtmlSchema]]}
     >
       {content}
     </ReactMarkdown>
@@ -180,7 +184,10 @@ function MarkdownImage({
   alt,
   imageResolver,
   src,
-  title
+  title,
+  style,
+  width,
+  height
 }: ComponentProps<'img'> & { imageResolver?: BuiltInImageResolver }) {
   const resolution = useResolvedImageSource(src, imageResolver)
 
@@ -214,6 +221,9 @@ function MarkdownImage({
       className="markdown-content__image"
       src={resolution.src}
       title={title}
+      style={style}
+      width={width}
+      height={height}
     />
   )
 }
