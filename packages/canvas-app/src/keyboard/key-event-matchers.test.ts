@@ -23,13 +23,13 @@ describe('key-event-matchers', () => {
     })).toBe('out')
   })
 
-  it('ignores cmd+wheel on mac', () => {
+  it.each([['MacIntel', -120, 'in'], ['MacIntel', 120, 'out'], ['Win32', -120, null]] as const)('reads cmd+wheel on %s with delta %s as %s', (platform, deltaY, direction) => {
     expect(readZoomDirectionFromWheelEvent({
       altKey: false,
       ctrlKey: false,
-      deltaY: -120,
+      deltaY,
       metaKey: true
-    })).toBeNull()
+    }, platform)).toBe(direction)
   })
 
   it('ignores wheel without ctrl', () => {

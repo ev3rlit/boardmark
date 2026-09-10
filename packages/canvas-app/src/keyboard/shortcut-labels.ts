@@ -29,7 +29,7 @@ export function substituteShortcutModifier(
   return template.replaceAll('$mod', readShortcutModifierLabel(platform))
 }
 
-function isApplePlatform(platform: string) {
+export function isApplePlatform(platform: string) {
   const normalized = platform.toLowerCase()
 
   return normalized.includes('mac') ||

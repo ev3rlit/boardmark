@@ -71,6 +71,23 @@ const sourceMap = {
 } as const
 
 describe('CanvasScene', () => {
+  it('adds a node with Shift+click and replaces the selection with a plain click', async () => {
+    const store = await createHydratedCanvasStore('---\ntype: canvas\nversion: 2\n---\n\n::: note {"id":"a","at":{"x":20,"y":30,"w":320,"h":220}}\nFirst selection\n:::\n\n::: note {"id":"b","at":{"x":400,"y":30,"w":320,"h":220}}\nSecond selection\n:::\n')
+    render(<ReactFlowProvider><CanvasScene {...createSceneInputProps(store, true)} supportsMultiSelect store={store} /></ReactFlowProvider>)
+    const first = (await screen.findByText('First selection')).closest('.react-flow__node')!
+    const second = (await screen.findByText('Second selection')).closest('.react-flow__node')!
+    fireEvent.click(first)
+    await waitFor(() => expect(store.getState().selectedNodeIds).toEqual(['a']))
+    fireEvent.keyDown(window, { key: 'Shift', code: 'ShiftLeft', shiftKey: true })
+    fireEvent.click(second, { shiftKey: true })
+    await waitFor(() => expect(store.getState().selectedNodeIds).toEqual(['a', 'b']))
+    expect(first.classList.contains('selected')).toBe(true)
+    expect(second.classList.contains('selected')).toBe(true)
+    fireEvent.keyUp(window, { key: 'Shift', code: 'ShiftLeft' })
+    fireEvent.click(first)
+    await waitFor(() => expect(store.getState().selectedNodeIds).toEqual(['a']))
+  })
+
   it('keeps the managed drag preview through unrelated snapshots and until the commit is projected', async () => {
     vi.stubGlobal('CSS', { escape: (value: string) => value })
     const store = await createHydratedCanvasStore('---\ntype: canvas\nversion: 2\n---\n\n::: note {"id":"a","at":{"x":20,"y":30,"w":320,"h":220}}\nDrag regression\n:::\n')
@@ -563,7 +580,8 @@ describe('CanvasScene', () => {
     expect(afterFlowPoint.y).toBeCloseTo(beforeFlowPoint.y, 2)
   })
 
-  it('does not update the store viewport on cmd+wheel input', async () => {
+  it('updates the store viewport on cmd+wheel input on Mac', async () => {
+    const platformSpy = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
     const store = await createHydratedCanvasStore(`---
 type: canvas
 version: 2
@@ -618,7 +636,8 @@ Boardmark Viewer
       })
     })
 
-    expect(store.getState().viewport.zoom).toBe(0.92)
+    expect(store.getState().viewport.zoom).toBe(1.02)
+    platformSpy.mockRestore()
   })
 
   it('updates the store viewport on ctrl+wheel input with the same zoom step as keyboard commands', async () => {

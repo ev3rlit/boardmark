@@ -551,7 +551,7 @@ export function CanvasScene({
             preventDefault: false
           })
         }}
-        multiSelectionKeyCode={supportsMultiSelect ? undefined : null}
+        multiSelectionKeyCode={supportsMultiSelect ? 'Shift' : null}
         onSelectionStart={() => {
           void dispatchCanvasInputAsync({
             allowEditableTarget: true,
@@ -674,6 +674,11 @@ export function CanvasScene({
           }
         }}
         onNodeClick={(event, node) => {
+          // React Flow already applies Shift selection through onNodesChange.
+          if (supportsMultiSelect && event.shiftKey) {
+            return
+          }
+
           void dispatchCanvasInputAsync({
             allowEditableTarget: true,
             intent: {

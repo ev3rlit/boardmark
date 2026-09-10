@@ -1,3 +1,5 @@
+import { isApplePlatform, readCurrentPlatform } from '@canvas-app/keyboard/shortcut-labels'
+
 export type KeyEventLike = Pick<
   KeyboardEvent,
   'altKey' | 'code' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey'
@@ -84,8 +86,12 @@ export function matchesZoomOutKey(event: KeyEventLike) {
   return matchesModShortcut(event) && event.key === '-'
 }
 
-export function readZoomDirectionFromWheelEvent(event: WheelZoomEventLike): 'in' | 'out' | null {
-  if (!event.ctrlKey || event.altKey || event.metaKey || event.deltaY === 0) {
+export function readZoomDirectionFromWheelEvent(
+  event: WheelZoomEventLike,
+  platform = readCurrentPlatform()
+): 'in' | 'out' | null {
+  const hasZoomModifier = isApplePlatform(platform) ? event.metaKey : event.ctrlKey
+  if (!hasZoomModifier || event.altKey || event.deltaY === 0) {
     return null
   }
 

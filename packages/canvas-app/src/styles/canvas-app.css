@@ -7,6 +7,7 @@
 @source "../../../ui/src";
 
 .boardmark-canvas-app { container-type: inline-size; }
+.boardmark-flow .react-flow__nodesselection { display: none; }
 .selection-mobile-toolbar { margin-top: 64px; width: max-content; max-width: calc(100% - 24px); }
 .selection-mobile-toolbar .viewer-control-group { max-width: 100%; flex-wrap: wrap; justify-content: center; }
 .selection-mobile-toolbar .selection-color-popover { max-height: max(8rem, calc(100dvh - 21rem)); overflow-y: auto; overscroll-behavior: contain; }
