@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { highlightCodeBlock } from './adapter'
 
 describe('highlightCodeBlock', () => {
+  it.each(['php', ' PHP '])('highlights PHP code with language %s', async (language) => {
+    const code = '<?php\nfunction greet($name) { return "Hello " . $name; }'
+    const result = await highlightCodeBlock({ code, language })
+
+    expect(result.kind).toBe('highlighted')
+    if (result.kind !== 'highlighted') {
+      return
+    }
+
+    expect(result.language).toBe('php')
+    expect(result.lines.map((line) => line.tokens.map((token) => token.content).join('')).join('\n')).toBe(code)
+    expect(new Set(result.lines[1]?.tokens.map((token) => token.color)).size).toBeGreaterThan(1)
+  })
+
   it('returns highlighted token lines for supported languages', async () => {
     const result = await highlightCodeBlock({
       code: 'const answer = 42',
