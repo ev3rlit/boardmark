@@ -25,7 +25,18 @@ corepack pnpm dev:web
 
 ## AI CLI
 
-CLI는 파일이나 DB에 직접 저장하지 않습니다. 읽기 결과의 `revision`은 **읽었을 때의 문서 버전**입니다. 수정안을 만들 때 읽은 값을 제출해야 합니다.
+AI의 기존 파일 편집 도구로 노트 본문을 수정할 수 있습니다. 문서 ID와 노트 ID는 실제 읽기 결과로 바꿉니다.
+
+```powershell
+corepack pnpm --silent boardmark checkout DOCUMENT_ID --node NODE_ID --output note.md --json
+# AI가 note.md를 읽고 기존 파일 편집 도구로 수정합니다.
+corepack pnpm --silent boardmark diff DOCUMENT_ID --node NODE_ID --input note.md --json
+corepack pnpm --silent boardmark apply DOCUMENT_ID --node NODE_ID --input note.md --json
+```
+
+`apply`는 명시한 문서·노트·API 주소를 checkout 메타데이터와 대조한 뒤 본문을 저장합니다. `note.md.boardmark-checkout.json`은 원래 본문과 버전을 보관하므로 작업 파일과 함께 유지하고 수정하지 않습니다. 같은 수정안의 재실행은 중복 저장하지 않습니다. 성공 후 새 수정은 새 경로로 checkout하여 시작합니다. `diff`는 checkout 원본과 작업 파일의 변경 여부 및 `before`/`after` 본문을 반환합니다.
+
+CLI는 서버 문서를 API를 통해 저장합니다. 읽기 결과의 `revision`은 **읽었을 때의 문서 버전**입니다. 직접 변경 명령을 만들 때는 읽은 값을 제출해야 합니다.
 
 ```powershell
 corepack pnpm --silent boardmark document list --json

@@ -7,6 +7,7 @@ import { ApiError } from '../../../packages/canvas-api/src/contracts'
 import { command as validateCommand } from '../../../packages/canvas-api/src/validation'
 import { parseCanvasDocument } from '../../../packages/canvas-parser/src/index'
 import { exportDocumentFile, readDocumentFile } from './document-files'
+import { checkoutNode, readWorkingCopy } from './working-copy'
 
 const help = `Boardmark CLI — DB Markdown 공통 API
 document list
@@ -18,6 +19,9 @@ document rename <id> --name <이름> --base-revision <읽은 버전>
 node read <document-id> <node-id>
 node update <document-id> <node-id> --body-file <note.md|-> --base-revision <읽은 버전>
 command <document-id> --input <command.json|-> --base-revision <읽은 버전>
+checkout <document-id> --node <node-id> --output <note.md>
+diff <document-id> --node <node-id> --input <note.md>
+apply <document-id> --node <node-id> --input <note.md>
 
 공통 옵션: --api <URL> --token-file <파일> --json --wait-ms <0..60000> --request-id <ID> --journal-dir <폴더>
 환경: BOARDMARK_API_URL, BOARDMARK_TOKEN, BOARDMARK_TOKEN_FILE, BOARDMARK_SESSION
@@ -46,13 +50,25 @@ async function main() {
   const baseRevision = () => { const value = Number(need('--base-revision')); if (!Number.isSafeInteger(value) || value < 1) throw new Error('--base-revision은 읽기 결과의 양의 정수여야 합니다.'); return value }
   const controller = new AbortController()
   process.once('SIGINT', () => controller.abort(new Error('취소됨')))
-  const submit = (id: string, command: unknown) => {
+  const submit = (id: string, command: unknown, revision = baseRevision(), proposalId = requestId) => {
     const waitMs = Number(flags.get('--wait-ms') ?? 0)
     if (!Number.isFinite(waitMs) || waitMs < 0 || waitMs > 60_000) throw new Error('--wait-ms 범위는 0..60000입니다.')
-    return submitJournaled(connection, flags.get('--journal-dir') ?? '.boardmark/requests', id, { command: validateCommand(command), baseRevision: baseRevision(), requestId, waitMs, signal: controller.signal })
+    return submitJournaled(connection, flags.get('--journal-dir') ?? '.boardmark/requests', id, { command: validateCommand(command), baseRevision: revision, requestId: proposalId, waitMs, signal: controller.signal })
   }
   let result: unknown
-  if (area === 'document' && action === 'list') result = await client.list()
+  if (['checkout', 'diff', 'apply'].includes(area)) {
+    if (!action) throw new Error(`${area}에 document-id가 필요합니다.`)
+    const targetNode = need('--node')
+    if (flags.has('--base-revision') || flags.has('--request-id')) throw new Error('checkout 작업의 버전과 요청 ID는 자동 관리합니다. 덮어쓸 수 없습니다.')
+    if (area === 'checkout') result = checkoutNode(connection.url, await client.read(action), targetNode, need('--output'))
+    else {
+      const copy = readWorkingCopy(connection.url, action, targetNode, need('--input'))
+      if (area === 'diff') result = { documentId: action, nodeId: targetNode, baseRevision: copy.baseRevision, changed: copy.changed, before: copy.original, after: copy.markdown }
+      else if (!copy.changed) result = { documentId: action, nodeId: targetNode, baseRevision: copy.baseRevision, changed: false }
+      else result = await submit(action, { kind: 'replace-object-body', objectId: targetNode, markdown: copy.markdown }, copy.baseRevision, copy.requestId)
+    }
+  }
+  else if (area === 'document' && action === 'list') result = await client.list()
   else if (area === 'document' && action === 'read') result = await client.read(docId)
   else if (area === 'document' && action === 'create') result = await client.create({ requestId, name: need('--name'), markdown: '---\ntype: canvas\nversion: 2\n---\n' })
   else if (area === 'document' && action === 'import') {

@@ -19,6 +19,24 @@
 
 ## 읽기와 변경 기준
 
+### 기존 파일 편집 도구 사용
+
+```powershell
+corepack pnpm --silent boardmark checkout DOCUMENT_ID --node NODE_ID --output ./note.md --json
+# note.md의 본문을 원하는 파일 편집 도구로 수정
+corepack pnpm --silent boardmark diff DOCUMENT_ID --node NODE_ID --input ./note.md --json
+corepack pnpm --silent boardmark apply DOCUMENT_ID --node NODE_ID --input ./note.md --json
+```
+
+- 현재 checkout 단위는 노트 한 개의 Markdown 본문이다. 객체 헤더·좌표·ID는 파일에 넣지 않는다.
+- 문서 ID와 `--node`는 세 명령 모두 필수다. apply와 diff는 API 주소까지 checkout 정보와 대조하며 다른 대상으로 적용하지 않는다.
+- 작업 파일 옆의 `<파일명>.boardmark-checkout.json`에는 원래 본문, 문서·노트 ID, API 주소, 기준 버전, checkout ID가 있다. 토큰은 기록하지 않는다. 이 파일은 편집하지 않으며 작업 파일을 옮기면 같은 이름 규칙으로 함께 옮긴다. 기존 파일이나 메타데이터가 있으면 checkout은 덮어쓰지 않는다.
+- diff는 서버에 저장하지 않고 `changed`, `before`, `after`, `baseRevision`을 JSON으로 반환한다. 비교 기준은 현재 서버가 아닌 checkout 당시 본문이다.
+- apply는 파일이 바뀌지 않았으면 저장하지 않는다. 이는 서버와 같다는 뜻이 아니라 checkout 원본과 같다는 뜻이다.
+- 변경된 본문은 기존 객체 편집 API로 저장한다. 다른 노트의 수정은 보존하며 같은 노트의 변경은 `stale-base`, 편집 중인 대상은 `locked`로 반환한다. 실패해도 작업 파일과 메타데이터는 남는다. `--wait-ms`와 `--journal-dir`을 사용할 수 있다.
+- 기준 버전은 고정이다. `--base-revision`과 `--request-id`를 직접 지정할 수 없다. checkout ID와 수정 내용으로 요청 ID를 생성하여 같은 apply를 다시 실행하면 같은 결과를 확인한다. 응답 유실 시 파일·메타데이터·기록 폴더를 그대로 유지하고 같은 명령을 실행한다.
+- 성공 후 다음 수정은 새 파일 경로로 checkout하여 시작한다. 기존 작업 파일의 기준 버전을 자동으로 올리지 않는다. 충돌 시에도 새 checkout과 보존한 초안을 비교해 새 제안을 작성한다.
+
 ```powershell
 node apps/cli/dist/main.mjs document list --json
 node apps/cli/dist/main.mjs document read DOCUMENT_ID --json
