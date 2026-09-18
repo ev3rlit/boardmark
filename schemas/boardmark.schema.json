@@ -1,0 +1,300 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://boardmark.app/schemas/boardmark-v1.json",
+  "title": "BoardFile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "items",
+    "connections"
+  ],
+  "properties": {
+    "format": {
+      "const": "boardmark"
+    },
+    "version": {
+      "const": 1
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/item"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/connection"
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/group"
+      }
+    }
+  },
+  "definitions": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "item": {
+      "oneOf": [
+        {
+          "title": "MarkdownItem",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "frame",
+            "content"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/id"
+            },
+            "kind": {
+              "const": "markdown"
+            },
+            "frame": {
+              "$ref": "#/definitions/frame"
+            },
+            "content": {
+              "type": "string",
+              "description": "Markdown owned by this board."
+            },
+            "z": {
+              "type": "number"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "style": {
+              "$ref": "#/definitions/style"
+            },
+            "autoHeight": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "title": "ImageItem",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "frame",
+            "reference"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/id"
+            },
+            "kind": {
+              "const": "image"
+            },
+            "frame": {
+              "$ref": "#/definitions/frame"
+            },
+            "reference": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "path"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "file"
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?![\\\\/])(?![A-Za-z][A-Za-z0-9+.-]*:)[^\\u0000-\\u001f<>:\"|?*]+$",
+                  "description": "Relative to the board directory. Both slash styles are accepted; writers use /. No image bytes."
+                }
+              }
+            },
+            "z": {
+              "type": "number"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "style": {
+              "$ref": "#/definitions/style"
+            },
+            "alt": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "lockAspectRatio": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "title": "ShapeItem",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "kind",
+            "frame",
+            "component",
+            "content"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/id"
+            },
+            "kind": {
+              "const": "shape"
+            },
+            "frame": {
+              "$ref": "#/definitions/frame"
+            },
+            "component": {
+              "enum": [
+                "boardmark.shape.rect",
+                "boardmark.shape.roundRect",
+                "boardmark.shape.ellipse",
+                "boardmark.shape.circle",
+                "boardmark.shape.triangle"
+              ]
+            },
+            "content": {
+              "type": "string"
+            },
+            "z": {
+              "type": "number"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "style": {
+              "$ref": "#/definitions/style"
+            }
+          }
+        }
+      ]
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "target"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "source": {
+          "$ref": "#/definitions/id"
+        },
+        "target": {
+          "$ref": "#/definitions/id"
+        },
+        "content": {
+          "type": "string"
+        },
+        "z": {
+          "type": "number"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "style": {
+          "$ref": "#/definitions/style"
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bg": {
+          "$ref": "#/definitions/color"
+        },
+        "stroke": {
+          "$ref": "#/definitions/color"
+        }
+      }
+    },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "color"
+      ],
+      "properties": {
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "items"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "items": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/id"
+          }
+        },
+        "z": {
+          "type": "number"
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

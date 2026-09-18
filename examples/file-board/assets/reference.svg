@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <rect width="360" height="240" rx="16" fill="#f1f4f6"/>
+  <rect x="32" y="32" width="296" height="48" rx="8" fill="#e6deff"/>
+  <rect x="32" y="104" width="136" height="104" rx="8" fill="#ffffff"/>
+  <rect x="192" y="104" width="136" height="104" rx="8" fill="#ffffff"/>
+  <text x="52" y="63" fill="#5332c9" font-family="sans-serif" font-size="20">Reference image</text>
+</svg>

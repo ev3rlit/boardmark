@@ -1,0 +1,19 @@
+{
+  "format": "boardmark",
+  "version": 1,
+  "items": [
+    {
+      "id": "welcome",
+      "kind": "markdown",
+      "frame": { "x": 80, "y": 100, "width": 340, "height": 240 },
+      "content": "# 파일 기반 보드\n\n이 메모는 **보드 파일**이 소유합니다.\n\n이미지는 원본 파일을 참조합니다. 항목을 삭제해도 원본은 남습니다."
+    },
+    {
+      "id": "reference",
+      "kind": "image",
+      "frame": { "x": 540, "y": 100, "width": 360, "height": 240 },
+      "reference": { "kind": "file", "path": "../assets/reference.svg" }
+    }
+  ],
+  "connections": [{ "id": "explanation", "source": "welcome", "target": "reference" }]
+}
