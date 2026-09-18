@@ -1,4 +1,16 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { BoardFileBridge } from '../../../../packages/canvas-repository/src/board-file-contract'
+
+const boardFiles: BoardFileBridge = {
+  openProject: () => ipcRenderer.invoke('boardmark/board/open-project'),
+  listFolder: path => ipcRenderer.invoke('boardmark/board/list-folder', path),
+  createEntry: (directory, name, kind) => ipcRenderer.invoke('boardmark/board/create-entry', directory, name, kind),
+  openBoard: path => ipcRenderer.invoke('boardmark/board/open', path),
+  saveBoard: input => ipcRenderer.invoke('boardmark/board/save', input),
+  referenceImageFile: (path, file) => ipcRenderer.invoke('boardmark/board/reference-image', path, webUtils.getPathForFile(file)),
+  resolveImage: (path, reference) => ipcRenderer.invoke('boardmark/board/resolve-image', path, reference)
+}
+contextBridge.exposeInMainWorld('boardmarkFiles', boardFiles)
 import type {
   AsyncResult,
   BoardmarkDocumentBridge,

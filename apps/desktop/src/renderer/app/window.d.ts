@@ -1,4 +1,5 @@
 import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
+import type { BoardFileBridge } from '../../../../../packages/canvas-repository/src/board-file-contract'
 import type {
   CanvasDocumentPersistenceBridge,
   CanvasImageAssetBridge,
@@ -7,6 +8,7 @@ import type {
 
 declare global {
   interface Window {
+    boardmarkFiles?: BoardFileBridge
     boardmarkDocument: BoardmarkDocumentBridge & {
       imageExports: CanvasImageExportBridge
       persistence: CanvasDocumentPersistenceBridge

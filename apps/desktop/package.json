@@ -8,5 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "start": "vite build && electron ."
+  },
+  "dependencies": {
+    "lucide-react": "1.7.0"
   }
 }

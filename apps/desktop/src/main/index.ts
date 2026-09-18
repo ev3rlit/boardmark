@@ -1,8 +1,9 @@
 import { watch, type FSWatcher } from 'node:fs'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import pino from 'pino'
 import { createDocumentService } from './document-service'
+import { registerBoardIpc } from './board-ipc'
 
 const logger = pino({
   name: 'boardmark-main',
@@ -58,6 +59,15 @@ async function createMainWindow() {
 
   mainWindow = window
 
+  window.webContents.on('will-prevent-unload', event => {
+    const choice = dialog.showMessageBoxSync(window, {
+      type: 'warning', title: '저장하지 않은 변경',
+      message: '저장하지 않은 보드 변경이 있습니다. 닫으면 변경을 잃습니다.',
+      buttons: ['돌아가기', '저장하지 않고 닫기'], defaultId: 0, cancelId: 0
+    })
+    if (choice === 1) event.preventDefault()
+  })
+
   window.once('ready-to-show', () => window.show())
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -71,6 +81,10 @@ async function createMainWindow() {
 }
 
 function registerIpcHandlers() {
+  registerBoardIpc(() => {
+    if (!mainWindow) throw new Error('Desktop window is not ready.')
+    return mainWindow
+  })
   ipcMain.handle(IPC_CHANNELS.pickOpenLocator, async () => {
     if (!mainWindow) {
       logger.error('Main window missing during pick-open-locator request.')

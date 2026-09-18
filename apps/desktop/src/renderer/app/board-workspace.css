@@ -1,0 +1,20 @@
+/* Project/file chrome only. Existing canvas components and visual tokens are unchanged. */
+.board-workspace { height: 100%; display: flex; }
+.board-workspace-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.board-workspace-header { flex: none; margin: 16px 20px 0; padding-inline-start: 16px; }
+.board-workspace-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-workspace-text-button { width: auto; padding-inline: 16px; white-space: nowrap; }
+.board-workspace-project { display: flex; flex-direction: column; flex: 0 0 280px; margin: 16px 0 20px 20px; max-height: none; min-height: 0; }
+.board-workspace-explorer-toolbar { flex: none; gap: 0; }
+.board-workspace-explorer-toolbar .canvas-navigation-panel__eyebrow { flex: 1; }
+.board-workspace-explorer-toolbar .viewer-control-button { width: 32px; height: 32px; }
+.board-workspace-tree { flex: 1; overflow: auto; min-height: 0; }
+.board-workspace-tree-row.canvas-navigation-panel__item { display: flex; align-items: center; gap: 8px; width: 100%; padding-block: 4px; text-align: left; }
+.board-workspace-tree-row > svg, .board-workspace-tree-spacer { flex: 0 0 16px; }
+.board-workspace-tree-row > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-workspace-create { margin: 0; flex-direction: column; align-items: stretch; }
+.board-workspace-create input { min-width: 0; padding-inline: 8px; }
+.board-workspace-create p { margin: 4px 0; overflow-wrap: anywhere; }
+.board-workspace-canvas { flex: 1; min-height: 0; min-width: 0; position: relative; }
+.board-workspace-menu { position: fixed; z-index: 60; }
+.board-workspace-error { position: absolute; z-index: 50; top: 80px; right: 20px; max-width: 600px; max-height: 45%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,4 +1,5 @@
 import type { BoardmarkDocumentBridge } from '@boardmark/canvas-repository'
+import { BoardWorkspace } from './BoardWorkspace'
 import {
   CanvasApp,
   EMPTY_CANVAS_SOURCE,
@@ -153,11 +154,18 @@ type AppProps = {
 export function App({ store = defaultCanvasStore }: AppProps) {
   return (
     <MarkdownContentImageActionsProvider actions={fencedBlockImageActions}>
-      <CanvasApp
-        store={store}
-        capabilities={desktopCapabilities}
-        imageExportBridge={fallbackBridge.imageExports}
-      />
+      {window.boardmarkFiles ? (
+        <BoardWorkspace
+          bridge={window.boardmarkFiles}
+          imageExportBridge={fallbackBridge.imageExports}
+        />
+      ) : (
+        <CanvasApp
+          store={store}
+          capabilities={desktopCapabilities}
+          imageExportBridge={fallbackBridge.imageExports}
+        />
+      )}
     </MarkdownContentImageActionsProvider>
   )
 }
