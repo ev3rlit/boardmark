@@ -161,6 +161,7 @@ export type CanvasSmartGuidesState = {
 }
 
 export type CanvasStoreOptions = {
+  documentService?: import('@canvas-app/services/canvas-document-service').CanvasDocumentService
   editingService?: import('@canvas-app/services/canvas-editing-service').CanvasEditingService
   documentPicker: CanvasDocumentPicker
   documentRepository: CanvasDocumentRepositoryGateway

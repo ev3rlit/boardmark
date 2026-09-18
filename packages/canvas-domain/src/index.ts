@@ -55,6 +55,7 @@ export type CanvasObjectColorDefaults = {
 }
 
 export type CanvasDirectiveSourceMap = {
+  bodyEncoding?: 'json-string'
   objectRange: CanvasSourceRange
   headerLineRange: CanvasSourceRange
   metadataRange?: CanvasSourceRange

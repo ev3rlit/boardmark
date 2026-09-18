@@ -30,6 +30,7 @@ export function readActiveToolMode(
 }
 
 export function createCanvasStore({
+  documentService: suppliedDocumentService,
   documentPicker,
   documentRepository,
   documentPersistenceBridge,
@@ -39,7 +40,7 @@ export function createCanvasStore({
 }: CanvasStoreOptions) {
   let disposeExternalChanges: (() => void) | null = null
 
-  const documentService = createCanvasDocumentService({
+  const documentService = suppliedDocumentService ?? createCanvasDocumentService({
     documentPicker,
     documentRepository,
     documentPersistenceBridge,

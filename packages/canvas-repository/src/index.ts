@@ -31,7 +31,10 @@ export type CanvasDocumentRecord = {
   ast: CanvasAST
   issues: CanvasParseIssue[]
   isTemplate: boolean
-}
+} & (
+  | { storageFormat?: undefined; boardFile?: never }
+  | { storageFormat: 'boardmark'; boardFile: import('../../canvas-domain/src/board-file.generated').BoardFile }
+)
 
 export type CanvasDocumentSourceInput = {
   locator: CanvasDocumentLocator

@@ -13,6 +13,10 @@ export type PreparedCanvasImageAsset = {
   bytes: Uint8Array
 }
 
+export async function readReferencedImageSize(blob: Blob) {
+  return await readImageIntrinsicSize(blob) ?? DEFAULT_IMPORTED_IMAGE_SIZE
+}
+
 export async function prepareCanvasImageAsset(input: {
   blob: Blob
   fileName: string

@@ -18,7 +18,8 @@ import type { CanvasImageAssetBridge } from '@canvas-app/document/canvas-image-a
 import {
   fitCanvasImageSize,
   normalizeAssetFileName,
-  prepareCanvasImageAsset
+  prepareCanvasImageAsset,
+  readReferencedImageSize
 } from '@canvas-app/services/canvas-image-service'
 import { writePlainTextToClipboard } from '@canvas-app/services/plain-text-clipboard'
 import {
@@ -30,6 +31,7 @@ import {
   type CanvasHistoryService
 } from '@canvas-app/services/canvas-history-service'
 import { createCanvasDocumentRecordPatch, createCanvasInvalidDocumentPatch } from '@canvas-app/store/canvas-store-projection'
+import { createCanvasDocumentState } from '@canvas-app/document/canvas-document-state'
 import type {
   CanvasConflictService,
   CanvasConflictOutcome
@@ -162,6 +164,28 @@ function applyDocumentCommandResult({
   }
 
   if (result.status === 'saved') {
+    if (result.record.storageFormat === 'boardmark') {
+      const current = get()
+      if (current.document?.locator.kind !== 'file' || current.document.locator.path !== result.path) {
+        return
+      }
+      if (current.draftSource !== result.record.source && current.documentState) {
+        const documentState = createCanvasDocumentState({
+          record: current.document,
+          isPersisted: true,
+          currentSource: current.draftSource ?? current.document.source,
+          persistedSnapshotSource: result.record.source
+        })
+        set({
+          documentState,
+          persistedSnapshotSource: result.record.source,
+          isDirty: documentState.isDirty,
+          lastSavedAt: result.savedAt,
+          saveState: { status: 'saved', path: result.path }
+        })
+        return
+      }
+    }
     logCanvasDiagnostic('debug', 'Canvas document state updated after save.', {
       path: result.path
     })
@@ -368,6 +392,10 @@ async function schedulePersistedAutosave({
   set: CanvasStoreSetState
 }) {
   const state = get()
+
+  if (state.document?.storageFormat === 'boardmark') {
+    return
+  }
 
   if (!state.document || !state.documentState?.isPersisted || !state.isDirty || state.conflictState.status === 'conflict') {
     logCanvasDiagnostic('debug', 'Skipped persisted autosave because the current state is not autosave-eligible.', {
@@ -2663,6 +2691,19 @@ async function importPreparedImageAsset({
 
   if (!persistedState?.document || !persistedState.documentState) {
     return null
+  }
+
+  if (services.imageAssetBridge.referenceImageFile) {
+    const reference = await services.imageAssetBridge.referenceImageFile({
+      document: persistedState.document,
+      file
+    })
+    if (!reference.ok) {
+      set({ operationError: reference.error.message })
+      return null
+    }
+    const size = await readReferencedImageSize(file)
+    return { alt: '', src: reference.value.src, ...size }
   }
 
   const prepared = await prepareCanvasImageAsset({

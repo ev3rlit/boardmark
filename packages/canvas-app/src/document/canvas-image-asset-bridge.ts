@@ -31,6 +31,10 @@ export type CanvasImageAssetResolvePayload = {
 }
 
 export type CanvasImageAssetBridge = {
+  referenceImageFile?: (input: {
+    document: CanvasDocumentRecord
+    file: File
+  }) => Promise<AsyncResult<CanvasImageAssetImportPayload, CanvasImageAssetError>>
   ensureDocumentAssetAccess?: (
     input: {
       document: CanvasDocumentRecord

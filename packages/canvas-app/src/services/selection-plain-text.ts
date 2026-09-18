@@ -83,7 +83,7 @@ function readObjectBodyText(
   draftSource: string | null,
   object: SelectedCanvasObject
 ) {
-  if (!draftSource) {
+  if (!draftSource || object.sourceMap.bodyEncoding === 'json-string') {
     return object.body ?? ''
   }
 
