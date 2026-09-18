@@ -21,7 +21,7 @@ corepack pnpm dev:api
 corepack pnpm dev:web
 ```
 
-[로컬 웹](http://127.0.0.1:5173)을 열고 API 주소 `/api`, `.boardmark/access-token` 파일의 값을 입력합니다. API는 기본적으로 `127.0.0.1:4317`에서만 실행합니다. 문서·첨부·이력은 `.boardmark/boardmark.sqlite`에 저장됩니다. 토큰은 해당 브라우저 탭의 세션 저장소에 보관합니다.
+[로컬 웹](http://127.0.0.1:5317)을 열고 API 주소 `/api`, `.boardmark/access-token` 파일의 값을 입력합니다. API는 기본적으로 `127.0.0.1:4317`에서만 실행합니다. 문서·첨부·이력은 `.boardmark/boardmark.sqlite`에 저장됩니다. 토큰은 해당 브라우저 탭의 세션 저장소에 보관합니다.
 
 ## AI CLI
 

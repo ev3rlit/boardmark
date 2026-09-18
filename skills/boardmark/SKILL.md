@@ -38,7 +38,7 @@ Assume the `boardmark` CLI is already installed and available on `PATH`. Do not 
 
 The default local API connection is:
 
-- Web: `http://127.0.0.1:5173`
+- Web: `http://127.0.0.1:5317`
 - API: `http://127.0.0.1:4317/api`
 - Data directory: `.boardmark`
 - Access token: `.boardmark/access-token`

@@ -13,7 +13,7 @@ if (token.length < 32) throw new Error('BOARDMARK_TOKEN은 최소 32자여야 �
 const port = Number(process.env.BOARDMARK_PORT ?? 4317)
 const host = process.env.BOARDMARK_HOST ?? '127.0.0.1'
 const database = new BoardDatabase(resolve(dataDirectory, 'boardmark.sqlite'))
-const origins = (process.env.BOARDMARK_ORIGINS ?? 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173').split(',')
+const origins = (process.env.BOARDMARK_ORIGINS ?? 'http://127.0.0.1:5317,http://localhost:5317,http://127.0.0.1:4173,http://localhost:4173').split(',')
 const server = createApiServer({ database, token, origins })
 server.listen(port, host, () => {
   console.log(`Boardmark API: http://${host}:${port}/api`)

@@ -6,7 +6,7 @@ const executable = process.env.BOARDMARK_BROWSER_CLI
 if (!executable) throw new Error('BOARDMARK_BROWSER_CLI에 agent-browser 실행 파일 경로를 지정하세요.')
 const run = async (...args) => (await promisify(execFile)(executable, ['--session', 'boardmark-perf', ...args], { maxBuffer: 4_000_000, timeout: 60_000 })).stdout.trim()
 const clickButton = name => run('find', 'role', 'button', 'click', '--name', name, '--exact')
-await run('open', 'http://127.0.0.1:5173')
+await run('open', 'http://127.0.0.1:5317')
 await run('set', 'viewport', '1280', '900')
 const snapshot = await run('snapshot', '-i')
 if (snapshot.includes('접근 토큰')) {

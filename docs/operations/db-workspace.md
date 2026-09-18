@@ -9,7 +9,7 @@
 | BOARDMARK_DATA_DIR | `.boardmark`; DB와 토큰 위치 |
 | BOARDMARK_HOST, BOARDMARK_PORT | `127.0.0.1`, `4317` |
 | BOARDMARK_TOKEN | 미설정이면 데이터 폴더의 생성된 접근 토큰 사용 |
-| BOARDMARK_ORIGINS | localhost/127.0.0.1의 웹 5173·preview 4173; 쉼표 구분 정확한 Origin |
+| BOARDMARK_ORIGINS | localhost/127.0.0.1의 웹 5317·preview 4173; 쉼표 구분 정확한 Origin |
 | BOARDMARK_API_PROXY | 웹 dev/preview 프록시 대상 `http://127.0.0.1:4317` |
 | BOARDMARK_API_URL | CLI API 주소 `http://127.0.0.1:4317/api` |
 | BOARDMARK_TOKEN_FILE | CLI 토큰 파일 `.boardmark/access-token` |
