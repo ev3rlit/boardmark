@@ -1,6 +1,8 @@
 # Boardmark Architecture
 
-기본 제품은 DB 관리 웹 모드다. 기존 파일 모드와 저장 소유권을 분리한다. 이유와 보존 범위는 [DB Markdown API 설계](db-markdown-api.md), 실행·복구는 [운영 안내](../operations/db-workspace.md)를 따른다.
+웹 호스트의 기존 DB Markdown 모드와 desktop의 파일 보드는 저장 소유권을 분리한다. 아래 DB 구조의 이유와 보존 범위는 [DB Markdown API 설계](db-markdown-api.md), 실행·복구는 [DB 운영 안내](../operations/db-workspace.md)를 따른다.
+
+desktop 파일 보드는 `.boardmark` 파일을 영속 원본으로 사용한다. [JSON Schema](../../schemas/boardmark.schema.json)가 포맷 계약이며 읽기·편집·저장에 적용된다. JSON 전용 편집 명령과 장면 투영으로 기존 화이트보드 UI를 재사용하고, 기존 Markdown 파서를 통하지 않는다. 사용과 검증 범위는 [파일 보드 안내](../operations/file-boards.md)를 따른다.
 
 ```mermaid
 flowchart LR
