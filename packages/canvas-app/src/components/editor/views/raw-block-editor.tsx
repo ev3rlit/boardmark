@@ -25,7 +25,7 @@ type RawBlockSourceKind = 'code' | 'html' | 'special'
 
 export function buildRawBlockSourceAttributes(
   sourceKind: RawBlockSourceKind,
-  specialBlockKind?: 'mermaid' | 'sandpack'
+  specialBlockKind?: 'mermaid' | 'sandpack' | 'openapi'
 ) {
   return {
     [RAW_BLOCK_SOURCE_ATTRIBUTE]: sourceKind,

@@ -1,0 +1,57 @@
+openapi: 3.1.1
+info:
+  title: 반려동물 API
+  version: '1.0'
+  description: 반려동물을 조회하고 등록하는 설계 예제입니다.
+paths:
+  /pets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PetId'
+    get:
+      summary: 반려동물 조회
+      responses:
+        '200':
+          description: 반려동물 정보
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          description: 반려동물을 찾을 수 없음
+  /pets:
+    post:
+      operationId: createPet
+      summary: 반려동물 등록
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+      responses:
+        '201':
+          description: 등록 완료
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+components:
+  parameters:
+    PetId:
+      name: id
+      in: path
+      required: true
+      description: 반려동물 식별자
+      schema:
+        type: integer
+  schemas:
+    Pet:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: 반려동물 이름
+        parent:
+          description: 부모 정보. 같은 Pet 구조를 참조합니다.
+          $ref: '#/components/schemas/Pet'

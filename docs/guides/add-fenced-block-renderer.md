@@ -117,6 +117,9 @@ const registry = {
 
 ## 참고
 
+- OpenAPI 사용법과 지원 범위: [보드에서 OpenAPI 읽기와 수정](openapi-block.md)
+- 프로덕션 WYSIWYG 편집기는 특수 블록 종류를 별도로 인식한다. 상호작용하는 새 렌더러는 `wysiwyg-markdown-bridge.tsx`와 원본 편집 진입 동작도 확인한다. 렌더러 등록만으로 편집기 계약까지 확장되지는 않는다.
+
 - 파이프라인 설계 결정: [`docs/adr/001-fenced-block-renderer-pipeline.md`](../adr/001-fenced-block-renderer-pipeline.md)
 - 기존 구현 예시: [`packages/ui/src/components/mermaid-diagram.tsx`](../../packages/ui/src/components/mermaid-diagram.tsx)
 - 레지스트리: [`packages/ui/src/components/fenced-block/registry.ts`](../../packages/ui/src/components/fenced-block/registry.ts)

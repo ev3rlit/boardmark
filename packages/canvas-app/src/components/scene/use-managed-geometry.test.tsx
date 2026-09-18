@@ -37,6 +37,22 @@ async function setup() {
 }
 
 describe('자동 편집권 드래그', () => {
+  it('OpenAPI 문서를 탐색하거나 텍스트를 선택할 때 노트를 이동하지 않는다', async () => {
+    const test = await setup()
+    const preview = document.createElement('section')
+    preview.className = 'openapi-block'
+    const summary = document.createElement('summary')
+    summary.textContent = 'GET /pets'
+    preview.append(summary)
+    test.node.append(preview)
+    test.pointer(summary, 'pointerdown', 100, 100)
+    test.pointer(window, 'pointermove', 140, 150)
+    test.pointer(window, 'pointerup', 140, 150)
+    expect(test.begin).not.toHaveBeenCalled()
+    expect(test.commit).not.toHaveBeenCalled()
+    expect(test.preview).not.toHaveBeenCalled()
+  })
+
   it('첫 포인터 이동에서 즉시 미리보기만 바꾸고 승인 후에만 저장한다', async () => {
     const test = await setup()
     test.pointer(test.node, 'pointerdown', 100, 100)

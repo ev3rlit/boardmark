@@ -72,7 +72,7 @@ export function readEditorDerivedBlockMode(
 
     return {
       status: 'special-fenced-source',
-      blockKind: blockKind === 'sandpack' ? 'sandpack' : 'mermaid'
+      blockKind: blockKind === 'openapi' ? 'openapi' : blockKind === 'sandpack' ? 'sandpack' : 'mermaid'
     }
   }
 

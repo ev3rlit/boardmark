@@ -12,6 +12,11 @@ export type FencedBlockDescriptor = {
 // 최종 목표는 Option D (React Context 레지스트리)로의 전환.
 // 전환 트리거: web/desktop 렌더러 집합 분기, 렌더러 5개 초과, 앱 레벨 lazy 제어 필요 시.
 const registry: Record<string, FencedBlockDescriptor> = {
+  openapi: {
+    renderer: lazy(() =>
+      import('../openapi-block').then((m) => ({ default: m.OpenApiBlock }))
+    )
+  },
   mermaid: {
     imageExportKind: 'mermaid',
     renderer: lazy(() =>

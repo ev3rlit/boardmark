@@ -55,7 +55,7 @@ export function useManagedGeometry(root: MutableRefObject<HTMLDivElement | null>
       if (event.button !== 0 || gesture || finishing || !(event.target instanceof Element)) return
       const state = store.getState()
       if (state.toolMode !== 'select' || state.editingState.status !== 'idle' || state.temporaryPanState !== 'inactive') return
-      if (event.target.closest('input,textarea,button,a,[contenteditable="true"],.react-flow__handle')) return
+      if (event.target.closest('input,textarea,button,a,[contenteditable="true"],.react-flow__handle,.openapi-block')) return
       const nodeElement = event.target.closest<HTMLElement>('.react-flow__node')
       const id = nodeElement?.dataset.id
       if (!id || isNodeLocked(state, id)) return

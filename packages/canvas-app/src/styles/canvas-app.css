@@ -1006,6 +1006,21 @@ button {
   color: inherit;
 }
 
+.canvas-wysiwyg-openapi-source-button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.canvas-wysiwyg-openapi-source-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
 .markdown-content :where(.mermaid-diagram) {
   position: relative;
   margin: 0 0 calc(0.85rem * var(--markdown-scale));

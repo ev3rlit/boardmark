@@ -48,7 +48,7 @@ export type CanvasEditingBlockMode =
   | { status: 'none' }
   | { status: 'code-fenced-source' }
   | {
-      blockKind: 'mermaid' | 'sandpack'
+      blockKind: 'mermaid' | 'sandpack' | 'openapi'
       status: 'special-fenced-source'
     }
   | { status: 'html-fallback' }

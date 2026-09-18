@@ -141,6 +141,66 @@ const CANONICAL_CODE_BLOCK_SPACING_MARKDOWN = `\`\`\`bash
 next`
 
 describe('WysiwygMarkdownBridge', () => {
+  it('preserves OpenAPI source and exposes editing even for invalid specifications', async () => {
+    const markdown = '```openapi\nopenapi: [\n```'
+    const bridge = createWysiwygMarkdownBridge()
+    expect(bridge.roundTrip(markdown)).toBe(markdown)
+    render(<SurfaceHarness markdown={markdown} />)
+    fireEvent.click(screen.getByRole('button', { name: 'OpenAPI 원본 편집' }))
+    const source = await screen.findByRole('textbox', { name: 'Code block markdown' })
+    fireEvent.change(source, { target: { value: '```openapi\nopenapi: 3.1.1\ninfo: {title: Pets, version: "1"}\npaths: {}\n```' } })
+    expect(screen.getByTestId('markdown-value').textContent).toContain('title: Pets')
+    fireEvent.keyDown(source, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Code block markdown' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'OpenAPI 원본 편집' })).toBeVisible()
+  })
+
+  it('promotes the OpenAPI opening fence using the existing special block path', () => {
+    const editor = createTransientWysiwygEditor('')
+    try {
+      editor.commands.insertContent('```openapi')
+      expect(editor.state.doc.firstChild?.type.name).toBe('wysiwygSpecialFencedBlock')
+      expect(editor.state.doc.firstChild?.attrs.kind).toBe('openapi')
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('turns an edited ordinary code fence into a navigable OpenAPI preview on blur', async () => {
+    render(<SurfaceHarness markdown={'```yaml\npaths: {}\n```'} />)
+    const source = await openCodeBlockEditor('```yaml')
+    fireEvent.change(source, { target: { value: '```openapi\npaths: {}\n```' } })
+    fireEvent.blur(source)
+    expect(await screen.findByRole('button', { name: 'OpenAPI 원본 편집' })).toBeVisible()
+    expect(screen.getByTestId('markdown-value').textContent).toContain('```openapi')
+  })
+
+  it('pastes a whole OpenAPI fence as one special block and leaves ordinary text alone', () => {
+    const editor = createTransientWysiwygEditor('')
+    try {
+      const markdown = '```openapi\n{"openapi":"3.1.1","info":{"title":"Pets","version":"1"},"paths":{}}\n```'
+      function paste(text: string) {
+        const event = new Event('paste', { bubbles: true, cancelable: true })
+        Object.defineProperty(event, 'clipboardData', { value: { getData: () => text } })
+        let handled = false
+        editor.view.someProp('handlePaste', (handler) => {
+          if (handler(editor.view, event as ClipboardEvent, editor.state.selection.content())) {
+            handled = true
+            return true
+          }
+          return false
+        })
+        return handled
+      }
+      expect(paste('ordinary text')).toBe(false)
+      expect(paste(markdown)).toBe(true)
+      expect(editor.state.doc.firstChild?.type.name).toBe('wysiwygSpecialFencedBlock')
+      expect(editor.getMarkdown()).toContain(markdown)
+    } finally {
+      editor.destroy()
+    }
+  })
+
   it('round-trips bold inline code without collapsing the code mark into literal asterisks', () => {
     const bridge = createWysiwygMarkdownBridge()
 

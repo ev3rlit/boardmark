@@ -33,7 +33,7 @@ export function SpecialFencedBlockView(
   props: NodeViewProps & { callbacks?: SpecialBlockCallbacks }
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const kind = String(props.node.attrs.kind ?? 'mermaid') as 'mermaid' | 'sandpack'
+  const kind = String(props.node.attrs.kind ?? 'mermaid') as 'mermaid' | 'sandpack' | 'openapi'
   const openingFence = String(props.node.attrs.openingFence ?? `\`\`\`${kind}`)
   const source = String(props.node.attrs.source ?? '')
   const closingFence = String(props.node.attrs.closingFence ?? '```')
@@ -99,11 +99,26 @@ export function SpecialFencedBlockView(
         <div
           className="canvas-wysiwyg-code-block__preview nodrag nopan"
           onMouseDown={(event) => {
+            if (kind === 'openapi') return
             event.preventDefault()
             setIsEditing(true)
             requestRawBlockSourceEntry(props)
           }}
         >
+          {kind === 'openapi' && (
+            <button
+              type="button"
+              className="canvas-wysiwyg-openapi-source-button"
+              contentEditable={false}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setIsEditing(true)
+                requestRawBlockSourceEntry(props)
+              }}
+            >
+              OpenAPI 원본 편집
+            </button>
+          )}
           <MarkdownContent content={ensurePreviewMarkdown(rawMarkdown)} />
         </div>
       )}
@@ -118,7 +133,7 @@ function updateSpecialBlockMarkdown(
   const parsedMarkdown = parseRawFencedMarkdown(rawMarkdown)
   const language = readOpeningCodeFenceLanguage(parsedMarkdown.openingFence)
 
-  if (language === 'mermaid' || language === 'sandpack') {
+  if (language === 'mermaid' || language === 'sandpack' || language === 'openapi') {
     const normalizedSandpack = language === 'sandpack'
       ? normalizeSandpackBlock(parsedMarkdown)
       : parsedMarkdown

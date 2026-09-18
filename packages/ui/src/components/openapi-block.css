@@ -1,0 +1,31 @@
+.openapi-block {
+  color: var(--color-on-surface, #2b3437);
+  background: var(--color-surface, #f8f9fa);
+  border-radius: 12px;
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.openapi-block h3 { font-size: 22px; line-height: 1.25; margin: 8px 0 12px; }
+.openapi-block h4 { font-size: 13px; margin: 20px 0 8px; }
+.openapi-block p { margin: 8px 0; white-space: pre-wrap; }
+.openapi-block__eyebrow { color: var(--color-on-surface-variant, #586064); font-size: 11px; letter-spacing: .06em; }
+.openapi-block__search { display: grid; gap: 8px; margin: 24px 0 16px; }
+.openapi-block__search input { width: 100%; min-width: 0; box-sizing: border-box; background: var(--color-surface-high, #e3e9ec); color: inherit; border: 0; border-radius: 8px; padding: 10px 12px; font: inherit; }
+.openapi-block summary { cursor: pointer; padding: 8px 0; }
+.openapi-block summary:focus-visible, .openapi-block input:focus-visible { outline: 2px solid var(--color-primary, #6042d6); outline-offset: 3px; }
+.openapi-block__operations { max-height: 560px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.openapi-block__operation { background: var(--color-surface-lowest, #fff); padding: 8px 12px; margin: 8px 0; border-radius: 8px; }
+.openapi-block__method { color: var(--color-primary, #6042d6); font-weight: 800; font-size: 11px; margin: 0 10px 0 4px; }
+.openapi-block__summary { display: block; margin: 4px 0 0 18px; color: var(--color-on-surface-variant, #586064); }
+.openapi-block__body { padding: 0 4px 12px; }
+.openapi-block__detail > div { padding-left: 12px; }
+.openapi-block__value { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; }
+.openapi-block__value span { white-space: pre-wrap; }
+.openapi-block__value strong { font-weight: 600; }
+.openapi-block aside { background: var(--color-surface-low, #f1f4f6); padding: 8px 12px; margin: 12px 0; border-radius: 8px; }
+.openapi-block__source { margin-top: 16px; color: var(--color-on-surface-variant, #586064); }
+.openapi-block__source pre { max-height: 300px; overflow: auto; white-space: pre-wrap; font-size: 12px; }

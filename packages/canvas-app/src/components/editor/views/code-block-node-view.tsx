@@ -1,7 +1,9 @@
 import { useRef } from 'react'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper } from '@tiptap/react'
+import { NodeSelection } from '@tiptap/pm/state'
 import { MarkdownContent } from '@boardmark/ui'
+import { readOpeningCodeFenceLanguage } from '@canvas-app/markdown/fenced-block-guards'
 import {
   buildRawFencedMarkdown,
   parseRawFencedMarkdown
@@ -62,6 +64,16 @@ export function CodeBlockNodeView(
             value={rawMarkdown}
             onBlur={() => {
               setIsEditing(false)
+              const parsed = parseRawFencedMarkdown(rawMarkdown)
+              const position = readNodePosition(props)
+              if (readOpeningCodeFenceLanguage(parsed.openingFence) === 'openapi' && position !== null) {
+                props.editor.commands.command(({ tr }) => {
+                  tr.replaceRangeWith(position, position + props.node.nodeSize,
+                    props.editor.schema.nodes.wysiwygSpecialFencedBlock.create({ ...parsed, kind: 'openapi' }))
+                  tr.setSelection(NodeSelection.create(tr.doc, position))
+                  return true
+                })
+              }
             }}
             onChange={(event) => {
               props.updateAttributes(parseRawFencedMarkdown(event.target.value))

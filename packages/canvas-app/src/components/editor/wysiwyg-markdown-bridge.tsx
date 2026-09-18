@@ -639,7 +639,7 @@ const WysiwygCodeBlock = Node.create({
   parseMarkdown(token, helpers) {
     const codeToken = token as MarkdownCodeToken
 
-    if (codeToken.lang === 'mermaid' || codeToken.lang === 'sandpack') {
+    if (codeToken.lang === 'mermaid' || codeToken.lang === 'sandpack' || codeToken.lang === 'openapi') {
       return []
     }
 
@@ -679,7 +679,7 @@ const WysiwygCodeBlock = Node.create({
 
           const insertPosition = $from.before()
           const specialNodeType = newState.schema.nodes.wysiwygSpecialFencedBlock
-          const replacementNode = language === 'mermaid' || language === 'sandpack'
+          const replacementNode = language === 'mermaid' || language === 'sandpack' || language === 'openapi'
             ? specialNodeType?.create({
                 kind: language,
                 ...(language === 'sandpack'
@@ -756,7 +756,7 @@ const WysiwygSpecialFencedBlock = Node.create({
   parseMarkdown(token, helpers) {
     const codeToken = token as MarkdownCodeToken
 
-    if (codeToken.lang !== 'mermaid' && codeToken.lang !== 'sandpack') {
+    if (codeToken.lang !== 'mermaid' && codeToken.lang !== 'sandpack' && codeToken.lang !== 'openapi') {
       return []
     }
 
@@ -783,6 +783,28 @@ const WysiwygSpecialFencedBlock = Node.create({
       closingFence: String(node.attrs?.closingFence ?? '```')
     })
   },
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      props: {
+        handlePaste: (view, event) => {
+          // Only a complete, single OpenAPI fence is handled here. Other paste
+          // formats retain the editor's existing behavior.
+          const source = event.clipboardData?.getData('text/plain').trim()
+          if (!source) return false
+          const match = /^(`{3,})openapi[ \t]*\r?\n([\s\S]*?)\r?\n\1[ \t]*$/.exec(source)
+          if (!match || match[2].split(/\r?\n/).some((line) => /^`{3,}\s*$/.test(line))) return false
+          const node = this.type.create({
+            kind: 'openapi',
+            openingFence: `${match[1]}openapi`,
+            source: match[2],
+            closingFence: match[1]
+          })
+          view.dispatch(view.state.tr.replaceSelectionWith(node).scrollIntoView())
+          return true
+        }
+      }
+    })]
+  },
   addKeyboardShortcuts() {
     return {
       Enter: () => {
@@ -795,7 +817,7 @@ const WysiwygSpecialFencedBlock = Node.create({
 
         const kind = readOpeningCodeFenceLanguage($from.parent.textContent)
 
-        if ((kind !== 'mermaid' && kind !== 'sandpack') || $from.parentOffset !== $from.parent.content.size) {
+        if ((kind !== 'mermaid' && kind !== 'sandpack' && kind !== 'openapi') || $from.parentOffset !== $from.parent.content.size) {
           return false
         }
 
@@ -838,7 +860,7 @@ function createCanonicalSandpackBlockAttributes(source: string) {
 }
 
 function createSpecialBlockAttributes(
-  kind: 'mermaid' | 'sandpack',
+  kind: 'mermaid' | 'sandpack' | 'openapi',
   source: string,
   openingFence = `\`\`\`${kind}`,
   closingFence = '```'
